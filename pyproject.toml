@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "fit_changedetector"
+dynamic = ["version"]
+readme = "README.md"
+authors = [
+  {name="Simon Norris", email="snorris@hillcrestgeo.ca"},
+]
+description = "Download open data, monitor and report on changes"
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Programming Language :: Python :: 3.9",
+    "License :: OSI Approved :: Apache Software License",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Operating System :: OS Independent"
+]
+dependencies = [
+  "click",
+  "geopandas",
+]
+
+[project.optional-dependencies]
+test = [
+  "pytest",
+  "build",
+  "pre-commit"
+]
+
+[project.scripts]
+changedetector = "fit_changedetector.cli:changedetector"
+
+[project.urls]
+Homepage = "https://github.com/bcgov/fit_changedetector"
+Issues = "https://github.com/bcgov/fit_changedetector"
+
+[tool.hatch.version]
+path = "src/fit_changedetector/__init__.py"
