@@ -36,9 +36,7 @@ GeoBC Foundational Information and Technology (FIT) Section tool for reporting o
 
 ## Development and testing
 
-### virtual environment
-
-Using GDAL on your system:
+Presuming that GDAL is already installed to your system:
 
 	$ git clone git@github.com:bcgov/FIT_changedetector.git
 	$ cd FIT_changedetector
@@ -46,17 +44,3 @@ Using GDAL on your system:
 	$ source .venv/bin/activate
 	$ pip install -e .[test]
 	(.venv) $ py.test
-
-### Dockerized environment
-
-Using GDAL on a docker image:
-
-To build:
-
-	$ git clone git@github.com:bcgov/FIT_changedetector.git
-	$ cd FIT_changedetector
-	$ docker build -t fit_changedetector .
-
-Drop in to a bash session:
-
-	$ docker run --rm -it -v ./:/home/fit_changedetector fit_changedetector  bash
