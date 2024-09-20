@@ -1,0 +1,31 @@
+name: Test
+on:
+  push:
+    branches: [ main]
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'requirements*.txt'
+      - 'src/fit_changedetector/**'
+      - 'tests/**'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - '.github/workflows/test.yaml'
+      - 'requirements*.txt'
+      - 'src/fit_changedetector/**'
+      - 'tests/**'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: test
+    container: ghcr.io/bcgov/fit_changedetector:main
+    env:
+        DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install with test dependencies
+        run: |
+          python -m pip install -e .[test]
+      - name: Run tests
+        run: |
+          python -m pytest -v -rxXs
