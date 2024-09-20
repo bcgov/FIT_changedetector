@@ -30,7 +30,6 @@ jobs:
           - python-version: '3.12'
             gdal-version: '3.9.2'
     steps:
-steps:
       - uses: actions/checkout@v4.1.3
 
       - name: Update
