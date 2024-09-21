@@ -1,6 +1,6 @@
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "fit_changedetector"
@@ -38,5 +38,5 @@ changedetector = "fit_changedetector.cli:changedetector"
 Homepage = "https://github.com/bcgov/fit_changedetector"
 Issues = "https://github.com/bcgov/fit_changedetector"
 
-[tool.hatch.version]
-path = "src/fit_changedetector/__init__.py"
+[tool.setuptools.dynamic]
+version = {attr = "fit_changedetector.__version__"}
