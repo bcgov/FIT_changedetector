@@ -36,5 +36,5 @@ Presuming that GDAL is already installed to your system:
 	$ git clone git@github.com:bcgov/FIT_changedetector.git
 	$ cd FIT_changedetector
 	$ python -m venv .venv
-	$ source .venv/bin/activate]
+	$ source .venv/bin/activate
 	(.venv) $ py.test
