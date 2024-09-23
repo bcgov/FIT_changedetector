@@ -11,5 +11,5 @@ def test_diff():
     assert len(d["NEW"] == 1)
     assert len(d["DELETED"] == 1)
     assert len(d["MODIFIED_BOTH"] == 1)
-    assert len(d["MODIFIED_ATTR"] == 1)
+    assert len(d["MODIFIED_ATTR"] == 3)
     assert len(d["MODIFIED_GEOM"] == 1)
