@@ -10,12 +10,12 @@ GeoBC Foundational Information and Technology (FIT) Section tool for reporting o
 #### Python module
 
 	import geopandas
-	import fit_changedetector as fcd
+	from changedetector import gdf_diff
 
 	df_a = geopandas.read_file(in_file_a, layer=layer_a)
     df_b = geopandas.read_file(in_file_b, layer=layer_b)
 
-	diff = fcd.gdf_diff(
+	diff = gdf_diff(
         df_a,
         df_b,
         <primary_key>,
@@ -25,9 +25,9 @@ GeoBC Foundational Information and Technology (FIT) Section tool for reporting o
         suffix_b="b",
     )
 
-#### CLI
+#### Script
 
-	changedetector <dataset_a> <dataset_b> -k <primary_key>
+	python changedetector.py <dataset_a> <dataset_b> -k <primary_key>
 
 ## Development and testing
 
