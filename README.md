@@ -6,9 +6,14 @@ GeoBC Foundational Information and Technology (FIT) Section tool for reporting o
 
 ## Installation
 
+GDAL and Geopandas are required. If gdal and geopandas are already installed to your environment, install with pip:
+
 	git clone git@github.com:bcgov/FIT_changedetector.git
 	cd FIT_changedetector
 	pip install .
+
+For systems where gdal/geopandas are not already available, installing geopanadas with `conda` as per the [guide](https://geopandas.org/en/stable/getting_started/install.html#creating-a-new-environment) is likely the best option.
+
 
 ## Usage
 
