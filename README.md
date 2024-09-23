@@ -4,11 +4,6 @@
 
 GeoBC Foundational Information and Technology (FIT) Section tool for reporting on chages to geodata over time.
 
-## Installation
-
-	git clone git@github.com:bcgov/FIT_changedetector.git
-	cd FIT_changedetector
-	pip install .
 
 ## Usage
 
@@ -41,6 +36,5 @@ Presuming that GDAL is already installed to your system:
 	$ git clone git@github.com:bcgov/FIT_changedetector.git
 	$ cd FIT_changedetector
 	$ python -m venv .venv
-	$ source .venv/bin/activate
-	$ pip install -e .[test]
+	$ source .venv/bin/activate]
 	(.venv) $ py.test
