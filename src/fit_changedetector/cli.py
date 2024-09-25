@@ -22,8 +22,8 @@ def configure_logging(verbosity):
 @click.command()
 @click.argument("in_file_a", type=click.Path(exists=True))
 @click.argument("in_file_b", type=click.Path(exists=True))
-@click.option("--layer_a")
-@click.option("--layer_b")
+@click.option("--layer_a", help="Name of layer to use within in_file_a")
+@click.option("--layer_b", help="Name of layer to use within in_file_b")
 @click.option(
     "--fields",
     "-f",
@@ -46,7 +46,7 @@ def configure_logging(verbosity):
     "--precision",
     "-p",
     default=0.001,
-    help="Precision to use when comparing geometries",
+    help="Coordinate precision to use when comparing geometries (defaults to .001)",
 )
 @click.option(
     "--suffix_a",
