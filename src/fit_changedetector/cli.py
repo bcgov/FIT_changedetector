@@ -52,9 +52,10 @@ def cli():
 )
 @verbose_opt
 @quiet_opt
-def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column):
+def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column, verbose, quiet):
     """Add hash of input columns and geometry to new column
     """
+    configure_logging((verbose - quiet))
     df = geopandas.read_file(in_file, layer=layer)
     fields = fields.split(",")
     df = fcd.add_hash_key(df, hash_column, fields=fields, hash_geometry=True)
@@ -67,6 +68,7 @@ def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column):
         out_layer = layer
     elif not out_layer:
         raise ValueError(f"Output layer name is required if no input layer is specified")
+    LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_column}")
     df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
 
 
