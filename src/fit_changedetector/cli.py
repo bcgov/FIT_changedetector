@@ -155,8 +155,8 @@ def compare(
     hash_geometry = False
 
     # shortcuts to source layer paths for logging
-    src_a = os.path.join(in_file_a, layer_a)
-    src_b = os.path.join(in_file_a, layer_a)
+    src_a = os.path.join(in_file_a, layer_a or "")
+    src_b = os.path.join(in_file_a, layer_b or "")
     
     # is pk present and unique in both sources?
     if primary_key:
