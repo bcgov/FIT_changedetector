@@ -57,7 +57,13 @@ def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column, verbo
     """
     configure_logging((verbose - quiet))
     df = geopandas.read_file(in_file, layer=layer)
-    fields = fields.split(",")
+    # validate provide fields
+    if fields:
+        fields = fields.split(",")
+        for field in fields:
+            if field not in df.columns:
+                src = os.path.join(in_file, layer)
+                raise ValueError(f"Field {field} is not present in {src}")
     df = fcd.add_hash_key(df, hash_column, fields=fields, hash_geometry=True)
     # todo - support overwrite of existing files? appending to existing gdb?
     if os.path.exists(out_file):
