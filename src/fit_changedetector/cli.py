@@ -47,6 +47,7 @@ def cli():
 @click.option(
     "--hash-column",
     "-k",
+    default="fcd_hash_id",
     help="Name of new column containing hashed data",
 )
 @verbose_opt
@@ -60,6 +61,12 @@ def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column):
     # todo - support overwrite of existing files? appending to existing gdb?
     if os.path.exists(out_file):
         raise ValueError(f"Output file {out_file} exists.")
+    # default to naming output layer the same as input layer (if supplied)
+    if not out_layer and layer:
+        LOG.warning(f"No output layer name specified, using {layer}")
+        out_layer = layer
+    elif not out_layer:
+        raise ValueError(f"Output layer name is required if no input layer is specified")
     df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
 
 
