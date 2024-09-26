@@ -99,9 +99,15 @@ def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column, verbo
 )
 @click.option(
     "--primary-key",
-    "-k",
+    "-pk",
     multiple=True,
     help="Primary key column(s), common to both datasets",
+)
+@click.option(
+    "--hash-key",
+    "-hk",
+    default="fcd_hash_id",
+    help="Name of column to add as hash key",
 )
 @click.option(
     "--precision",
@@ -129,6 +135,7 @@ def compare(
     layer_a,
     layer_b,
     primary_key,
+    hash_key,
     fields,
     out_path,
     precision,
@@ -147,36 +154,31 @@ def compare(
     # default to not hashing geoms
     hash_geometry = False
 
-    # is pk present in both sources?
+    # shortcuts to source layer paths for logging
+    src_a = os.path.join(in_file_a, layer_a)
+    src_b = os.path.join(in_file_a, layer_a)
+    
+    # is pk present and unique in both sources?
     if primary_key:
         primary_key = list(primary_key)
         if not bool(set(primary_key) & set(df_a.columns)):
             raise ValueError(
-                f"Primary key {','.join(primary_key)} not present in {in_file_a}"
+                f"Primary key {','.join(primary_key)} not present in {src_a}"
             )
         if not bool(set(primary_key) & set(df_b.columns)):
             raise ValueError(
-                f"Primary key {','.join(primary_key)} not present in {in_file_b}"
+                f"Primary key {','.join(primary_key)} not present in {src_b}"
             )
-
-        # is pk unique in both sources? If not, warn and create hash key based on pk AND geom
-        if (len(df_a) != len(df_a[primary_key].drop_duplicates())) or (
-            len(df_b) != len(df_b[primary_key].drop_duplicates())
-        ):
-            LOG.warning(
-                f"Duplicate values exist for primary_key {primary_key}, appending geometry"
-            )
-            hash_geometry = True
-    
-    # if no pk supplied, simply hash on geometry
+        
+    # if no pk supplied, hash on geometry
     else:
         hash_geometry = True
 
     # add hashed key if using geometry or if supplied with multi column pk (for simplicity)
     if hash_geometry or len(primary_key) > 1:
-        LOG.info("Adding synthetic primary key to both sources as fc_id")
-        df_a = fcd.add_hash_key(df_a, columns=primary_key, new_column="fcd_id", hash_geometry=hash_geometry, precision=precision)
-        df_b = fcd.add_hash_key(df_b, columns=primary_key, new_column="fcd_id", hash_geometry=hash_geometry, precision=precision)
+        LOG.info(f"Adding hash key (synthetic primary key) to both sources as {hash_key}")
+        df_a = fcd.add_hash_key(df_a, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision)
+        df_b = fcd.add_hash_key(df_b, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision)
         primary_key = "fcd_id"
         dump_inputs_with_new_pk = True
     
@@ -184,6 +186,16 @@ def compare(
     else:
         primary_key = primary_key[0]
         dump_inputs_with_new_pk = False
+
+    # verify pk is unique in each source
+    if len(df_a) != len(df_a[[primary_key]].drop_duplicates()):
+        raise ValueError(
+            f"Primary key {primary_key} is not unique in {src_a}"
+        )
+    if len(df_b) != len(df_b[[primary_key]].drop_duplicates()):
+        raise ValueError(
+            f"Primary key {primary_key} is not unique in {src_b}"
+        )
 
     # if string of fields is provided, parse into list
     if fields:
