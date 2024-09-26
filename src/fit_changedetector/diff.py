@@ -28,9 +28,7 @@ def add_hash_key(df, new_field, fields=[], hash_geometry=True, precision=.01):
             .set_precision(precision, mode="pointwise")
         )
         fields = fields + ["geometry_normalized"]
-    else:
-        fields = ["geometry_normalized"]
-    
+        
     # add sha1 hash of provided fields
     df[new_field] = df[fields].apply(
         lambda x: hashlib.sha1(
