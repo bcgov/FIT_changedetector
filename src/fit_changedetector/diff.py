@@ -7,27 +7,42 @@ import fit_changedetector as fcd
 LOG = logging.getLogger(__name__)
 
 
-def add_synthetic_primary_key(df, columns, new_column):
-    """add a synthetic primary key to provided dataframe based on hash of input columns"""
+def add_hash_key(df, new_field, fields=[], hash_geometry=True, precision=.01):
+    """Add new column to input dataframe, containing hash of input columns and/or geometry
+    """
     # Fail if output column is already present in data
-    if new_column in df.columns:
+    if new_field in df.columns:
         raise ValueError(
-            f"column {new_column} is present in input dataset, use some other column name"
+            f"Field {new_field} is present in input dataset, use some other column name"
         )
-
-    # remove any duplicates
-    n_dups = len(df) - len(df.drop_duplicates(subset=columns))
-    if n_dups > 0:
-        LOG.warning(f"Dropping {n_dups} duplicate rows")
-        df = df.drop_duplicates(columns)
-
-    # add sha1 hash of provided columns
-    df[new_column] = df[columns].apply(
+    
+    # Fail if nothing provided to hash
+    if not fields and not hash_geometry:
+        raise ValueError(f"Nothing to hash, specify hash_geometry and/or columns to hash")
+    
+    # normalize geometry and reduce precision for more consistent comparisons
+    if hash_geometry:
+        df["geometry_normalized"] = (
+            df[df.geometry.name]
+            .normalize()
+            .set_precision(precision, mode="pointwise")
+        )
+        fields = fields + ["geometry_normalized"]
+    else:
+        fields = ["geometry_normalized"]
+    
+    # add sha1 hash of provided fields
+    df[new_field] = df[fields].apply(
         lambda x: hashlib.sha1(
             "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
         ).hexdigest(),
         axis=1,
     )
+
+    # remove normalized/reduced precision geometry
+    if hash_geometry:
+        df = df.drop(columns=['geometry_normalized'])
+
     return df
 
 

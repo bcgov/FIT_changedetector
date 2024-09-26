@@ -32,7 +32,7 @@ test = [
 ]
 
 [project.scripts]
-changedetector = "fit_changedetector.cli:changedetector"
+changedetector = "fit_changedetector.cli:cli"
 
 [project.urls]
 Homepage = "https://github.com/bcgov/fit_changedetector"
