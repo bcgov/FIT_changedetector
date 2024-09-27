@@ -67,7 +67,9 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, 
     src = os.path.join(in_file, in_layer)
     if hash_fields:
         hash_fields = hash_fields.split(",")
-        validate_fields(df, src, hash_fields)
+        for fieldname in hash_fields:
+            if fieldname not in df.columns:
+                raise ValueError(f"Field {fieldname} is not present in {src}")
     else:
         hash_fields = []
 
