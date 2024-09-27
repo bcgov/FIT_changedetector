@@ -8,7 +8,7 @@ import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
 
-
+    
 def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometry=True, precision=.01):
     """Add new column to input dataframe, containing hash of input columns and/or geometry
     """
@@ -39,7 +39,7 @@ def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometr
                 df = df[df.geometry.notnull()]
             else:
                 raise ValueError("Remove nulls from source dataset before re-processing")
-        
+            
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df["geometry_normalized"] = (
             df[df.geometry.name]
@@ -56,6 +56,13 @@ def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometr
         axis=1,
     )
 
+    # fail if hashes are not unique
+    if len(df) != len(df[new_field].drop_duplicates()):
+        if fields == ["geometry_normalized"]:
+            raise ValueError(f"Duplicate geometries are present in source, consider adding more columns to hash or editing data") 
+        else:
+            raise ValueError(f"Duplicate values for output hash are present, consider adding more columns to hash or editing data") 
+    
     # remove normalized/reduced precision geometry
     if hash_geometry:
         df = df.drop(columns=['geometry_normalized'])
@@ -67,7 +74,7 @@ def gdf_diff(
     df_a,
     df_b,
     primary_key,
-    fields=None,
+    fields=[],
     precision=.01,
     suffix_a="a",
     suffix_b="b",
