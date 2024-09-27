@@ -28,27 +28,27 @@ def cli():
 @cli.command()
 @click.argument("in_file", type=click.Path(exists=True))
 @click.argument("out_file")
-@click.option("--in_layer", help="Name of layer to add hashed primary key")
+@click.option("--in-layer", help="Name of layer to add hashed primary key")
 @click.option(
     "--out-layer",
     "-nln",
     help="Output layer name",
 )
 @click.option(
-    "--hash-column",
-    "-k",
+    "--hash-key",
+    "-hk",
     default="fcd_hash_id",
     help="Name of new column containing hashed data",
 )
 @click.option(
-    "--drop_null_geometry",
+    "--drop-null-geometry",
     "-d",
     is_flag=True,
     help="Drop records with null geometry",
 )
 @click.option(
-    "--fields",
-    "-f",
+    "--hash-fields",
+    "-hf",
     help="Comma separated list of fields to include in the hash (not including geometry)",
 )
 @click.option(
@@ -57,7 +57,7 @@ def cli():
 )
 @verbose_opt
 @quiet_opt
-def add_hash_key(in_file, out_file, in_layer, out_layer, hash_column, fields, drop_null_geometry, crs, verbose, quiet):
+def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, drop_null_geometry, crs, verbose, quiet):
     """Add hash of input columns and geometry to new column, write data to new file
     """
     configure_logging((verbose - quiet))
@@ -77,7 +77,7 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_column, fields, dr
     if crs:
         df = df.to_crs(crs)
 
-    df = fcd.add_hash_key(df, hash_column, fields=fields, hash_geometry=True, drop_null_geometry=drop_null_geometry)
+    df = fcd.add_hash_key(df, new_field=hash_key, fields=hash_fields, hash_geometry=True, drop_null_geometry=drop_null_geometry)
     
     # todo - support overwrite of existing files? appending to existing gdb?
     if os.path.exists(out_file):
@@ -90,15 +90,15 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_column, fields, dr
     elif not out_layer:
         raise ValueError(f"Output layer name is required if no input layer is specified")
     
-    LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_column}")
+    LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_key}")
     df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
 
 
 @cli.command()
 @click.argument("in_file_a", type=click.Path(exists=True))
 @click.argument("in_file_b", type=click.Path(exists=True))
-@click.option("--layer_a", help="Name of layer to use within in_file_a")
-@click.option("--layer_b", help="Name of layer to use within in_file_b")
+@click.option("--layer-a", help="Name of layer to use within in_file_a")
+@click.option("--layer-b", help="Name of layer to use within in_file_b")
 @click.option(
     "--fields",
     "-f",
@@ -121,28 +121,33 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_column, fields, dr
     "--hash-key",
     "-hk",
     default="fcd_hash_id",
-    help="Name of column to add as hash key",
+    help="Name of new column to add as hash key",
+)
+@click.option(
+    "--hash-fields",
+    "-hf",
+    help="Comma separated list of fields to include in the hash (in addition to geometry)",
 )
 @click.option(
     "--precision",
     "-p",
     default=0.01,
-    help="Coordinate precision to use when comparing geometries (defaults to .01)",
+    help="Coordinate precision for geometry hash and comparison. Default=0.01",
 )
 @click.option(
-    "--suffix_a",
+    "--suffix-a",
     "-a",
     default="a",
     help="Suffix to append to column names from data source A when comparing attributes",
 )
 @click.option(
-    "--suffix_b",
+    "--suffix-b",
     "-b",
     default="b",
     help="Suffix to append to column names from data source B when comparing attributes",
 )
 @click.option(
-    "--drop_null_geometry",
+    "--drop-null-geometry",
     "-d",
     is_flag=True,
     help="Drop records with null geometry",
@@ -214,9 +219,9 @@ def compare(
     # - hash with geometry if no primary key specified
     if hash_geometry or len(primary_key) > 1:
         LOG.info(f"Adding hashed key (synthetic primary key) to {src_a} as {hash_key}")
-        df_a = fcd.add_hash_key(df_a, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        df_a = fcd.add_hash_key(df_a, new_field=hash_key, fields=primary_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
         LOG.info(f"Adding hashed key (synthetic primary key) to {src_b} as {hash_key}")
-        df_b = fcd.add_hash_key(df_b, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        df_b = fcd.add_hash_key(df_b, new_field=hash_key, fields=primary_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
         primary_key = [hash_key]
         dump_inputs = True
     
