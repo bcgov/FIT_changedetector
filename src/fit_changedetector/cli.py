@@ -27,18 +27,8 @@ def cli():
 
 @cli.command()
 @click.argument("in_file", type=click.Path(exists=True))
-@click.option("--layer", help="Name of layer to add hashed primary key")
-@click.option(
-    "--fields",
-    "-f",
-    help="Comma separated list of fields to include in the hash (not including geometry)",
-)
-@click.option(
-    "--out-file",
-    "-o",
-    type=click.Path(),
-    help="Output filename",
-)
+@click.argument("out_file")
+@click.option("--in_layer", help="Name of layer to add hashed primary key")
 @click.option(
     "--out-layer",
     "-nln",
@@ -50,32 +40,56 @@ def cli():
     default="fcd_hash_id",
     help="Name of new column containing hashed data",
 )
+@click.option(
+    "--drop_null_geometry",
+    "-d",
+    is_flag=True,
+    help="Drop records with null geometry",
+)
+@click.option(
+    "--fields",
+    "-f",
+    help="Comma separated list of fields to include in the hash (not including geometry)",
+)
+@click.option(
+    "--crs",
+    help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
+)
 @verbose_opt
 @quiet_opt
-def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column, verbose, quiet):
-    """Add hash of input columns and geometry to new column
+def add_hash_key(in_file, out_file, in_layer, out_layer, hash_column, fields, drop_null_geometry, crs, verbose, quiet):
+    """Add hash of input columns and geometry to new column, write data to new file
     """
     configure_logging((verbose - quiet))
-    df = geopandas.read_file(in_file, layer=layer)
+    df = geopandas.read_file(in_file, layer=in_layer)
+    
     # validate provided fields
     if fields:
         fields = fields.split(",")
         for field in fields:
             if field not in df.columns:
-                src = os.path.join(in_file, layer)
+                src = os.path.join(in_file, in_layer)
                 raise ValueError(f"Field {field} is not present in {src}")
     else:
         fields = []
-    df = fcd.add_hash_key(df, hash_column, fields=fields, hash_geometry=True)
+    
+    # if specified, reproject
+    if crs:
+        df = df.to_crs(crs)
+
+    df = fcd.add_hash_key(df, hash_column, fields=fields, hash_geometry=True, drop_null_geometry=drop_null_geometry)
+    
     # todo - support overwrite of existing files? appending to existing gdb?
     if os.path.exists(out_file):
         raise ValueError(f"Output file {out_file} exists.")
+    
     # default to naming output layer the same as input layer (if supplied)
-    if not out_layer and layer:
-        LOG.warning(f"No output layer name specified, using {layer}")
-        out_layer = layer
+    if not out_layer and in_layer:
+        LOG.warning(f"No output layer name specified, using {in_layer}")
+        out_layer = in_layer
     elif not out_layer:
         raise ValueError(f"Output layer name is required if no input layer is specified")
+    
     LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_column}")
     df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
 
@@ -127,6 +141,16 @@ def add_hash_key(in_file, layer, fields, out_file, out_layer, hash_column, verbo
     default="b",
     help="Suffix to append to column names from data source B when comparing attributes",
 )
+@click.option(
+    "--drop_null_geometry",
+    "-d",
+    is_flag=True,
+    help="Drop records with null geometry",
+)
+@click.option(
+    "--crs",
+    help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
+)
 @verbose_opt
 @quiet_opt
 def compare(
@@ -141,6 +165,8 @@ def compare(
     precision,
     suffix_a,
     suffix_b,
+    drop_null_geometry,
+    crs,
     verbose,
     quiet,
 ):
@@ -154,10 +180,18 @@ def compare(
     # default to not hashing geoms
     hash_geometry = False
 
+    # default to not dumping input datasets to new files
+    dump_inputs = False
+
     # shortcuts to source layer paths for logging
     src_a = os.path.join(in_file_a, layer_a or "")
-    src_b = os.path.join(in_file_a, layer_b or "")
+    src_b = os.path.join(in_file_b, layer_b or "")
     
+    # if specified, reproject both sources (even if not hashing on geoms)
+    if crs:
+        df_a = df_a.to_crs(crs)
+        df_b = df_b.to_crs(crs)
+
     # is pk present and unique in both sources?
     if primary_key:
         primary_key = list(primary_key)
@@ -170,24 +204,27 @@ def compare(
                 f"Primary key {','.join(primary_key)} not present in {src_b}"
             )
         
-    # if no pk supplied, hash on geometry
+    # if no pk supplied, set it as empty list, trigger hash on geometry
     else:
+        primary_key = []
         hash_geometry = True
 
-    # add hashed key if using geometry or if supplied with multi column pk (for simplicity)
+    # add hashed key 
+    # - hash multi column primary keys (without geom) for simplicity
+    # - hash with geometry if no primary key specified
     if hash_geometry or len(primary_key) > 1:
-        LOG.info(f"Adding hash key (synthetic primary key) to both sources as {hash_key}")
-        df_a = fcd.add_hash_key(df_a, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision)
-        df_b = fcd.add_hash_key(df_b, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision)
-        primary_key = "fcd_id"
-        dump_inputs_with_new_pk = True
+        LOG.info(f"Adding hashed key (synthetic primary key) to {src_a} as {hash_key}")
+        df_a = fcd.add_hash_key(df_a, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        LOG.info(f"Adding hashed key (synthetic primary key) to {src_b} as {hash_key}")
+        df_b = fcd.add_hash_key(df_b, fields=primary_key, new_field=hash_key, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        primary_key = [hash_key]
+        dump_inputs = True
     
-    # otherwise, pick the pk from first (and only) item in the pk list
-    else:
-        primary_key = primary_key[0]
-        dump_inputs_with_new_pk = False
-
-    # verify pk is unique in each source
+    # convert primary key from list to column name string
+    # (it is always only a single column after above processing)
+    primary_key = primary_key[0]
+    
+    # verify pk is unique in each source, fail otherwise
     if len(df_a) != len(df_a[[primary_key]].drop_duplicates()):
         raise ValueError(
             f"Primary key {primary_key} is not unique in {src_a}"
@@ -197,7 +234,7 @@ def compare(
             f"Primary key {primary_key} is not unique in {src_b}"
         )
 
-    # if string of fields is provided, parse into list
+    # if string of fields to diff is provided, parse into list
     if fields:
         fields = fields.split(",")
 
@@ -233,7 +270,7 @@ def compare(
             mode = "a"
 
     # re-write source datasets if new pk generated (and some kind of output generated)
-    if dump_inputs_with_new_pk and mode == "a":
+    if dump_inputs and mode == "a":
         df_a.to_file(
             out_gdb, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a"
         )

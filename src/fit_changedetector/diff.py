@@ -2,14 +2,18 @@ import hashlib
 import logging
 
 import geopandas
+import pandas
+
 import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
 
 
-def add_hash_key(df, new_field, fields=[], hash_geometry=True, precision=.01):
+def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometry=True, precision=.01):
     """Add new column to input dataframe, containing hash of input columns and/or geometry
     """
+    pandas.options.mode.chained_assignment = None
+    
     # Fail if output column is already present in data
     if new_field in df.columns:
         raise ValueError(
@@ -20,15 +24,30 @@ def add_hash_key(df, new_field, fields=[], hash_geometry=True, precision=.01):
     if not fields and not hash_geometry:
         raise ValueError(f"Nothing to hash, specify hash_geometry and/or columns to hash")
     
-    # normalize geometry and reduce precision for more consistent comparisons
+    # Warn if units are not metres
+    if df.geometry.crs.is_geographic:
+        LOG.warning("Input geometries are projected in geographic units! Verify your precision is appropriate.")
+
+    # if hashing the geometry, ensure no nulls are present and standardize ring order/precision
     if hash_geometry:
+        
+        # check for null geometries, drop if specified
+        if len(df[df.geometry.isnull()]) > 0:
+            LOG.warning("Null geometries are present in source")
+            if drop_null_geometry:
+                LOG.warning(f"Dropping null geometries from source")
+                df = df[df.geometry.notnull()]
+            else:
+                raise ValueError("Remove nulls from source dataset before re-processing")
+        
+        # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df["geometry_normalized"] = (
             df[df.geometry.name]
             .normalize()
             .set_precision(precision, mode="pointwise")
         )
         fields = fields + ["geometry_normalized"]
-        
+    
     # add sha1 hash of provided fields
     df[new_field] = df[fields].apply(
         lambda x: hashlib.sha1(
@@ -49,7 +68,7 @@ def gdf_diff(
     df_b,
     primary_key,
     fields=None,
-    precision=2,
+    precision=.01,
     suffix_a="a",
     suffix_b="b",
     return_type="gdf",
@@ -71,7 +90,7 @@ def gdf_diff(
     - modifications - geometry and attribute
 
     The attribute change dataframes include values from both sources.
-    """
+    """             
     # standardize geometry column name
     if df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
@@ -185,6 +204,10 @@ def gdf_diff(
     # note the columns generated
     attribute_diff_columns = list(modified_attributes.columns.values)
 
+    # translate floating point precision param to integer expected by geom_equals_exact
+    # eg .01 = 2 decimal places
+    precision = len(str(precision).split(".")[1])
+    
     # find all rows with modified geometries, retaining new geometries only
     common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
     modified_geometries = common_mod_geoms[
