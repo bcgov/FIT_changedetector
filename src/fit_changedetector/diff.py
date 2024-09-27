@@ -204,14 +204,10 @@ def gdf_diff(
     # note the columns generated
     attribute_diff_columns = list(modified_attributes.columns.values)
 
-    # translate floating point precision param to integer expected by geom_equals_exact
-    # eg .01 = 2 decimal places
-    precision = len(str(precision).split(".")[1])
-    
     # find all rows with modified geometries, retaining new geometries only
     common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
     modified_geometries = common_mod_geoms[
-        ~common_a.geom_equals_exact(common_b, precision)
+        ~common_a.geom_equals(common_b, precision)
     ]
 
     # join modified attributes to modified geometries,
