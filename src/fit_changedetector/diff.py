@@ -97,7 +97,7 @@ def gdf_diff(
     - modifications - geometry and attribute
 
     The attribute change dataframes include values from both sources.
-    """             
+    """         
     # standardize geometry column name
     if df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
@@ -263,11 +263,29 @@ def gdf_diff(
         .set_geometry("geometry")
     )
 
+    # generate unchanged dataframe
+    # (there is probably a more concise method to do this)
+    # tag status of rows in each source dataframe
+    modifications = modified_attributes_geometries
+    modifications["status"] = "modifications"
+    additions["status"] = "additions"
+    deletions["status"] = "deletions"
+    # pull only the status column
+    modifications = modifications["status"]
+    additions = additions["status"]
+    deletions = deletions["status"]
+    # concatenate all changes into a single dataframe
+    changes = pandas.concat([additions, deletions, modifications])
+    # join back to source
+    unchanged = df_a.merge(changes, how="outer", left_index=True, right_index=True, indicator=True)
+    unchanged = unchanged[unchanged["_merge"] == 'left_only']
+    unchanged = unchanged[df_a.columns]
+
     if return_type == "gdf":
         return {
             "NEW": additions,
             "DELETED": deletions,
-            "UNCHANGED": [],
+            "UNCHANGED": unchanged,
             "MODIFIED_BOTH": m_attributes_geometries,
             "MODIFIED_ATTR": m_attributes,
             "MODIFIED_GEOM": m_geometries,
