@@ -61,16 +61,16 @@ some "modified attributes" records, with "_a" suffix for values from the primary
 from the secondary dataset:
 
 	>>> diff["MODIFIED_ATTR"]
-												park_name_a                park_name_b parkclasscode_a parkclasscode_b                                           geometry
+				park_name_a               park_name_b           parkclasscode_a parkclasscode_b geometry
 	fcd_load_id                                                                                                                                                             
-	15d42ea5bd0e8a91c8e935a7e88bc9b3c18ed325  Mars Street Park        Jupiter Street Park             NaN             NaN  MULTIPOLYGON (((1196056.257 385205.986, 119607...
-	6                                             Mayfair Blue              Mayfair Green              BL             GRN  MULTIPOLYGON (((1195089.488 384997.246, 119508...
-	7                                                           Quadra Heights Playground             NaN             NaN  MULTIPOLYGON (((1195238.681 384925.001, 119527...
+	5           Mars Street Park          Jupiter Street Park   NaN             NaN             MULTIPOLYGON (((1196056.257 385205.986, 119607...
+	6           Mayfair Blue              Mayfair Green         BL              GRN             MULTIPOLYGON (((1195089.488 384997.246, 119508...
+	7           Quadra Heights Playground                       NaN             NaN             MULTIPOLYGON (((1195238.681 384925.001, 119527...
 
 Because the primary keys are used as the dataframe's index, obtaining the values requires an extra step (rather than referencing the column name):
 
 	>>> diff["MODIFIED_ATTR"].index.array.tolist()
-	['15d42ea5bd0e8a91c8e935a7e88bc9b3c18ed325', '6', '7']
+	['5', '6', '7']
 
 
 #### CLI
@@ -131,6 +131,7 @@ Because the primary keys are used as the dataframe's index, obtaining the values
 	-v, --verbose             Increase verbosity.
 	-q, --quiet               Decrease verbosity.
 	--help                    Show this message and exit.
+
 ## Development and testing
 
 Presuming that GDAL is already installed to your system:
