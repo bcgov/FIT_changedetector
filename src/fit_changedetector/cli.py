@@ -58,7 +58,7 @@ def cli():
 @verbose_opt
 @quiet_opt
 def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, drop_null_geometry, crs, verbose, quiet):
-    """Add hash of input columns and geometry to new column, write data to new file
+    """Read input data, compute hash, write to new file
     """
     configure_logging((verbose - quiet))
     df = geopandas.read_file(in_file, layer=in_layer)
