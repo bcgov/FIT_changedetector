@@ -270,12 +270,8 @@ def gdf_diff(
     modifications["status"] = "modifications"
     additions["status"] = "additions"
     deletions["status"] = "deletions"
-    # pull only the status column
-    modifications = modifications["status"]
-    additions = additions["status"]
-    deletions = deletions["status"]
     # concatenate all changes into a single dataframe
-    changes = pandas.concat([additions, deletions, modifications])
+    changes = pandas.concat([additions["status"], deletions["status"], modifications["status"]])
     # join back to source
     unchanged = df_a.merge(changes, how="outer", left_index=True, right_index=True, indicator=True)
     unchanged = unchanged[unchanged["_merge"] == 'left_only']

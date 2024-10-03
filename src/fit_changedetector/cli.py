@@ -115,6 +115,7 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, 
     "--primary-key",
     "-pk",
     multiple=True,
+    default=[],
     help="Primary key column(s), common to both datasets",
 )
 @click.option(
@@ -205,7 +206,6 @@ def compare(
     if primary_key:
         primary_key = list(primary_key)
     else:
-        primary_key = []
         hash_geometry = True
     
     for source in [(src_a, df_a), (src_b, df_b)]:
@@ -260,7 +260,6 @@ def compare(
         "MODIFIED_ALL",
     ]:
         if len(diff[key]) > 0:
-            LOG.info(f"writing {key} to {out_gdb}")
             diff[key].to_file(out_gdb, driver="OpenFileGDB", layer=key, mode=mode)
             mode = "a"
 
