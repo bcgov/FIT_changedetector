@@ -61,7 +61,7 @@ some "modified attributes" records, with "_a" suffix for values from the primary
 from the secondary dataset:
 
 	>>> diff["MODIFIED_ATTR"]
-				park_name_a               park_name_b           parkclasscode_a parkclasscode_b geometry
+	            park_name_a               park_name_b           parkclasscode_a parkclasscode_b geometry
 	fcd_load_id                                                                                                                                                             
 	5           Mars Street Park          Jupiter Street Park   NaN             NaN             MULTIPOLYGON (((1196056.257 385205.986, 119607...
 	6           Mayfair Blue              Mayfair Green         BL              GRN             MULTIPOLYGON (((1195089.488 384997.246, 119508...
