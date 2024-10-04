@@ -138,16 +138,16 @@ Examples:
 Compare the test datasets using their known primary key:
 
     $ changedetector compare -v \
-        tests/data/test_parks_a.geojson \
-        tests/data/test_parks_b.geojson \
+        tests/data/parks_a.geojson \
+        tests/data/parks_b.geojson \
         -pk fcd_load_id 
 
 Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, 
 written to `new_hash_column`:
 
     $ changedetector compare -v \
-        tests/data/test_parks_a.geojson \
-        tests/data/test_parks_b.geojson \
+        tests/data/parks_a.geojson \
+        tests/data/parks_b.geojson \
         -hf park_name \
         -hk new_hash_column
 
