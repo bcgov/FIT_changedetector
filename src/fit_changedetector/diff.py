@@ -223,7 +223,9 @@ def gdf_diff(
 
     # find all rows with modified geometries, retaining new geometries only
     common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-    modified_geometries = common_mod_geoms[~common_a.geom_equals(common_b, precision)]
+    modified_geometries = common_mod_geoms[
+        ~common_a.geom_equals_exact(common_b, precision)
+    ]
 
     # join modified attributes to modified geometries,
     # creating a data structure containing all modifications, where _merge indicates
