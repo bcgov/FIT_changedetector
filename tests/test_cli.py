@@ -1,8 +1,7 @@
 import os
 
-from click.testing import CliRunner
 import geopandas
-import pytest
+from click.testing import CliRunner
 
 from fit_changedetector.cli import cli
 

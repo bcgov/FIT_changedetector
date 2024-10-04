@@ -1,10 +1,7 @@
 import hashlib
 import logging
 
-import geopandas
 import pandas
-
-import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
 
@@ -283,7 +280,11 @@ def gdf_diff(
     deletions["status"] = "deletions"
     # concatenate all changes into a single dataframe
     changes = pandas.concat(
-        [additions["status"], deletions["status"], modifications["status"]]
+        [
+            additions["status"],
+            deletions["status"],
+            modifications["status"],
+        ]
     )
     # join back to source
     unchanged = df_a.merge(

@@ -1,11 +1,11 @@
 import logging
 import os
-import sys
 import shutil
+import sys
 
 import click
-from cligj import verbose_opt, quiet_opt
 import geopandas
+from cligj import quiet_opt, verbose_opt
 
 import fit_changedetector as fcd
 
