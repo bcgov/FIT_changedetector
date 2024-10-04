@@ -1,3 +1,4 @@
+import hashlib
 import os
 
 import geopandas
@@ -60,3 +61,38 @@ def test_compare_hash(tmp_path):
             os.path.join(tmp_path, "changedetector.gdb"), layer=layer
         )
         assert len(df) == change_counts[layer]
+
+
+def test_add_hash_key(tmp_path):
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "add-hash-key",
+            "tests/data/parks_a.geojson",
+            os.path.join(tmp_path, "test.gdb"),
+            "-nln",
+            "testlayer",
+            "-hf",
+            "park_name",
+            "-hk",
+            "hashed_key",
+        ],
+    )
+    assert result.exit_code == 0
+    df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer="testlayer")
+    df["geometry_normalized"] = (
+        df[df.geometry.name].normalize().set_precision(0.01, mode="pointwise")
+    )
+    assert "hashed_key" in df.columns
+    assert (
+        df["hashed_key"].iloc[0]
+        == df[["park_name", "geometry_normalized"]]
+        .apply(
+            lambda x: hashlib.sha1(
+                "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
+            ).hexdigest(),
+            axis=1,
+        )
+        .iloc[0]
+    )

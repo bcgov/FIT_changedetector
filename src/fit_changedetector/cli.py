@@ -76,7 +76,7 @@ def add_hash_key(
     df = geopandas.read_file(in_file, layer=in_layer)
 
     # validate provided fields
-    src = os.path.join(in_file, in_layer)
+    src = os.path.join(in_file, in_layer or "")
     if hash_fields:
         hash_fields = hash_fields.split(",")
         for fieldname in hash_fields:
