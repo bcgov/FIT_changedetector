@@ -32,3 +32,51 @@ def test_diff():
     assert len(d["MODIFIED_BOTH"] == 1)
     assert len(d["MODIFIED_ATTR"] == 4)
     assert len(d["MODIFIED_GEOM"] == 1)
+
+
+def test_precision():
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "id": 1,
+                    "airport_name": "Heliport",
+                    "description": "heliport",
+                    "locality": "Victoria",
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [1193726.622830011881888, 381604.069862816773821],
+                },
+            },
+            {
+                "type": "Feature",
+                "properties": {
+                    "id": 2,
+                    "airport_name": "Harbour Airport",
+                    "description": "water aerodrome",
+                    "locality": "Victoria",
+                },
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [1194901.506376262987033, 382257.742864987929352],
+                },
+            },
+        ],
+    }
+    df_a = geopandas.GeoDataFrame.from_features(geojson, crs="EPSG:3005")
+    # make a copy and reduce precision of the copy, rounding to nearest .1m
+    df_b = df_a.copy()
+    df_b["geometry"] = df_b.geometry.set_precision(0.1)
+    # compare with .001 precision - every geom changes
+    diff_high_precision = fcd.gdf_diff(
+        df_a, df_b, primary_key="id", return_type="gdf", precision=0.001
+    )["MODIFIED_GEOM"]
+    # compare with 1m precision - no changes
+    diff_low_precision = fcd.gdf_diff(
+        df_a, df_b, primary_key="id", return_type="gdf", precision=1
+    )["MODIFIED_GEOM"]
+    assert len(diff_high_precision) == 2
+    assert len(diff_low_precision) == 0
