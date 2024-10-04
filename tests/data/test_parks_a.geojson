@@ -13,7 +13,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "c08455d08501b77c00c9241ca478fd3f228c8c3c",
+        "id": "1",
         "park_name": "Maplewood Green",
         "parkclasscode": "GRN"
       },
@@ -278,7 +278,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "1cd50ef66ea207a606667fa879b56bf5275f7a5e",
+        "id": "2",
         "park_name": "Highview Street Park",
         "parkclasscode": "NP"
       },
@@ -315,7 +315,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "15d42ea5bd0e8a91c8e935a7e88bc9b3c18ed325",
+        "id": "3",
         "park_name": "Mars Street Park",
         "parkclasscode": "NP"
       },
@@ -356,7 +356,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "a71b481d5ccaade78f54e48f2a40a5f350a23694",
+        "id": "4",
         "park_name": "Jackson Street Playground",
         "parkclasscode": "NP"
       },
@@ -401,7 +401,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "01a41e5a210a72b72a7cd4fb76fc618a046307ff",
+        "id": "5",
         "park_name": "Highview Playlot",
         "parkclasscode": "NP"
       },
@@ -438,7 +438,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "7",
+        "id": "7",
         "park_name": "",
         "parkclasscode": "NP"
       },
@@ -491,7 +491,7 @@
     {
       "type": "Feature",
       "properties": {
-        "fcd_load_id": "6",
+        "id": "6",
         "park_name": "Mayfair Blue",
         "parkclasscode": "BL"
       },

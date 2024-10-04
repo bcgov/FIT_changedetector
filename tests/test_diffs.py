@@ -27,7 +27,7 @@ def test_diff():
     # when comparing these two test files
     df_a = geopandas.read_file("tests/data/test_parks_a.geojson")
     df_b = geopandas.read_file("tests/data/test_parks_b.geojson")
-    d = fcd.gdf_diff(df_a, df_b, primary_key="fcd_load_id", return_type="gdf")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
     assert len(d["NEW"] == 1)
     assert len(d["DELETED"] == 1)
     assert len(d["UNCHANGED"] == 1)
