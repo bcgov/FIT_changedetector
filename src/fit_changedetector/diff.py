@@ -8,46 +8,55 @@ import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
 
-    
-def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometry=True, precision=.01):
-    """Add new column to input dataframe, containing hash of input columns and/or geometry
-    """
+
+def add_hash_key(
+    df,
+    new_field,
+    fields=[],
+    hash_geometry=True,
+    drop_null_geometry=True,
+    precision=0.01,
+):
+    """Add new column to input dataframe, containing hash of input columns and/or geometry"""
     pandas.options.mode.chained_assignment = None
-    
+
     # Fail if output column is already present in data
     if new_field in df.columns:
         raise ValueError(
             f"Field {new_field} is present in input dataset, use some other column name"
         )
-    
+
     # Fail if nothing provided to hash
     if not fields and not hash_geometry:
-        raise ValueError(f"Nothing to hash, specify hash_geometry and/or columns to hash")
-    
+        raise ValueError(
+            "Nothing to hash, specify hash_geometry and/or columns to hash"
+        )
+
     # Warn if units are not metres
     if df.geometry.crs.is_geographic:
-        LOG.warning("Input geometries are projected in geographic units! Verify your precision is appropriate.")
+        LOG.warning(
+            "Input geometries are projected in geographic units! Verify your precision is appropriate."
+        )
 
     # if hashing the geometry, ensure no nulls are present and standardize ring order/precision
     if hash_geometry:
-        
         # check for null geometries, drop if specified
         if len(df[df.geometry.isnull()]) > 0:
             LOG.warning("Null geometries are present in source")
             if drop_null_geometry:
-                LOG.warning(f"Dropping null geometries from source")
+                LOG.warning("Dropping null geometries from source")
                 df = df[df.geometry.notnull()]
             else:
-                raise ValueError("Remove nulls from source dataset before re-processing")
-            
+                raise ValueError(
+                    "Remove nulls from source dataset before re-processing"
+                )
+
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df["geometry_normalized"] = (
-            df[df.geometry.name]
-            .normalize()
-            .set_precision(precision, mode="pointwise")
+            df[df.geometry.name].normalize().set_precision(precision, mode="pointwise")
         )
         fields = fields + ["geometry_normalized"]
-    
+
     # add sha1 hash of provided fields
     df[new_field] = df[fields].apply(
         lambda x: hashlib.sha1(
@@ -59,13 +68,17 @@ def add_hash_key(df, new_field, fields=[], hash_geometry=True, drop_null_geometr
     # fail if hashes are not unique
     if len(df) != len(df[new_field].drop_duplicates()):
         if fields == ["geometry_normalized"]:
-            raise ValueError(f"Duplicate geometries are present in source, consider adding more columns to hash or editing data") 
+            raise ValueError(
+                "Duplicate geometries are present in source, consider adding more columns to hash or editing data"
+            )
         else:
-            raise ValueError(f"Duplicate values for output hash are present, consider adding more columns to hash or editing data") 
-    
+            raise ValueError(
+                "Duplicate values for output hash are present, consider adding more columns to hash or editing data"
+            )
+
     # remove normalized/reduced precision geometry
     if hash_geometry:
-        df = df.drop(columns=['geometry_normalized'])
+        df = df.drop(columns=["geometry_normalized"])
 
     return df
 
@@ -75,7 +88,7 @@ def gdf_diff(
     df_b,
     primary_key,
     fields=[],
-    precision=.01,
+    precision=0.01,
     suffix_a="a",
     suffix_b="b",
     return_type="gdf",
@@ -97,7 +110,7 @@ def gdf_diff(
     - modifications - geometry and attribute
 
     The attribute change dataframes include values from both sources.
-    """         
+    """
     # standardize geometry column name
     if df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
@@ -213,9 +226,7 @@ def gdf_diff(
 
     # find all rows with modified geometries, retaining new geometries only
     common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-    modified_geometries = common_mod_geoms[
-        ~common_a.geom_equals(common_b, precision)
-    ]
+    modified_geometries = common_mod_geoms[~common_a.geom_equals(common_b, precision)]
 
     # join modified attributes to modified geometries,
     # creating a data structure containing all modifications, where _merge indicates
@@ -271,10 +282,14 @@ def gdf_diff(
     additions["status"] = "additions"
     deletions["status"] = "deletions"
     # concatenate all changes into a single dataframe
-    changes = pandas.concat([additions["status"], deletions["status"], modifications["status"]])
+    changes = pandas.concat(
+        [additions["status"], deletions["status"], modifications["status"]]
+    )
     # join back to source
-    unchanged = df_a.merge(changes, how="outer", left_index=True, right_index=True, indicator=True)
-    unchanged = unchanged[unchanged["_merge"] == 'left_only']
+    unchanged = df_a.merge(
+        changes, how="outer", left_index=True, right_index=True, indicator=True
+    )
+    unchanged = unchanged[unchanged["_merge"] == "left_only"]
     unchanged = unchanged[df_a.columns]
 
     if return_type == "gdf":

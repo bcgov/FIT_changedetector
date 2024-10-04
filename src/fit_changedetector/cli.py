@@ -20,10 +20,12 @@ def configure_logging(verbosity):
         format="%(asctime)s:%(levelname)s:%(name)s: %(message)s",
     )
 
+
 @click.group()
 @click.version_option(version=fcd.__version__, message="%(version)s")
 def cli():
     pass
+
 
 @cli.command()
 @click.argument("in_file", type=click.Path(exists=True))
@@ -57,12 +59,22 @@ def cli():
 )
 @verbose_opt
 @quiet_opt
-def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, drop_null_geometry, crs, verbose, quiet):
-    """Read input data, compute hash, write to new file
-    """
+def add_hash_key(
+    in_file,
+    out_file,
+    in_layer,
+    out_layer,
+    hash_key,
+    hash_fields,
+    drop_null_geometry,
+    crs,
+    verbose,
+    quiet,
+):
+    """Read input data, compute hash, write to new file"""
     configure_logging((verbose - quiet))
     df = geopandas.read_file(in_file, layer=in_layer)
-    
+
     # validate provided fields
     src = os.path.join(in_file, in_layer)
     if hash_fields:
@@ -77,19 +89,25 @@ def add_hash_key(in_file, out_file, in_layer, out_layer, hash_key, hash_fields, 
     if crs:
         df = df.to_crs(crs)
 
-    df = fcd.add_hash_key(df, new_field=hash_key, fields=hash_fields, hash_geometry=True, drop_null_geometry=drop_null_geometry)
-    
+    df = fcd.add_hash_key(
+        df,
+        new_field=hash_key,
+        fields=hash_fields,
+        hash_geometry=True,
+        drop_null_geometry=drop_null_geometry,
+    )
+
     # todo - support overwrite of existing files? appending to existing gdb?
     if os.path.exists(out_file):
         raise ValueError(f"Output file {out_file} exists.")
-    
+
     # default to naming output layer the same as input layer (if supplied)
     if not out_layer and in_layer:
         LOG.warning(f"No output layer name specified, using {in_layer}")
         out_layer = in_layer
     elif not out_layer:
-        raise ValueError(f"Output layer name is required if no input layer is specified")
-    
+        raise ValueError("Output layer name is required if no input layer is specified")
+
     LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_key}")
     df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
 
@@ -191,11 +209,11 @@ def compare(
     # shortcuts to source layer paths for logging
     src_a = os.path.join(in_file_a, layer_a or "")
     src_b = os.path.join(in_file_b, layer_b or "")
-    
+
     # validate columns
     if fields:
         fields = fields.split(",")
-    else: 
+    else:
         fields = []
     if hash_fields:
         hash_fields = hash_fields.split(",")
@@ -206,32 +224,46 @@ def compare(
     else:
         primary_key = []
         hash_geometry = True
-    
+
     for source in [(src_a, df_a), (src_b, df_b)]:
         for fieldname in fields + hash_fields + primary_key:
             if fieldname not in source[1].columns:
                 raise ValueError(f"Field {fieldname} is not present in {source[0]}")
-        
+
     # if specified, reproject both sources (even if not hashing on geoms)
     if crs:
         df_a = df_a.to_crs(crs)
         df_b = df_b.to_crs(crs)
 
-    # add hashed key 
+    # add hashed key
     # - hash multi column primary keys (without geom) for simplicity
     # - hash with geometry if no primary key specified
     if hash_geometry or len(primary_key) > 1:
         LOG.info(f"Adding hashed key (synthetic primary key) to {src_a} as {hash_key}")
-        df_a = fcd.add_hash_key(df_a, new_field=hash_key, fields=primary_key + hash_fields, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        df_a = fcd.add_hash_key(
+            df_a,
+            new_field=hash_key,
+            fields=primary_key + hash_fields,
+            hash_geometry=hash_geometry,
+            precision=precision,
+            drop_null_geometry=drop_null_geometry,
+        )
         LOG.info(f"Adding hashed key (synthetic primary key) to {src_b} as {hash_key}")
-        df_b = fcd.add_hash_key(df_b, new_field=hash_key, fields=primary_key + hash_fields, hash_geometry=hash_geometry, precision=precision, drop_null_geometry=drop_null_geometry)
+        df_b = fcd.add_hash_key(
+            df_b,
+            new_field=hash_key,
+            fields=primary_key + hash_fields,
+            hash_geometry=hash_geometry,
+            precision=precision,
+            drop_null_geometry=drop_null_geometry,
+        )
         primary_key = [hash_key]
         dump_inputs = True
-    
+
     # convert primary key from list to column name string
     # (it is always only a single column after above processing)
     primary_key = primary_key[0]
-    
+
     # run the diff
     diff = fcd.gdf_diff(
         df_a,
