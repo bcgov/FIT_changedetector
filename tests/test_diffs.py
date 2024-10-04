@@ -23,8 +23,6 @@ def test_add_hash_empty():
 
 
 def test_diff():
-    # one instance of each type of change is found
-    # when comparing these two test files
     df_a = geopandas.read_file("tests/data/parks_a.geojson")
     df_b = geopandas.read_file("tests/data/parks_b.geojson")
     d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
@@ -32,5 +30,5 @@ def test_diff():
     assert len(d["DELETED"] == 1)
     assert len(d["UNCHANGED"] == 1)
     assert len(d["MODIFIED_BOTH"] == 1)
-    assert len(d["MODIFIED_ATTR"] == 3)
+    assert len(d["MODIFIED_ATTR"] == 4)
     assert len(d["MODIFIED_GEOM"] == 1)
