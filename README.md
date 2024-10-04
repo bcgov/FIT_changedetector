@@ -133,6 +133,27 @@ Because the primary keys are used as the dataframe's index, obtaining the values
     -q, --quiet               Decrease verbosity.
     --help                    Show this message and exit.
 
+Examples:
+
+Compare the test datasets using their known primary key:
+
+    $ changedetector compare -v \
+        tests/data/test_parks_a.geojson \
+        tests/data/test_parks_b.geojson \
+        -pk fcd_load_id 
+
+Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, 
+written to `new_hash_column`:
+
+    $ changedetector compare -v \
+        tests/data/test_parks_a.geojson \
+        tests/data/test_parks_b.geojson \
+        -hf park_name \
+        -hk new_hash_column
+
+Output is always to a new file geodatabase `changedetector.gdb`, in the folder specified by `--out-path`, 
+defaulting to the current working directory.
+
 ## Development and testing
 
 Presuming that GDAL is already installed to your system:
