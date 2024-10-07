@@ -34,6 +34,18 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
+def test_diff_non_spatial():
+    df_a = geopandas.read_file("tests/data/pets_1.csv")
+    df_b = geopandas.read_file("tests/data/pets_2.csv")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
+    assert len(d["NEW"] == 1)
+    assert len(d["DELETED"] == 1)
+    assert len(d["UNCHANGED"] == 1)
+    assert len(d["MODIFIED_ATTR"] == 1)
+    assert d["MODIFIED_GEOM"] == []
+    assert d["MODIFIED_BOTH"] == []
+
+
 def test_precision():
     geojson = {
         "type": "FeatureCollection",
