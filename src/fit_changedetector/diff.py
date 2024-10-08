@@ -46,7 +46,7 @@ def add_hash_key(
                 df = df[df.geometry.notnull()]
             else:
                 raise ValueError(
-                    "Remove nulls from source dataset before re-processing"
+                    "Cannot reliably hash null geometries, specify drop_null_geometry or remove nulls from source dataset before re-processing"
                 )
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
