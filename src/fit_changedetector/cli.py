@@ -215,25 +215,52 @@ def compare(
         fields = fields.split(",")
     else:
         fields = []
+
+    if primary_key:
+        primary_key = primary_key.split(",")
+    else:
+        LOG.warning(
+            "No primary key supplied, script will attempt to hash on geometries (and hash_fields, if specified)"
+        )
+        # are there geometries in both datasets?
+        if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
+            df_a, geopandas.GeoDataFrame
+        ):
+            hash_geometry = True
+        else:
+            raise ValueError(
+                "Cannot compare the datasets - if no primary key is available, geometries must be present in both source datasets"
+            )
+        primary_key = []
+
     if hash_fields:
         hash_fields = hash_fields.split(",")
     else:
         hash_fields = []
-    if primary_key:
-        primary_key = primary_key.split(",")
-    else:
-        primary_key = []
-        hash_geometry = True
 
+    # do not hash if primary key is provided
+    if primary_key and hash_fields:
+        LOG.warning(
+            f"Using supplied primary key {primary_key} and ignoring supplied hash_fields {hash_fields}"
+        )
+        hash_fields = []
+
+    # validate that provided pk/hash columns are present in data
     for source in [(src_a, df_a), (src_b, df_b)]:
         for fieldname in fields + hash_fields + primary_key:
             if fieldname not in source[1].columns:
                 raise ValueError(f"Field {fieldname} is not present in {source[0]}")
 
-    # if specified, reproject both sources (even if not hashing on geoms)
+    # if specified, reproject both sources
     if crs:
-        df_a = df_a.to_crs(crs)
-        df_b = df_b.to_crs(crs)
+        if isinstance(df_a, geopandas.GeoDataFrame):
+            df_a = df_a.to_crs(crs)
+        else:
+            raise ValueError(f"Cannot reproject {src_a}, no geometries present")
+        if isinstance(df_b, geopandas.GeoDataFrame):
+            df_b = df_b.to_crs(crs)
+        else:
+            raise ValueError(f"Cannot reproject {src_b}, no geometries present")
 
     # add hashed key
     # - hash multi column primary keys (without geom) for simplicity
@@ -291,6 +318,12 @@ def compare(
         "MODIFIED_ALL",
     ]:
         if len(diff[key]) > 0:
+            # add empty geometry column for writing non-spatial data to .gpkg
+            # (does not work for .gdb driver, .gdb output fails with non-spatial data)
+            if "geometry" not in diff[key].columns:
+                diff[key] = geopandas.GeoDataFrame(
+                    diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
+                )
             diff[key].to_file(out_gdb, driver="OpenFileGDB", layer=key, mode=mode)
             mode = "a"
 

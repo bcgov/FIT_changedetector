@@ -1,6 +1,7 @@
 import hashlib
 import logging
 
+import geopandas
 import pandas
 
 LOG = logging.getLogger(__name__)
@@ -108,16 +109,33 @@ def gdf_diff(
 
     The attribute change dataframes include values from both sources.
     """
+    # are input datasets spatial?
+    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
+        df_b, geopandas.GeoDataFrame
+    ):
+        spatial = True
+    elif isinstance(df_a, geopandas.GeoDataFrame) and not isinstance(
+        df_b, geopandas.GeoDataFrame
+    ):
+        raise ValueError(
+            "Cannot compare spatial and non-spatial sources - spatial component found in source 1 but not in source 2."
+        )
+    elif isinstance(df_b, geopandas.GeoDataFrame) and not isinstance(
+        df_a, geopandas.GeoDataFrame
+    ):
+        raise ValueError(
+            "Cannot compare spatial and non-spatial sources - spatial component found in source 2 but not in source 1."
+        )
     # standardize geometry column name
-    if df_a.geometry.name != "geometry":
+    else:
+        spatial = False
+    if spatial and df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
-    if df_b.geometry.name != "geometry":
+    if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
-    # field names equivalent? (for fields of interest)
-    fields_a = set([c for c in df_a.columns if c != "geometry"])
-    fields_b = set([c for c in df_b.columns if c != "geometry"])
-    fields_common = fields_a.intersection(fields_b)
+    # find fields common to both input datasets
+    fields_common = set(df_a.columns).intersection(set(df_b.columns))
 
     # is primary key present in both datasets?
     if primary_key not in fields_common:
@@ -134,26 +152,37 @@ def gdf_diff(
     if len(fields) == 0:
         raise ValueError("Datasets have no field names in common, cannot compare")
 
-    # remove all columns other than primary key, common fields of interest, and geometry
-    df_a = df_a[fields + ["geometry"]]
-    df_b = df_b[fields + ["geometry"]]
+    # retain only common fields of interest
+    df_a = df_a[fields]
+    df_b = df_b[fields]
 
     # are general data types of the common fields equivalent?
     if list(df_a.dtypes) != list(df_b.dtypes):
         raise ValueError("Field types do not match")
 
-    # are geometry data types equivalent (and valid)?
-    geomtypes_a = set([t.upper() for t in df_a.geometry.geom_type.unique()])
-    geomtypes_b = set([t.upper() for t in df_b.geometry.geom_type.unique()])
-
-    if geomtypes_a != geomtypes_b:
-        raise ValueError(
-            f"Geometry types {','.join(list(geomtypes_a))} and {','.join(list(geomtypes_b))} are not equivalent"
+    # are geometry data types equivalent?
+    if spatial:
+        geomtypes_a = set(
+            [
+                t.upper()
+                for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()
+            ]
+        )
+        geomtypes_b = set(
+            [
+                t.upper()
+                for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()
+            ]
         )
 
-    # is CRS equivalent?
-    if df_a.crs != df_b.crs:
-        raise ValueError("Coordinate reference systems are not equivalent")
+        if geomtypes_a != geomtypes_b:
+            raise ValueError(
+                f"Geometry types {','.join(list(geomtypes_a))} and {','.join(list(geomtypes_b))} are not equivalent"
+            )
+
+        # are CRS equivalent?
+        if df_a.crs != df_b.crs:
+            raise ValueError("Coordinate reference systems are not equivalent")
 
     # is primary key unique in both datasets?
     if len(df_a) != len(df_a[[primary_key]].drop_duplicates()):
@@ -197,16 +226,26 @@ def gdf_diff(
     common_b = common.rename(columns=column_name_remap_b)[columns]
 
     # compare the attributes
-    common_a_attrib = common_a.drop("geometry", axis=1)
-    common_b_attrib = common_b.drop("geometry", axis=1)
-    modified_attributes = common_a_attrib.compare(
-        common_b_attrib,
-        result_names=(
-            suffix_a,
-            suffix_b,
-        ),
-        keep_shape=True,
-    ).dropna(axis=0, how="all")
+    if spatial:
+        common_a_attrib = common_a.drop("geometry", axis=1)
+        common_b_attrib = common_b.drop("geometry", axis=1)
+        modified_attributes = common_a_attrib.compare(
+            common_b_attrib,
+            result_names=(
+                suffix_a,
+                suffix_b,
+            ),
+            keep_shape=True,
+        ).dropna(axis=0, how="all")
+    else:
+        modified_attributes = common_a.compare(
+            common_b,
+            result_names=(
+                suffix_a,
+                suffix_b,
+            ),
+            keep_shape=True,
+        ).dropna(axis=0, how="all")
 
     # flatten the resulting data structure
     modified_attributes.columns = [
@@ -214,69 +253,78 @@ def gdf_diff(
     ]
 
     # join back to geometries in b, creating attribute diff
-    modified_attributes = modified_attributes.merge(
-        common_b["geometry"], how="inner", left_index=True, right_index=True
-    ).set_geometry("geometry")
+    if spatial:
+        modified_attributes = modified_attributes.merge(
+            common_b["geometry"], how="inner", left_index=True, right_index=True
+        ).set_geometry("geometry")
 
-    # note the columns generated
-    attribute_diff_columns = list(modified_attributes.columns.values)
+        # note the columns generated
+        attribute_diff_columns = list(modified_attributes.columns.values)
 
-    # find all rows with modified geometries, retaining new geometries only
-    common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-    modified_geometries = common_mod_geoms[
-        ~common_a.geom_equals_exact(common_b, precision)
-    ]
-
-    # join modified attributes to modified geometries,
-    # creating a data structure containing all modifications, where _merge indicates
-    # into which set we want to place the modifications:
-    # - "both": attributes and geometries have been modified
-    # - "left_only": only attributes have been modified
-    # - "right_only": only geometries have been modified
-    # the dataframe includes two sets of geometries -
-    # _x: from modified_attributes
-    # _y: from modified_geometries
-    modified_attributes_geometries = modified_attributes.merge(
-        modified_geometries,
-        how="outer",
-        left_index=True,
-        right_index=True,
-        indicator=True,
-    )
-
-    # generate the output mofications dataframes
-
-    # modified attributes retains left geom from above join
-    m_attributes = (
-        modified_attributes_geometries[
-            modified_attributes_geometries["_merge"] == "left_only"
+        # find all rows with modified geometries, retaining new geometries only
+        common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
+        modified_geometries = common_mod_geoms[
+            ~common_a.geom_equals_exact(common_b, precision)
         ]
-        .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
-        .set_geometry("geometry")
-    )
 
-    # modified attributes and geometries retains either geometry
-    m_attributes_geometries = (
-        modified_attributes_geometries[
-            modified_attributes_geometries["_merge"] == "both"
-        ]
-        .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
-        .set_geometry("geometry")
-    )
+        # join modified attributes to modified geometries,
+        # creating a data structure containing all modifications, where _merge indicates
+        # into which set we want to place the modifications:
+        # - "both": attributes and geometries have been modified
+        # - "left_only": only attributes have been modified
+        # - "right_only": only geometries have been modified
+        # the dataframe includes two sets of geometries -
+        # _x: from modified_attributes
+        # _y: from modified_geometries
+        modified_attributes_geometries = modified_attributes.merge(
+            modified_geometries,
+            how="outer",
+            left_index=True,
+            right_index=True,
+            indicator=True,
+        )
 
-    # modified geoms only, using source column names
-    m_geometries = (
-        modified_attributes_geometries[
-            modified_attributes_geometries["_merge"] == "right_only"
-        ]
-        .rename(columns={"geometry_y": "geometry"})[columns]
-        .set_geometry("geometry")
-    )
+        # generate the output mofications dataframes
+
+        # modified attributes retains left geom from above join
+        m_attributes = (
+            modified_attributes_geometries[
+                modified_attributes_geometries["_merge"] == "left_only"
+            ]
+            .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
+            .set_geometry("geometry")
+        )
+
+        # modified attributes and geometries retains either geometry
+        m_attributes_geometries = (
+            modified_attributes_geometries[
+                modified_attributes_geometries["_merge"] == "both"
+            ]
+            .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
+            .set_geometry("geometry")
+        )
+
+        # modified geoms only, using source column names
+        m_geometries = (
+            modified_attributes_geometries[
+                modified_attributes_geometries["_merge"] == "right_only"
+            ]
+            .rename(columns={"geometry_y": "geometry"})[columns]
+            .set_geometry("geometry")
+        )
+    else:
+        m_attributes_geometries = []
+        m_geometries = []
+        m_attributes = modified_attributes
 
     # generate unchanged dataframe
     # (there is probably a more concise method to do this)
     # tag status of rows in each source dataframe
-    modifications = modified_attributes_geometries
+    if spatial:
+        modifications = modified_attributes_geometries
+    else:
+        modifications = modified_attributes
+
     modifications["status"] = "modifications"
     additions["status"] = "additions"
     deletions["status"] = "deletions"
