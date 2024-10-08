@@ -318,6 +318,12 @@ def compare(
         "MODIFIED_ALL",
     ]:
         if len(diff[key]) > 0:
+            # add empty geometry column for writing non-spatial data to .gpkg
+            # (does not work for .gdb driver, .gdb output fails with non-spatial data)
+            if "geometry" not in diff[key].columns:
+                diff[key] = geopandas.GeoDataFrame(
+                    diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
+                )
             diff[key].to_file(out_gdb, driver="OpenFileGDB", layer=key, mode=mode)
             mode = "a"
 
