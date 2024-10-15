@@ -2,6 +2,7 @@ import logging
 import os
 import shutil
 import sys
+from datetime import datetime
 
 import click
 import geopandas
@@ -123,11 +124,10 @@ def add_hash_key(
     help="Comma separated list of fields to compare (do not include primary key)",
 )
 @click.option(
-    "--out-path",
+    "--out-file",
     "-o",
     type=click.Path(),
-    default=".",
-    help="Output path",
+    help="Path to output file, defaults to ./changedetector_YYYYMMDD_HHMM.gdb",
 )
 @click.option(
     "--primary-key",
@@ -184,7 +184,7 @@ def compare(
     primary_key,
     hash_key,
     hash_fields,
-    out_path,
+    out_file,
     precision,
     suffix_a,
     suffix_b,
@@ -304,10 +304,15 @@ def compare(
 
     # write output data
     mode = "w"  # for writing the first non-empty layer, subsequent writes are appends
-    out_gdb = os.path.join(out_path, "changedetector.gdb")
-    if os.path.exists(out_gdb):
-        LOG.warning(f"changedetector.gdb exists in {out_path} - overwriting")
-        shutil.rmtree(out_gdb)
+
+    # default output is changedetector_YYYYMMDD_HHMM.gdb
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    if not out_file:
+        out_file = f"changedetector_{timestamp}.gdb"
+
+    if os.path.exists(out_file):
+        LOG.warning(f"{out_file} exists in - overwriting")
+        shutil.rmtree(out_file)
 
     for key in [
         "NEW",
@@ -324,16 +329,16 @@ def compare(
                 diff[key] = geopandas.GeoDataFrame(
                     diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
                 )
-            diff[key].to_file(out_gdb, driver="OpenFileGDB", layer=key, mode=mode)
+            diff[key].to_file(out_file, driver="OpenFileGDB", layer=key, mode=mode)
             mode = "a"
 
     # re-write source datasets if new pk generated (and some kind of output generated)
     if dump_inputs and mode == "a":
         df_a.to_file(
-            out_gdb, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a"
+            out_file, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a"
         )
         df_b.to_file(
-            out_gdb, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a"
+            out_file, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a"
         )
 
 

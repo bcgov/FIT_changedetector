@@ -18,7 +18,7 @@ def test_compare_pk(tmp_path):
             "-pk",
             "id",
             "-o",
-            str(tmp_path),
+            str(os.path.join(tmp_path, "test.gdb")),
         ],
     )
     change_counts = {
@@ -30,9 +30,7 @@ def test_compare_pk(tmp_path):
     }
     assert result.exit_code == 0
     for layer in change_counts:
-        df = geopandas.read_file(
-            os.path.join(tmp_path, "changedetector.gdb"), layer=layer
-        )
+        df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
         assert len(df) == change_counts[layer]
 
 
@@ -47,7 +45,7 @@ def test_compare_hash(tmp_path):
             "-hf",
             "park_name",
             "-o",
-            str(tmp_path),
+            str(os.path.join(tmp_path, "test.gdb")),
         ],
     )
     change_counts = {
@@ -57,9 +55,7 @@ def test_compare_hash(tmp_path):
     }
     assert result.exit_code == 0
     for layer in change_counts:
-        df = geopandas.read_file(
-            os.path.join(tmp_path, "changedetector.gdb"), layer=layer
-        )
+        df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
         assert len(df) == change_counts[layer]
 
 
@@ -96,3 +92,22 @@ def test_add_hash_key(tmp_path):
         )
         .iloc[0]
     )
+
+
+# not yet functional,
+# apparently cannot write non spatial tables to .gdb with pyogrio
+# def test_compare_non_spatial(tmp_path):
+#    runner = CliRunner()
+#    result = runner.invoke(
+#        cli,
+#        [
+#            "compare",
+#            "tests/data/pets_1.geojson",
+#            "tests/data/pets_2.geojson",
+#            "-pk",
+#            "id",
+#            "-o",
+#            str(tmp_path),
+#        ],
+#    )
+#    # assert result.exit_code == 0

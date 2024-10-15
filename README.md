@@ -107,14 +107,15 @@ Because the primary keys are used as the dataframe's index, obtaining the values
     $ changedetector compare --help
     Usage: changedetector compare [OPTIONS] IN_FILE_A IN_FILE_B
 
-    Compare two datasets
+        Compare two datasets
 
     Options:
     --layer-a TEXT            Name of layer to use within in_file_a
     --layer-b TEXT            Name of layer to use within in_file_b
     -f, --fields TEXT         Comma separated list of fields to compare (do not
                                 include primary key)
-    -o, --out-path PATH       Output path
+    -o, --out-file PATH       Path to output file, defaults to
+                                ./changedetector_YYYYMMDD_HHMM.gdb
     -pk, --primary-key TEXT   Comma separated list of primary key column(s),
                                 common to both datasets
     -hk, --hash-key TEXT      Name of new column to add as hash key
@@ -150,9 +151,6 @@ written to `new_hash_column`:
         tests/data/parks_b.geojson \
         -hf park_name \
         -hk new_hash_column
-
-Output is always to a new file geodatabase `changedetector.gdb`, in the folder specified by `--out-path`, 
-defaulting to the current working directory.
 
 ## Development and testing
 
