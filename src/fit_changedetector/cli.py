@@ -154,13 +154,13 @@ def add_hash_key(
 @click.option(
     "--suffix-a",
     "-a",
-    default="a",
+    default="original",
     help="Suffix to append to column names from data source A when comparing attributes",
 )
 @click.option(
     "--suffix-b",
     "-b",
-    default="b",
+    default="new",
     help="Suffix to append to column names from data source B when comparing attributes",
 )
 @click.option(
