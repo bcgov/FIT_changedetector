@@ -48,12 +48,6 @@ Dictionary keys:
 | `MODIFIED_BOTH` | records where attribute columns and geometries have changed |
 | `MODIFIED_ATTR` | records where attribute columns have changed but geometries have not changed |
 | `MODIFIED_GEOM` | records where geometries have changed but attribute columns have not |
-| `MODIFIED_ALL` |                    not currently implemented |
-| `ALL_CHANGES` |                     not currently implemented |
-| `MODIFIED_BOTH_OBSLT` |             not currently implemented |
-| `MODIFIED_ATTR_OBSLT` |             not currently implemented |
-| `MODIFIED_GEOM_OBSLT` |             not currently implemented |
-
 
 Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data.
 Schemas for records contained in the `MODIFIED` keys include values from each input source.  For example, these are 

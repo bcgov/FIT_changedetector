@@ -351,9 +351,4 @@ def gdf_diff(
             "MODIFIED_BOTH": m_attributes_geometries,
             "MODIFIED_ATTR": m_attributes,
             "MODIFIED_GEOM": m_geometries,
-            "MODIFIED_ALL": [],
-            "ALL_CHANGES": [],
-            "MODIFIED_BOTH_OBSLT": [],
-            "MODIFIED_ATTR_OBSLT": [],
-            "MODIFIED_GEOM_OBSLT": [],
         }
