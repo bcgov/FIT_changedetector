@@ -314,14 +314,7 @@ def compare(
         LOG.warning(f"{out_file} exists in - overwriting")
         shutil.rmtree(out_file)
 
-    for key in [
-        "NEW",
-        "DELETED",
-        "MODIFIED_BOTH",
-        "MODIFIED_ATTR",
-        "MODIFIED_GEOM",
-        "MODIFIED_ALL",
-    ]:
+    for key in ["NEW", "DELETED", "MODIFIED_BOTH", "MODIFIED_ATTR", "MODIFIED_GEOM"]:
         if len(diff[key]) > 0:
             # add empty geometry column for writing non-spatial data to .gpkg
             # (does not work for .gdb driver, .gdb output fails with non-spatial data)
