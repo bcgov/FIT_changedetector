@@ -23,7 +23,11 @@ layer_original = Path(data_original).name
 gdb_new = Path(data_new).parent
 layer_new = Path(data_new).name
 
-subprocess.run(
+result = subprocess.run(
     f"CALL conda.bat deactivate && conda activate {ENV} && changedetector compare {gdb_original} {gdb_new} --layer-a {layer_original} --layer-b {layer_new} -pk {primary_key} -o {out_file} -vv",
     shell=True,
+    capture_output=True,
+    text=True,
 )
+print(result.stdout)
+print(result.stderr)
