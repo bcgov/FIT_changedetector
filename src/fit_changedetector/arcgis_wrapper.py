@@ -29,5 +29,5 @@ result = subprocess.run(
     capture_output=True,
     text=True,
 )
-arcpy.addMessage(result.stdout)
-arcpy.addMessage(result.stderr)
+arcpy.AddMessage(result.stdout)
+arcpy.AddMessage(result.stderr)
