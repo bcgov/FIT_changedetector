@@ -25,8 +25,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - python-version: '3.12'
-            gdal-version: '3.9.2'
+          - python-version: '3.9'
+            gdal-version: '3.7.3'
     steps:
       - uses: actions/checkout@v4.1.3
 
