@@ -30,11 +30,14 @@ def add_hash_key(
             "Nothing to hash, specify hash_geometry and/or columns to hash"
         )
 
-    # Warn if units are not metres
-    if df.geometry.crs.is_geographic:
+    # If using default precision of 1cm on data using degrees,
+    # presume this is an oversight, warn and adjust.
+    # (if non-default precision is provided, presume that the user is right)
+    if df.geometry.crs.is_geographic and precision == 0.01:
         LOG.warning(
-            "Input geometries are projected in geographic units! Verify your precision is appropriate."
+            "Data is projected in degrees, default precision of 0.01m specified. Adjusting to .0000001 degrees"
         )
+        precision = 0.0000001
 
     # if hashing the geometry, ensure no nulls are present and standardize ring order/precision
     if hash_geometry:

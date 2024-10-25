@@ -22,6 +22,15 @@ def test_add_hash_empty():
         df = fcd.add_hash_key(df, "test_hash", fields=[], hash_geometry=False)
 
 
+def test_add_hash_ll(caplog):
+    df = geopandas.read_file("tests/data/parks_a.geojson").to_crs("EPSG:4326")
+    df = fcd.add_hash_key(df, "test_hash")
+    assert (
+        "Data is projected in degrees, default precision of 0.01m specified. Adjusting to .0000001 degrees"
+        in caplog.text
+    )
+
+
 def test_diff():
     df_a = geopandas.read_file("tests/data/parks_a.geojson")
     df_b = geopandas.read_file("tests/data/parks_b.geojson")
