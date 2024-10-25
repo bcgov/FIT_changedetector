@@ -23,7 +23,7 @@ classifiers = [
 dependencies = [
   "click",
   "cligj",
-  "geopandas",
+  "geopandas<1.1.0",
 ]
 
 [project.optional-dependencies]
