@@ -6,6 +6,19 @@ import pandas
 
 LOG = logging.getLogger(__name__)
 
+IGNORE_FIELDS = [
+    "OBJECTID",
+    "OID_",  # ArcPro adds this to csv files
+    "FID",
+    "GLOBALID",
+    "GLOBAL_ID",
+    "SHAPE_LENGTH",
+    "SHAPE_LENG",  # .shp truncation
+    "SHAPE_AREA",
+    "GEOMETRY_LENGTH",
+    "GEOMETRY_AREA",
+]
+
 
 def add_hash_key(
     df,
@@ -129,13 +142,18 @@ def gdf_diff(
         raise ValueError(
             "Cannot compare spatial and non-spatial sources - spatial component found in source 2 but not in source 1."
         )
-    # standardize geometry column name
     else:
         spatial = False
+
+    # standardize geometry column name
     if spatial and df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
+
+    # ignore fields cannot be specified as pk, fail
+    if primary_key.upper() in IGNORE_FIELDS:
+        raise ValueError(f"Field {primary_key} cannot be used as a primary key")
 
     # find fields common to both input datasets
     fields_common = set(df_a.columns).intersection(set(df_b.columns))
@@ -151,6 +169,14 @@ def gdf_diff(
             raise ValueError("Provided fields are not common to both datasets")
     else:
         fields = list(fields_common)
+
+    # remove columns not of interest
+    for f in fields:
+        if f.upper() in IGNORE_FIELDS:
+            LOG.warning(
+                f"Field {f} is ignored by changedetector and will not be included in results"
+            )
+            fields.remove(f)
 
     if len(fields) == 0:
         raise ValueError("Datasets have no field names in common, cannot compare")
