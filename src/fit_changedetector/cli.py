@@ -210,7 +210,7 @@ def compare(
     src_a = os.path.join(in_file_a, layer_a or "")
     src_b = os.path.join(in_file_b, layer_b or "")
 
-    # validate columns
+    # split provided fields into a list
     if fields:
         fields = fields.split(",")
     else:
@@ -245,7 +245,7 @@ def compare(
         )
         hash_fields = []
 
-    # validate that provided pk/hash columns are present in data
+    # validate that provided fields/pk/hash columns are present in data
     for source in [(src_a, df_a), (src_b, df_b)]:
         for fieldname in fields + hash_fields + primary_key:
             if fieldname not in source[1].columns:

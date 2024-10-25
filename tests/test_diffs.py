@@ -43,6 +43,29 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
+def test_diff_invalid_pk():
+    df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
+        columns={"id": "FID"}
+    )
+    df_b = geopandas.read_file("tests/data/parks_b.geojson").rename(
+        columns={"id": "FID"}
+    )
+    with pytest.raises(ValueError):
+        fcd.gdf_diff(df_a, df_b, primary_key="FID", return_type="gdf")
+
+
+def test_diff_ignore_columns():
+    df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
+        columns={"parkclasscode": "Shape_Area"}
+    )
+    df_b = geopandas.read_file("tests/data/parks_b.geojson").rename(
+        columns={"parkclasscode": "Shape_Area"}
+    )
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf", suffix_a="a")
+    assert "Shape_Area_a" not in d["MODIFIED_BOTH"].columns
+    assert "Shape_Area_a" not in d["MODIFIED_ATTR"].columns
+
+
 def test_diff_non_spatial():
     df_a = geopandas.read_file("tests/data/pets_1.csv")
     df_b = geopandas.read_file("tests/data/pets_2.csv")
