@@ -32,6 +32,13 @@ def add_hash_key(
             "Nothing to hash, specify hash_geometry and/or columns to hash"
         )
 
+    # Fail if attempting include a geometry based column in fields [], this information wil be captured by the geometry
+    for f in fields:
+        if f in fcd.area_length_fields:
+            raise ValueError(
+                f"Cannot hash field {f}, hashing on area/length fields is not supported"
+            )
+
     # If using default precision of 1cm on data using degrees,
     # presume this is an oversight, warn and adjust.
     # (if non-default precision is provided, presume that the user is right)
