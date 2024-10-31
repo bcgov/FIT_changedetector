@@ -57,8 +57,8 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
-def test_diff_columns(gdf):
-    # for modified attr output, retain only columns with changes
+# for modified attr output, retain only columns with changes
+def test_diff_modified_columns(gdf):
     df_a = gdf.copy()
     df_b = gdf.copy()
     df_b.at[2, "col2"] = "uuu"
@@ -67,6 +67,21 @@ def test_diff_columns(gdf):
     df_b.at[2, "geometry"] = Point(10, 10)
     d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
     assert list(d["MODIFIED_BOTH"].columns) == ["col2_a", "col2_b", "geometry"]
+
+
+# check that output schemas match input schemas
+def test_diff_source_columns(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.loc[:, "C"] = df_b.loc[:, "col1"]  # different schema in source b
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["NEW"].columns) == list(df_b.columns)  # empty, but has updated schema
+    assert list(d["DELETED"].columns) == list(
+        df_a.columns
+    )  # empty, but has source schema
+    assert list(d["UNCHANGED"].columns) == list(
+        df_a.columns
+    )  # unchanged data in source schema a
 
 
 def test_diff_ignore_columns_default():

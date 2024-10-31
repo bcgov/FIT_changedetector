@@ -156,6 +156,12 @@ def gdf_diff(
         if f.upper() in fcd.area_length_fields:
             df_b = df_b.drop(columns=[f])
 
+    # after making above tweaks, retain a full copy of sources for writing
+    # all source fields to NEW/UNCHANGED/DELETED (not just common fields
+    # used for comparison)
+    df_a_src = df_a.copy()
+    df_b_src = df_b.copy()
+
     ignore_fields = list(set([f.upper() for f in ignore_fields]))
 
     # ignore fields cannot be specified as pk, fail
@@ -243,21 +249,19 @@ def gdf_diff(
         suffixes=["_a", "_b"],
         indicator=True,
     )
-    additions = joined[joined["_merge"] == "right_only"]
-    deletions = joined[joined["_merge"] == "left_only"]
-    common = joined[joined["_merge"] == "both"]
 
-    # clean column names in resulting dataframes
+    # extract additions/deletions, and retain just the primary key.
+    # We join back to sources later - in order to retain all columns,
+    # not just those being compared/common to both sources.
+    additions = pandas.DataFrame(index=joined[joined["_merge"] == "right_only"].index)
+    deletions = pandas.DataFrame(index=joined[joined["_merge"] == "left_only"].index)
+
+    # create two dataframes holding records from respective source
+    # that are common to both sources (modifications/unchanged)
+    common = joined[joined["_merge"] == "both"]
     columns = list(df_a.columns)
     column_name_remap_a = {k + "_a": k for k in columns}
     column_name_remap_b = {k + "_b": k for k in columns}
-    # additions is data from source b
-    additions = additions.rename(columns=column_name_remap_b)[columns]
-    # deletions is data from source a
-    deletions = deletions.rename(columns=column_name_remap_a)[columns]
-
-    # create two dataframes holding records from respective source
-    # that are common to both sources
     common_a = common.rename(columns=column_name_remap_a)[columns]
     common_b = common.rename(columns=column_name_remap_b)[columns]
 
@@ -372,12 +376,38 @@ def gdf_diff(
             modifications["status"],
         ]
     )
-    # join back to source
-    unchanged = df_a.merge(
+
+    # Where we have just the pk/indexes (additions/deletions/modifications),
+    # join back to source datasets to include all source fields in the output
+
+    # first, note fields and order in sources
+    fields_a_src = list(df_a_src.columns)
+    fields_b_src = list(df_b_src.columns)
+
+    # next, set index of source datasets to enable joining back to results
+    df_a_src = df_a_src.set_index(primary_key)
+    df_b_src = df_b_src.set_index(primary_key)
+
+    # do the joins, retain columns of interest, drop index
+    unchanged = df_a_src.merge(
         changes, how="outer", left_index=True, right_index=True, indicator=True
     )
     unchanged = unchanged[unchanged["_merge"] == "left_only"]
-    unchanged = unchanged[df_a.columns]
+    unchanged[primary_key] = unchanged.index
+    unchanged = unchanged[fields_a_src].reset_index(drop=True)
+
+    additions = df_b_src.merge(
+        additions, how="inner", left_index=True, right_index=True
+    )
+    additions[primary_key] = additions.index
+    additions = additions[fields_b_src].reset_index(drop=True)
+
+    deletions = df_a_src.merge(
+        deletions, how="inner", left_index=True, right_index=True
+    )
+    deletions[primary_key] = deletions.index
+    deletions = deletions[fields_a_src].reset_index(drop=True)
+
     if return_type == "gdf":
         return {
             "NEW": additions,
