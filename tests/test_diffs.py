@@ -1,5 +1,7 @@
 import geopandas
 import pytest
+from geopandas import GeoDataFrame
+from shapely.geometry import Point
 
 import fit_changedetector as fcd
 
@@ -41,6 +43,24 @@ def test_diff():
     assert len(d["MODIFIED_BOTH"] == 1)
     assert len(d["MODIFIED_ATTR"] == 4)
     assert len(d["MODIFIED_GEOM"] == 1)
+
+
+def test_diff_columns():
+    # retain only modified columns
+    data = {
+        "key": range(10, 13),
+        "column1": ["x", "y", "z"],
+        "column2": ["t", "u", "v"],
+        "geometry": [Point(x, x) for x in range(3)],
+    }
+    df_a = GeoDataFrame(data)
+    df_b = GeoDataFrame(data)
+    df_b.at[2, "column2"] = "uuu"
+    d = fcd.gdf_diff(df_a, df_b, primary_key="key", return_type="gdf")
+    assert list(d["MODIFIED_ATTR"].columns) == ["column2_a", "column2_b", "geometry"]
+    df_b.at[2, "geometry"] = Point(10, 10)
+    d = fcd.gdf_diff(df_a, df_b, primary_key="key", return_type="gdf")
+    assert list(d["MODIFIED_BOTH"].columns) == ["column2_a", "column2_b", "geometry"]
 
 
 def test_diff_invalid_pk():

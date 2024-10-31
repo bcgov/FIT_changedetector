@@ -264,7 +264,7 @@ def gdf_diff(
                 suffix_a,
                 suffix_b,
             ),
-            keep_shape=True,
+            keep_shape=False,
         ).dropna(axis=0, how="all")
     else:
         modified_attributes = common_a.compare(
@@ -273,7 +273,7 @@ def gdf_diff(
                 suffix_a,
                 suffix_b,
             ),
-            keep_shape=True,
+            keep_shape=False,
         ).dropna(axis=0, how="all")
 
     # flatten the resulting data structure
