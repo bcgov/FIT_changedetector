@@ -4,20 +4,9 @@ import logging
 import geopandas
 import pandas
 
-LOG = logging.getLogger(__name__)
+import fit_changedetector as fcd
 
-IGNORE_FIELDS = [
-    "OBJECTID",
-    "OID_",  # ArcPro adds this to csv files
-    "FID",
-    "GLOBALID",
-    "GLOBAL_ID",
-    "SHAPE_LENGTH",
-    "SHAPE_LENG",  # .shp truncation
-    "SHAPE_AREA",
-    "GEOMETRY_LENGTH",
-    "GEOMETRY_AREA",
-]
+LOG = logging.getLogger(__name__)
 
 
 def add_hash_key(
@@ -102,6 +91,7 @@ def gdf_diff(
     df_b,
     primary_key,
     fields=[],
+    ignore_fields=[],
     precision=0.01,
     suffix_a="a",
     suffix_b="b",
@@ -151,8 +141,14 @@ def gdf_diff(
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
+    # always ignore esri generated area/length fields,
+    # differences in these will be captured as geometry modifications
+    ignore_fields = list(
+        set([f.upper() for f in ignore_fields] + fcd.area_length_fields)
+    )
+
     # ignore fields cannot be specified as pk, fail
-    if primary_key.upper() in IGNORE_FIELDS:
+    if primary_key.upper() in ignore_fields:
         raise ValueError(f"Field {primary_key} cannot be used as a primary key")
 
     # find fields common to both input datasets
@@ -170,9 +166,9 @@ def gdf_diff(
     else:
         fields = list(fields_common)
 
-    # remove columns not of interest
+    # remove ignore_fields from comparison
     for f in fields:
-        if f.upper() in IGNORE_FIELDS:
+        if f.upper() in ignore_fields:
             LOG.warning(
                 f"Field {f} is ignored by changedetector and will not be included in results"
             )

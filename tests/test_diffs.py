@@ -6,6 +6,18 @@ from shapely.geometry import Point
 import fit_changedetector as fcd
 
 
+@pytest.fixture
+def gdf():
+    return GeoDataFrame(
+        {
+            "pk": range(10, 13),
+            "col1": [100, 300, 500],
+            "col2": ["x", "y", "z"],
+            "geometry": [Point(x, x) for x in range(3)],
+        }
+    )
+
+
 def test_add_hash_key_geom():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     df = fcd.add_hash_key(df, "test_hash")
@@ -45,36 +57,19 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
-def test_diff_columns():
-    # retain only modified columns
-    data = {
-        "key": range(10, 13),
-        "column1": ["x", "y", "z"],
-        "column2": ["t", "u", "v"],
-        "geometry": [Point(x, x) for x in range(3)],
-    }
-    df_a = GeoDataFrame(data)
-    df_b = GeoDataFrame(data)
-    df_b.at[2, "column2"] = "uuu"
-    d = fcd.gdf_diff(df_a, df_b, primary_key="key", return_type="gdf")
-    assert list(d["MODIFIED_ATTR"].columns) == ["column2_a", "column2_b", "geometry"]
+def test_diff_columns(gdf):
+    # for modified attr output, retain only columns with changes
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.at[2, "col2"] = "uuu"
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["MODIFIED_ATTR"].columns) == ["col2_a", "col2_b", "geometry"]
     df_b.at[2, "geometry"] = Point(10, 10)
-    d = fcd.gdf_diff(df_a, df_b, primary_key="key", return_type="gdf")
-    assert list(d["MODIFIED_BOTH"].columns) == ["column2_a", "column2_b", "geometry"]
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["MODIFIED_BOTH"].columns) == ["col2_a", "col2_b", "geometry"]
 
 
-def test_diff_invalid_pk():
-    df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
-        columns={"id": "FID"}
-    )
-    df_b = geopandas.read_file("tests/data/parks_b.geojson").rename(
-        columns={"id": "FID"}
-    )
-    with pytest.raises(ValueError):
-        fcd.gdf_diff(df_a, df_b, primary_key="FID", return_type="gdf")
-
-
-def test_diff_ignore_columns():
+def test_diff_ignore_columns_default():
     df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
         columns={"parkclasscode": "Shape_Area"}
     )
@@ -84,6 +79,38 @@ def test_diff_ignore_columns():
     d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf", suffix_a="a")
     assert "Shape_Area_a" not in d["MODIFIED_BOTH"].columns
     assert "Shape_Area_a" not in d["MODIFIED_ATTR"].columns
+
+
+def test_diff_ignore_columns(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.at[2, "col2"] = "uuu"
+    d = fcd.gdf_diff(
+        df_a,
+        df_b,
+        primary_key="pk",
+        return_type="gdf",
+        suffix_a="a",
+        ignore_fields=["col2"],
+    )
+    assert "col2" not in d["MODIFIED_ATTR"].columns
+
+
+def test_diff_ignore_pk(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_a = df_a.rename(columns={"pk": "fid"})
+    df_b = df_b.rename(columns={"pk": "fid"})
+    df_b.at[2, "col2"] = "uuu"
+    with pytest.raises(ValueError):
+        fcd.gdf_diff(
+            df_a,
+            df_b,
+            primary_key="fid",
+            return_type="gdf",
+            suffix_a="a",
+            ignore_fields=["fid"],
+        )
 
 
 def test_diff_non_spatial():
