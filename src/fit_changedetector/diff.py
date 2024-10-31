@@ -62,6 +62,7 @@ def add_hash_key(
                 )
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
+        df = df.copy()  # copy so the original df does not get the new column
         df["geometry_normalized"] = (
             df[df.geometry.name].normalize().set_precision(precision, mode="pointwise")
         )
@@ -75,6 +76,10 @@ def add_hash_key(
         axis=1,
     )
 
+    # remove the normalized/reduced precision geometry
+    if hash_geometry:
+        df = df.drop(columns=["geometry_normalized"])
+
     # fail if hashes are not unique
     if len(df) != len(df[new_field].drop_duplicates()):
         if fields == ["geometry_normalized"]:
@@ -85,11 +90,6 @@ def add_hash_key(
             raise ValueError(
                 "Duplicate values for output hash are present, consider adding more columns to hash or editing data"
             )
-
-    # remove normalized/reduced precision geometry
-    if hash_geometry:
-        df = df.drop(columns=["geometry_normalized"])
-
     return df
 
 
@@ -114,9 +114,9 @@ def gdf_diff(
     - have equivalent geometry types and coordinate reference systems
 
     Output diff is represented by five dataframes:
-    - additions
-    - deletions
-    - modifications - geometry only
+    - additions (with same schema as dataset b)
+    - deletions (with same schema as dataset a)
+    - modifications - geometry only (with )
     - modifications - attribute only
     - modifications - geometry and attribute
 
@@ -148,11 +148,15 @@ def gdf_diff(
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
-    # always ignore esri generated area/length fields,
-    # differences in these will be captured as geometry modifications
-    ignore_fields = list(
-        set([f.upper() for f in ignore_fields] + fcd.area_length_fields)
-    )
+    # drop esri generated area/length fields
+    for f in df_a.columns:
+        if f.upper() in fcd.area_length_fields:
+            df_a = df_a.drop(columns=[f])
+    for f in df_b.columns:
+        if f.upper() in fcd.area_length_fields:
+            df_b = df_b.drop(columns=[f])
+
+    ignore_fields = list(set([f.upper() for f in ignore_fields]))
 
     # ignore fields cannot be specified as pk, fail
     if primary_key.upper() in ignore_fields:
@@ -360,7 +364,7 @@ def gdf_diff(
     modifications["status"] = "modifications"
     additions["status"] = "additions"
     deletions["status"] = "deletions"
-    # concatenate all changes into a single dataframe
+    # concatenate ids of all changes into a single dataframe, tagged by status of change
     changes = pandas.concat(
         [
             additions["status"],
@@ -374,7 +378,6 @@ def gdf_diff(
     )
     unchanged = unchanged[unchanged["_merge"] == "left_only"]
     unchanged = unchanged[df_a.columns]
-
     if return_type == "gdf":
         return {
             "NEW": additions,

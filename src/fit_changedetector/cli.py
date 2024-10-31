@@ -218,6 +218,8 @@ def compare(
 
     if primary_key:
         primary_key = primary_key.split(",")
+
+    # if no primary key provided, link the two datasets by presuming geometries are the same (hash on geometry)
     else:
         LOG.warning(
             "No primary key supplied, script will attempt to hash on geometries (and hash_fields, if specified)"
@@ -287,15 +289,11 @@ def compare(
         primary_key = [hash_key]
         dump_inputs = True
 
-    # convert primary key from list to column name string
-    # (it is always only a single column after above processing)
-    primary_key = primary_key[0]
-
     # run the diff
     diff = fcd.gdf_diff(
         df_a,
         df_b,
-        primary_key,
+        primary_key[0],  # pk is always a single column after above processing
         fields=fields,
         precision=precision,
         suffix_a=suffix_a,
