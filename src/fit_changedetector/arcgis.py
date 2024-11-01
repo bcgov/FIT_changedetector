@@ -26,14 +26,14 @@ if __name__ == "__main__":
     # required
     data_original = arcpy.GetParameterAsText(0)
     data_new = arcpy.GetParameterAsText(1)
-    out_folder = arcpy.GetParameter(2)
+    out_folder = arcpy.GetParameterAsText(2)
 
     # optional
     primary_key = arcpy.GetParameter(3)
     fields = arcpy.GetParameter(4)
     ignore_fields = arcpy.GetParameter(5)
     hash_key = arcpy.GetParameterAsText(6)
-    hash_fields = arcpy.GetParameterAsText(7)
+    hash_fields = arcpy.GetParameter(7)
     precision = arcpy.GetParameterAsText(8)
     suffix_a = arcpy.GetParameterAsText(9)
     suffix_b = arcpy.GetParameterAsText(10)
@@ -54,7 +54,11 @@ if __name__ == "__main__":
 
     # generate output filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    out_file = os.path.join(str(out_folder), f"changedetector_{timestamp}.gdb")
+    out_file = os.path.join(out_folder, f"changedetector_{timestamp}.gdb")
+
+    # convert precision from text
+    if precision:
+        precision = float(precision)
 
     try:
         fcd.compare(
