@@ -213,23 +213,26 @@ def compare(
     primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
-    fcd.compare(
-        in_file_a,
-        in_file_b,
-        layer_a,
-        layer_b,
-        out_file,
-        primary_key=primary_key,
-        fields=fields,
-        suffix_a=suffix_a,
-        suffix_b=suffix_b,
-        drop_null_geometry=drop_null_geometry,
-        crs=crs,
-        hash_key=hash_key,
-        hash_fields=hash_fields,
-        precision=precision,
-        dump_inputs=dump_inputs,
-    )
+    try:
+        fcd.compare(
+            in_file_a,
+            in_file_b,
+            layer_a,
+            layer_b,
+            out_file,
+            primary_key=primary_key,
+            fields=fields,
+            suffix_a=suffix_a,
+            suffix_b=suffix_b,
+            drop_null_geometry=drop_null_geometry,
+            crs=crs,
+            hash_key=hash_key,
+            hash_fields=hash_fields,
+            precision=precision,
+            dump_inputs=dump_inputs,
+        )
+    except Exception as e:
+        LOG.error(e)
 
 
 if __name__ == "__main__":
