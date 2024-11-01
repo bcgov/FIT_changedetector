@@ -19,6 +19,8 @@ For systems where gdal/geopandas are not already available, installing geopanada
 
 #### Python module
 
+The primary function of interest is `gdf_diff()`:
+
     import geopandas
     import fit_changedetector as fcd
 
@@ -37,7 +39,8 @@ For systems where gdal/geopandas are not already available, installing geopanada
         suffix_b="b",
     )
 
-The function `gdf_diff` returns a dictionary with standard keys and geodataframes holding the corresponding records.
+`gdf_diff` returns a dictionary having the keys noted below. Dictionary values are geopandas GeoDataFrames holding the corresponding records.
+
 Dictionary keys:
 
 | key | description |
@@ -50,21 +53,14 @@ Dictionary keys:
 | `MODIFIED_GEOM` | records where geometries have changed but attribute columns have not |
 
 Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data.
-Schemas for records contained in the `MODIFIED` keys include values from each input source.  For example, these are 
-some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values 
-from the secondary dataset:
+Schemas for records contained in the `MODIFIED` keys include only columns where a change has occured. For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
 
     >>> diff["MODIFIED_ATTR"]
-                park_name_a               park_name_b           parkclasscode_a parkclasscode_b geometry
-    fcd_load_id                                                                                                                                                             
-    5           Mars Street Park          Jupiter Street Park   NaN             NaN             MULTIPOLYGON (((1196056.257 385205.986, 119607...
-    6           Mayfair Blue              Mayfair Green         BL              GRN             MULTIPOLYGON (((1195089.488 384997.246, 119508...
-    7           Quadra Heights Playground                       NaN             NaN             MULTIPOLYGON (((1195238.681 384925.001, 119527...
-
-Because the primary keys are used as the dataframe's index, obtaining the values requires an extra step (rather than referencing the column name):
-
-    >>> diff["MODIFIED_ATTR"].index.array.tolist()
-    ['5', '6', '7']
+      id       park_name_a                park_name_b parkclasscode_a parkclasscode_b
+    0  3  Mars Street Park        Jupiter Street Park             NaN             NaN
+    1  6      Mayfair Blue              Mayfair Green              BL             GRN
+    2  7                    Quadra Heights Playground             NaN             NaN
+    3  9               NaN                        NaN              RP             PND
 
 
 #### CLI

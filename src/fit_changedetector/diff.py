@@ -4,20 +4,9 @@ import logging
 import geopandas
 import pandas
 
-LOG = logging.getLogger(__name__)
+import fit_changedetector as fcd
 
-IGNORE_FIELDS = [
-    "OBJECTID",
-    "OID_",  # ArcPro adds this to csv files
-    "FID",
-    "GLOBALID",
-    "GLOBAL_ID",
-    "SHAPE_LENGTH",
-    "SHAPE_LENG",  # .shp truncation
-    "SHAPE_AREA",
-    "GEOMETRY_LENGTH",
-    "GEOMETRY_AREA",
-]
+LOG = logging.getLogger(__name__)
 
 
 def add_hash_key(
@@ -43,6 +32,13 @@ def add_hash_key(
             "Nothing to hash, specify hash_geometry and/or columns to hash"
         )
 
+    # Fail if attempting include a geometry based column in fields [], this information wil be captured by the geometry
+    for f in fields:
+        if f in fcd.area_length_fields:
+            raise ValueError(
+                f"Cannot hash field {f}, hashing on area/length fields is not supported"
+            )
+
     # If using default precision of 1cm on data using degrees,
     # presume this is an oversight, warn and adjust.
     # (if non-default precision is provided, presume that the user is right)
@@ -66,6 +62,7 @@ def add_hash_key(
                 )
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
+        df = df.copy()  # copy so the original df does not get the new column
         df["geometry_normalized"] = (
             df[df.geometry.name].normalize().set_precision(precision, mode="pointwise")
         )
@@ -79,6 +76,10 @@ def add_hash_key(
         axis=1,
     )
 
+    # remove the normalized/reduced precision geometry
+    if hash_geometry:
+        df = df.drop(columns=["geometry_normalized"])
+
     # fail if hashes are not unique
     if len(df) != len(df[new_field].drop_duplicates()):
         if fields == ["geometry_normalized"]:
@@ -89,11 +90,6 @@ def add_hash_key(
             raise ValueError(
                 "Duplicate values for output hash are present, consider adding more columns to hash or editing data"
             )
-
-    # remove normalized/reduced precision geometry
-    if hash_geometry:
-        df = df.drop(columns=["geometry_normalized"])
-
     return df
 
 
@@ -102,6 +98,7 @@ def gdf_diff(
     df_b,
     primary_key,
     fields=[],
+    ignore_fields=[],
     precision=0.01,
     suffix_a="a",
     suffix_b="b",
@@ -117,9 +114,9 @@ def gdf_diff(
     - have equivalent geometry types and coordinate reference systems
 
     Output diff is represented by five dataframes:
-    - additions
-    - deletions
-    - modifications - geometry only
+    - additions (with same schema as dataset b)
+    - deletions (with same schema as dataset a)
+    - modifications - geometry only (with )
     - modifications - attribute only
     - modifications - geometry and attribute
 
@@ -151,8 +148,24 @@ def gdf_diff(
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
+    # drop esri generated area/length fields
+    for f in df_a.columns:
+        if f.upper() in fcd.area_length_fields:
+            df_a = df_a.drop(columns=[f])
+    for f in df_b.columns:
+        if f.upper() in fcd.area_length_fields:
+            df_b = df_b.drop(columns=[f])
+
+    # after making above tweaks, retain a full copy of sources for writing
+    # all source fields to NEW/UNCHANGED/DELETED (not just common fields
+    # used for comparison)
+    df_a_src = df_a.copy()
+    df_b_src = df_b.copy()
+
+    ignore_fields = list(set([f.upper() for f in ignore_fields]))
+
     # ignore fields cannot be specified as pk, fail
-    if primary_key.upper() in IGNORE_FIELDS:
+    if primary_key.upper() in ignore_fields:
         raise ValueError(f"Field {primary_key} cannot be used as a primary key")
 
     # find fields common to both input datasets
@@ -170,9 +183,9 @@ def gdf_diff(
     else:
         fields = list(fields_common)
 
-    # remove columns not of interest
+    # remove ignore_fields from comparison
     for f in fields:
-        if f.upper() in IGNORE_FIELDS:
+        if f.upper() in ignore_fields:
             LOG.warning(
                 f"Field {f} is ignored by changedetector and will not be included in results"
             )
@@ -236,21 +249,19 @@ def gdf_diff(
         suffixes=["_a", "_b"],
         indicator=True,
     )
-    additions = joined[joined["_merge"] == "right_only"]
-    deletions = joined[joined["_merge"] == "left_only"]
-    common = joined[joined["_merge"] == "both"]
 
-    # clean column names in resulting dataframes
+    # extract additions/deletions, and retain just the primary key.
+    # We join back to sources later - in order to retain all columns,
+    # not just those being compared/common to both sources.
+    additions = pandas.DataFrame(index=joined[joined["_merge"] == "right_only"].index)
+    deletions = pandas.DataFrame(index=joined[joined["_merge"] == "left_only"].index)
+
+    # create two dataframes holding records from respective source
+    # that are common to both sources (modifications/unchanged)
+    common = joined[joined["_merge"] == "both"]
     columns = list(df_a.columns)
     column_name_remap_a = {k + "_a": k for k in columns}
     column_name_remap_b = {k + "_b": k for k in columns}
-    # additions is data from source b
-    additions = additions.rename(columns=column_name_remap_b)[columns]
-    # deletions is data from source a
-    deletions = deletions.rename(columns=column_name_remap_a)[columns]
-
-    # create two dataframes holding records from respective source
-    # that are common to both sources
     common_a = common.rename(columns=column_name_remap_a)[columns]
     common_b = common.rename(columns=column_name_remap_b)[columns]
 
@@ -264,7 +275,7 @@ def gdf_diff(
                 suffix_a,
                 suffix_b,
             ),
-            keep_shape=True,
+            keep_shape=False,
         ).dropna(axis=0, how="all")
     else:
         modified_attributes = common_a.compare(
@@ -273,7 +284,7 @@ def gdf_diff(
                 suffix_a,
                 suffix_b,
             ),
-            keep_shape=True,
+            keep_shape=False,
         ).dropna(axis=0, how="all")
 
     # flatten the resulting data structure
@@ -322,6 +333,7 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
 
         # modified attributes and geometries retains either geometry
@@ -331,6 +343,7 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
 
         # modified geoms only, using source column names
@@ -340,11 +353,15 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_y": "geometry"})[columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
     else:
-        m_attributes_geometries = []
-        m_geometries = []
-        m_attributes = modified_attributes
+        m_attributes = modified_attributes.reset_index(drop=False)
+        # no spatial changes, return empty geodataframes for geometry diffs
+        m_attributes_geometries = geopandas.GeoDataFrame(
+            columns=["geometry"], geometry="geometry"
+        )
+        m_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
 
     # generate unchanged dataframe
     # (there is probably a more concise method to do this)
@@ -357,7 +374,7 @@ def gdf_diff(
     modifications["status"] = "modifications"
     additions["status"] = "additions"
     deletions["status"] = "deletions"
-    # concatenate all changes into a single dataframe
+    # concatenate ids of all changes into a single dataframe, tagged by status of change
     changes = pandas.concat(
         [
             additions["status"],
@@ -365,12 +382,37 @@ def gdf_diff(
             modifications["status"],
         ]
     )
-    # join back to source
-    unchanged = df_a.merge(
+
+    # Where we have just the pk/indexes (additions/deletions/modifications),
+    # join back to source datasets to include all source fields in the output
+
+    # first, note fields and order in sources
+    fields_a_src = list(df_a_src.columns)
+    fields_b_src = list(df_b_src.columns)
+
+    # next, set index of source datasets to enable joining back to results
+    df_a_src = df_a_src.set_index(primary_key)
+    df_b_src = df_b_src.set_index(primary_key)
+
+    # do the joins, retain columns of interest, drop index
+    unchanged = df_a_src.merge(
         changes, how="outer", left_index=True, right_index=True, indicator=True
     )
     unchanged = unchanged[unchanged["_merge"] == "left_only"]
-    unchanged = unchanged[df_a.columns]
+    unchanged[primary_key] = unchanged.index
+    unchanged = unchanged[fields_a_src].reset_index(drop=True)
+
+    additions = df_b_src.merge(
+        additions, how="inner", left_index=True, right_index=True
+    )
+    additions[primary_key] = additions.index
+    additions = additions[fields_b_src].reset_index(drop=True)
+
+    deletions = df_a_src.merge(
+        deletions, how="inner", left_index=True, right_index=True
+    )
+    deletions[primary_key] = deletions.index
+    deletions = deletions[fields_a_src].reset_index(drop=True)
 
     if return_type == "gdf":
         return {

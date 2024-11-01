@@ -1,7 +1,21 @@
 import geopandas
 import pytest
+from geopandas import GeoDataFrame
+from shapely.geometry import Point
 
 import fit_changedetector as fcd
+
+
+@pytest.fixture
+def gdf():
+    return GeoDataFrame(
+        {
+            "pk": range(10, 13),
+            "col1": [100, 300, 500],
+            "col2": ["x", "y", "z"],
+            "geometry": [Point(x, x) for x in range(3)],
+        }
+    )
 
 
 def test_add_hash_key_geom():
@@ -43,18 +57,34 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
-def test_diff_invalid_pk():
-    df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
-        columns={"id": "FID"}
-    )
-    df_b = geopandas.read_file("tests/data/parks_b.geojson").rename(
-        columns={"id": "FID"}
-    )
-    with pytest.raises(ValueError):
-        fcd.gdf_diff(df_a, df_b, primary_key="FID", return_type="gdf")
+# for modified attr output, retain only columns with changes
+def test_diff_modified_columns(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.at[2, "col2"] = "uuu"
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["MODIFIED_ATTR"].columns) == ["pk", "col2_a", "col2_b", "geometry"]
+    df_b.at[2, "geometry"] = Point(10, 10)
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["MODIFIED_BOTH"].columns) == ["pk", "col2_a", "col2_b", "geometry"]
 
 
-def test_diff_ignore_columns():
+# check that output schemas match input schemas
+def test_diff_source_columns(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.loc[:, "C"] = df_b.loc[:, "col1"]  # different schema in source b
+    d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
+    assert list(d["NEW"].columns) == list(df_b.columns)  # empty, but has updated schema
+    assert list(d["DELETED"].columns) == list(
+        df_a.columns
+    )  # empty, but has source schema
+    assert list(d["UNCHANGED"].columns) == list(
+        df_a.columns
+    )  # unchanged data in source schema a
+
+
+def test_diff_ignore_columns_default():
     df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
         columns={"parkclasscode": "Shape_Area"}
     )
@@ -66,6 +96,38 @@ def test_diff_ignore_columns():
     assert "Shape_Area_a" not in d["MODIFIED_ATTR"].columns
 
 
+def test_diff_ignore_columns(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.at[2, "col2"] = "uuu"
+    d = fcd.gdf_diff(
+        df_a,
+        df_b,
+        primary_key="pk",
+        return_type="gdf",
+        suffix_a="a",
+        ignore_fields=["col2"],
+    )
+    assert "col2" not in d["MODIFIED_ATTR"].columns
+
+
+def test_diff_ignore_pk(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_a = df_a.rename(columns={"pk": "fid"})
+    df_b = df_b.rename(columns={"pk": "fid"})
+    df_b.at[2, "col2"] = "uuu"
+    with pytest.raises(ValueError):
+        fcd.gdf_diff(
+            df_a,
+            df_b,
+            primary_key="fid",
+            return_type="gdf",
+            suffix_a="a",
+            ignore_fields=["fid"],
+        )
+
+
 def test_diff_non_spatial():
     df_a = geopandas.read_file("tests/data/pets_1.csv")
     df_b = geopandas.read_file("tests/data/pets_2.csv")
@@ -74,8 +136,8 @@ def test_diff_non_spatial():
     assert len(d["DELETED"] == 1)
     assert len(d["UNCHANGED"] == 1)
     assert len(d["MODIFIED_ATTR"] == 1)
-    assert d["MODIFIED_GEOM"] == []
-    assert d["MODIFIED_BOTH"] == []
+    assert d["MODIFIED_GEOM"].empty
+    assert d["MODIFIED_BOTH"].empty
 
 
 def test_precision():
