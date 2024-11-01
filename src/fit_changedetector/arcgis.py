@@ -8,15 +8,17 @@
 # sys.path.append(PYTHON_LIBRARY)
 # import custom_modules.arcpy_logging as arclog
 # sys.path.remove(PYTHON_LIBRARY)
-# import logging
+import logging
+import os
+
 # import sys
+from datetime import datetime
 from pathlib import Path
 
 import arcpy
 
-# import fit_changedetector as fcd
+import fit_changedetector as fcd
 
-# LOG = logging.getLogger(__name__)
 # ah = arclog.ArcpyHandler()
 # LOG.addHandler(ah)
 
@@ -36,6 +38,7 @@ if __name__ == "__main__":
     suffix_a = arcpy.GetParameterAsText(9)
     suffix_b = arcpy.GetParameterAsText(10)
     drop_null_geometry = arcpy.GetParameterAsText(11)
+    dump_inputs = arcpy.GetParameterAsText(12)
 
     # parse parameters
     gdb_original = Path(data_original).parent
@@ -43,7 +46,36 @@ if __name__ == "__main__":
     gdb_new = Path(data_new).parent
     layer_new = Path(data_new).name
 
-    # validate
+    # setup logging
+    logging.basicConfig(
+        level="INFO",
+        format="%(asctime)s:%(levelname)s:%(name)s: %(message)s",
+    )
 
-    # run the job
-    # fcd.compare()
+    # generate output filename
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    out_file = os.path.join(out_folder, f"changedetector_{timestamp}.gdb")
+
+    try:
+        fcd.compare(
+            gdb_original,
+            gdb_new,
+            layer_original,
+            layer_new,
+            out_file=out_file,
+            primary_key=primary_key,
+            fields=fields,
+            suffix_a=suffix_a,
+            suffix_b=suffix_b,
+            drop_null_geometry=drop_null_geometry,
+            hash_key=hash_key,
+            hash_fields=hash_fields,
+            precision=precision,
+            dump_inputs=dump_inputs,
+        )
+    except arcpy.ExecuteError:
+        print((arcpy.GetMessages()))
+        arcpy.AddError(arcpy.GetMessages())
+    except Exception as e:
+        print(e)
+        arcpy.AddError(e)

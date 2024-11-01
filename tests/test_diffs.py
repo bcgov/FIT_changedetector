@@ -36,6 +36,14 @@ def test_add_hash_empty():
         df = fcd.add_hash_key(df, "test_hash", fields=[], hash_geometry=False)
 
 
+def test_invalid_hash_precision():
+    df = geopandas.read_file("tests/data/parks_a.geojson")
+    with pytest.raises(ValueError):
+        df = fcd.add_hash_key(
+            df, "test_hash", fields=[], hash_geometry=True, precision=999
+        )
+
+
 def test_add_hash_ll(caplog):
     df = geopandas.read_file("tests/data/parks_a.geojson").to_crs("EPSG:4326")
     df = fcd.add_hash_key(df, "test_hash")
@@ -186,3 +194,11 @@ def test_precision():
     )["MODIFIED_GEOM"]
     assert len(diff_high_precision) == 2
     assert len(diff_low_precision) == 0
+
+
+def test_invalid_diff_precision(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_b.at[2, "col2"] = "uuu"
+    with pytest.raises(ValueError):
+        fcd.gdf_diff(df_a, df_b, primary_key="pk", precision=999)

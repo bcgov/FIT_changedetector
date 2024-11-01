@@ -23,6 +23,12 @@ def add_hash_key(
     """Add new column to input dataframe, containing hash of input columns and/or geometry"""
     pandas.options.mode.chained_assignment = None
 
+    # validate precision
+    if precision not in fcd.valid_precisions:
+        raise ValueError(
+            f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
+        )
+
     # Fail if output column is already present in data
     if new_field in df.columns:
         raise ValueError(
@@ -144,6 +150,12 @@ def gdf_diff(
         )
     else:
         spatial = False
+
+    # is precision supported?
+    if precision not in fcd.valid_precisions:
+        raise ValueError(
+            f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
+        )
 
     # standardize geometry column name
     if spatial and df_a.geometry.name != "geometry":

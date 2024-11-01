@@ -60,6 +60,12 @@ def cli():
     help="Comma separated list of fields to include in the hash (not including geometry)",
 )
 @click.option(
+    "--precision",
+    "-p",
+    default=0.01,
+    help="Coordinate precision for geometry hash and comparison. Default=0.01",
+)
+@click.option(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
 )
@@ -72,6 +78,7 @@ def add_hash_key(
     out_layer,
     hash_key,
     hash_fields,
+    precision,
     drop_null_geometry,
     crs,
     verbose,
@@ -100,6 +107,7 @@ def add_hash_key(
         new_field=hash_key,
         fields=hash_fields,
         hash_geometry=True,
+        precision=precision,
         drop_null_geometry=drop_null_geometry,
     )
 
