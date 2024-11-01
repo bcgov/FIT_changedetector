@@ -356,11 +356,12 @@ def gdf_diff(
             .reset_index(drop=False)
         )
     else:
+        m_attributes = modified_attributes.reset_index(drop=False)
+        # no spatial changes, return empty geodataframes for geometry diffs
         m_attributes_geometries = geopandas.GeoDataFrame(
             columns=["geometry"], geometry="geometry"
         )
         m_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
-        m_attributes = modified_attributes.reset_index(drop=False)
 
     # generate unchanged dataframe
     # (there is probably a more concise method to do this)
