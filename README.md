@@ -56,11 +56,11 @@ Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the so
 Schemas for records contained in the `MODIFIED` keys include only columns where a change has occured. For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
 
     >>> diff["MODIFIED_ATTR"]
-                park_name_a               park_name_b           parkclasscode_a parkclasscode_b geometry
-    fcd_load_id                                                                                                                                                             
-    5           Mars Street Park          Jupiter Street Park   NaN             NaN             MULTIPOLYGON (((1196056.257 385205.986, 119607...
-    6           Mayfair Blue              Mayfair Green         BL              GRN             MULTIPOLYGON (((1195089.488 384997.246, 119508...
-    7           Quadra Heights Playground                       NaN             NaN             MULTIPOLYGON (((1195238.681 384925.001, 119527...
+      id       park_name_a                park_name_b parkclasscode_a parkclasscode_b
+    0  3  Mars Street Park        Jupiter Street Park             NaN             NaN
+    1  6      Mayfair Blue              Mayfair Green              BL             GRN
+    2  7                    Quadra Heights Playground             NaN             NaN
+    3  9               NaN                        NaN              RP             PND
 
 
 #### CLI
