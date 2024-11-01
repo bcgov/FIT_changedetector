@@ -63,10 +63,10 @@ def test_diff_modified_columns(gdf):
     df_b = gdf.copy()
     df_b.at[2, "col2"] = "uuu"
     d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
-    assert list(d["MODIFIED_ATTR"].columns) == ["col2_a", "col2_b", "geometry"]
+    assert list(d["MODIFIED_ATTR"].columns) == ["pk", "col2_a", "col2_b", "geometry"]
     df_b.at[2, "geometry"] = Point(10, 10)
     d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
-    assert list(d["MODIFIED_BOTH"].columns) == ["col2_a", "col2_b", "geometry"]
+    assert list(d["MODIFIED_BOTH"].columns) == ["pk", "col2_a", "col2_b", "geometry"]
 
 
 # check that output schemas match input schemas
@@ -136,8 +136,8 @@ def test_diff_non_spatial():
     assert len(d["DELETED"] == 1)
     assert len(d["UNCHANGED"] == 1)
     assert len(d["MODIFIED_ATTR"] == 1)
-    assert d["MODIFIED_GEOM"] == []
-    assert d["MODIFIED_BOTH"] == []
+    assert d["MODIFIED_GEOM"].empty
+    assert d["MODIFIED_BOTH"].empty
 
 
 def test_precision():

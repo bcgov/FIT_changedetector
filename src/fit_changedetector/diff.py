@@ -333,6 +333,7 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
 
         # modified attributes and geometries retains either geometry
@@ -342,6 +343,7 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
 
         # modified geoms only, using source column names
@@ -351,11 +353,14 @@ def gdf_diff(
             ]
             .rename(columns={"geometry_y": "geometry"})[columns]
             .set_geometry("geometry")
+            .reset_index(drop=False)
         )
     else:
-        m_attributes_geometries = []
-        m_geometries = []
-        m_attributes = modified_attributes
+        m_attributes_geometries = geopandas.GeoDataFrame(
+            columns=["geometry"], geometry="geometry"
+        )
+        m_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
+        m_attributes = modified_attributes.reset_index(drop=False)
 
     # generate unchanged dataframe
     # (there is probably a more concise method to do this)
