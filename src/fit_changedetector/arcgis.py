@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # generate output filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    out_file = os.path.join(out_folder, f"changedetector_{timestamp}.gdb")
+    out_file = os.path.join(str(out_folder), f"changedetector_{timestamp}.gdb")
 
     try:
         fcd.compare(
