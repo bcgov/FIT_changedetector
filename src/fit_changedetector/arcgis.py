@@ -1,22 +1,20 @@
-import sys
-
 # start with trying to import from path
 # CHANGEDETECTOR_DEV = (
 #    r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
 # )
 # sys.path.append(CHANGEDETECTOR_DEV)
-
 # logging to arcpy translator
 # PYTHON_LIBRARY = r"\\spatialfiles.bcgov\work\ilmb\dss\dsswhse\Resources\Scripts\Python\Library"
 # sys.path.append(PYTHON_LIBRARY)
 # import custom_modules.arcpy_logging as arclog
 # sys.path.remove(PYTHON_LIBRARY)
-
-import logging
+# import logging
+# import sys
 from pathlib import Path
 
 import arcpy
 
+# import fit_changedetector as fcd
 
 # LOG = logging.getLogger(__name__)
 # ah = arclog.ArcpyHandler()
@@ -44,9 +42,8 @@ if __name__ == "__main__":
     layer_original = Path(data_original).name
     gdb_new = Path(data_new).parent
     layer_new = Path(data_new).name
-    if precision:
-        precision = float(precision)
 
     # validate
 
     # run the job
+    # fcd.compare()

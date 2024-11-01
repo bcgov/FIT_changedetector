@@ -1,8 +1,6 @@
 import logging
 import os
-import shutil
 import sys
-from datetime import datetime
 
 import click
 import geopandas
@@ -229,6 +227,7 @@ def compare(
         crs=crs,
         hash_key=hash_key,
         hash_fields=hash_fields,
+        precision=precision,
         dump_inputs=dump_inputs,
     )
 
