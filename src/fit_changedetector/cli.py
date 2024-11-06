@@ -1,8 +1,6 @@
 import logging
 import os
-import shutil
 import sys
-from datetime import datetime
 
 import click
 import geopandas
@@ -11,6 +9,13 @@ from cligj import quiet_opt, verbose_opt
 import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
+
+
+def split_string(input_string):
+    if input_string:
+        return input_string.split(",")
+    else:
+        return []
 
 
 def configure_logging(verbosity):
@@ -55,6 +60,12 @@ def cli():
     help="Comma separated list of fields to include in the hash (not including geometry)",
 )
 @click.option(
+    "--precision",
+    "-p",
+    default=0.01,
+    help="Coordinate precision for geometry hash and comparison. Default=0.01",
+)
+@click.option(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
 )
@@ -67,6 +78,7 @@ def add_hash_key(
     out_layer,
     hash_key,
     hash_fields,
+    precision,
     drop_null_geometry,
     crs,
     verbose,
@@ -95,6 +107,7 @@ def add_hash_key(
         new_field=hash_key,
         fields=hash_fields,
         hash_geometry=True,
+        precision=precision,
         drop_null_geometry=drop_null_geometry,
     )
 
@@ -170,6 +183,12 @@ def add_hash_key(
     help="Drop records with null geometry",
 )
 @click.option(
+    "--dump-inputs",
+    "-i",
+    is_flag=True,
+    help="Dump input layers (with new hash key) to output .gdb",
+)
+@click.option(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
 )
@@ -180,157 +199,48 @@ def compare(
     in_file_b,
     layer_a,
     layer_b,
+    out_file,
     fields,
     primary_key,
     hash_key,
     hash_fields,
-    out_file,
     precision,
     suffix_a,
     suffix_b,
     drop_null_geometry,
     crs,
+    dump_inputs,
     verbose,
     quiet,
 ):
     """Compare two datasets"""
     configure_logging((verbose - quiet))
 
-    # load source data
-    df_a = geopandas.read_file(in_file_a, layer=layer_a)
-    df_b = geopandas.read_file(in_file_b, layer=layer_b)
+    # parse multi-item parameters
+    fields = split_string(fields)
+    primary_key = split_string(primary_key)
+    hash_fields = split_string(hash_fields)
 
-    # default to not hashing geoms
-    hash_geometry = False
-
-    # default to not dumping input datasets to new files
-    dump_inputs = False
-
-    # shortcuts to source layer paths for logging
-    src_a = os.path.join(in_file_a, layer_a or "")
-    src_b = os.path.join(in_file_b, layer_b or "")
-
-    # split provided fields into a list
-    if fields:
-        fields = fields.split(",")
-    else:
-        fields = []
-
-    if primary_key:
-        primary_key = primary_key.split(",")
-
-    # if no primary key provided, link the two datasets by presuming geometries are the same (hash on geometry)
-    else:
-        LOG.warning(
-            "No primary key supplied, script will attempt to hash on geometries (and hash_fields, if specified)"
-        )
-        # are there geometries in both datasets?
-        if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
-            df_a, geopandas.GeoDataFrame
-        ):
-            hash_geometry = True
-        else:
-            raise ValueError(
-                "Cannot compare the datasets - if no primary key is available, geometries must be present in both source datasets"
-            )
-        primary_key = []
-
-    if hash_fields:
-        hash_fields = hash_fields.split(",")
-    else:
-        hash_fields = []
-
-    # do not hash if primary key is provided
-    if primary_key and hash_fields:
-        LOG.warning(
-            f"Using supplied primary key {primary_key} and ignoring supplied hash_fields {hash_fields}"
-        )
-        hash_fields = []
-
-    # validate that provided fields/pk/hash columns are present in data
-    for source in [(src_a, df_a), (src_b, df_b)]:
-        for fieldname in fields + hash_fields + primary_key:
-            if fieldname not in source[1].columns:
-                raise ValueError(f"Field {fieldname} is not present in {source[0]}")
-
-    # if specified, reproject both sources
-    if crs:
-        if isinstance(df_a, geopandas.GeoDataFrame):
-            df_a = df_a.to_crs(crs)
-        else:
-            raise ValueError(f"Cannot reproject {src_a}, no geometries present")
-        if isinstance(df_b, geopandas.GeoDataFrame):
-            df_b = df_b.to_crs(crs)
-        else:
-            raise ValueError(f"Cannot reproject {src_b}, no geometries present")
-
-    # add hashed key
-    # - hash multi column primary keys (without geom) for simplicity
-    # - hash with geometry if no primary key specified
-    if hash_geometry or len(primary_key) > 1:
-        LOG.info(f"Adding hashed key (synthetic primary key) to {src_a} as {hash_key}")
-        df_a = fcd.add_hash_key(
-            df_a,
-            new_field=hash_key,
-            fields=primary_key + hash_fields,
-            hash_geometry=hash_geometry,
-            precision=precision,
+    try:
+        fcd.compare(
+            in_file_a,
+            in_file_b,
+            layer_a,
+            layer_b,
+            out_file,
+            primary_key=primary_key,
+            fields=fields,
+            suffix_a=suffix_a,
+            suffix_b=suffix_b,
             drop_null_geometry=drop_null_geometry,
-        )
-        LOG.info(f"Adding hashed key (synthetic primary key) to {src_b} as {hash_key}")
-        df_b = fcd.add_hash_key(
-            df_b,
-            new_field=hash_key,
-            fields=primary_key + hash_fields,
-            hash_geometry=hash_geometry,
+            crs=crs,
+            hash_key=hash_key,
+            hash_fields=hash_fields,
             precision=precision,
-            drop_null_geometry=drop_null_geometry,
+            dump_inputs=dump_inputs,
         )
-        primary_key = [hash_key]
-        dump_inputs = True
-
-    # run the diff
-    diff = fcd.gdf_diff(
-        df_a,
-        df_b,
-        primary_key[0],  # pk is always a single column after above processing
-        fields=fields,
-        precision=precision,
-        suffix_a=suffix_a,
-        suffix_b=suffix_b,
-    )
-
-    # write output data
-    mode = "w"  # for writing the first non-empty layer, subsequent writes are appends
-
-    # default output is changedetector_YYYYMMDD_HHMM.gdb
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    if not out_file:
-        out_file = f"changedetector_{timestamp}.gdb"
-
-    if os.path.exists(out_file):
-        LOG.warning(f"{out_file} exists in - overwriting")
-        shutil.rmtree(out_file)
-
-    for key in ["NEW", "DELETED", "MODIFIED_BOTH", "MODIFIED_ATTR", "MODIFIED_GEOM"]:
-        if len(diff[key]) > 0:
-            # add empty geometry column for writing non-spatial data to .gpkg
-            # (does not work for .gdb driver, .gdb output fails with non-spatial data)
-            if "geometry" not in diff[key].columns:
-                diff[key] = geopandas.GeoDataFrame(
-                    diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
-                )
-            diff[key].to_file(out_file, driver="OpenFileGDB", layer=key, mode=mode)
-            mode = "a"
-
-    # re-write source datasets if new pk generated (and some kind of output generated)
-    if dump_inputs and mode == "a":
-        df_a.to_file(
-            out_file, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a"
-        )
-        df_b.to_file(
-            out_file, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a"
-        )
+    except Exception as e:
+        LOG.error(e)
 
 
 if __name__ == "__main__":
