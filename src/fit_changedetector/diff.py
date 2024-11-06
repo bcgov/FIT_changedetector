@@ -37,9 +37,7 @@ def add_hash_key(
 
     # Fail if nothing provided to hash
     if not fields and not hash_geometry:
-        raise ValueError(
-            "Nothing to hash, specify hash_geometry and/or columns to hash"
-        )
+        raise ValueError("Nothing to hash, specify hash_geometry and/or columns to hash")
 
     # Fail if attempting include a geometry based column in fields [], this information wil be captured by the geometry
     for f in fields:
@@ -132,19 +130,13 @@ def gdf_diff(
     The attribute change dataframes include values from both sources.
     """
     # are input datasets spatial?
-    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
-        df_b, geopandas.GeoDataFrame
-    ):
+    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(df_b, geopandas.GeoDataFrame):
         spatial = True
-    elif isinstance(df_a, geopandas.GeoDataFrame) and not isinstance(
-        df_b, geopandas.GeoDataFrame
-    ):
+    elif isinstance(df_a, geopandas.GeoDataFrame) and not isinstance(df_b, geopandas.GeoDataFrame):
         raise ValueError(
             "Cannot compare spatial and non-spatial sources - spatial component found in source 1 but not in source 2."
         )
-    elif isinstance(df_b, geopandas.GeoDataFrame) and not isinstance(
-        df_a, geopandas.GeoDataFrame
-    ):
+    elif isinstance(df_b, geopandas.GeoDataFrame) and not isinstance(df_a, geopandas.GeoDataFrame):
         raise ValueError(
             "Cannot compare spatial and non-spatial sources - spatial component found in source 2 but not in source 1."
         )
@@ -220,16 +212,10 @@ def gdf_diff(
     # are geometry data types equivalent?
     if spatial:
         geomtypes_a = set(
-            [
-                t.upper()
-                for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()
-            ]
+            [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()]
         )
         geomtypes_b = set(
-            [
-                t.upper()
-                for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()
-            ]
+            [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()]
         )
 
         if geomtypes_a != geomtypes_b:
@@ -303,9 +289,7 @@ def gdf_diff(
         ).dropna(axis=0, how="all")
 
     # flatten the resulting data structure
-    modified_attributes.columns = [
-        "_".join(a) for a in modified_attributes.columns.to_flat_index()
-    ]
+    modified_attributes.columns = ["_".join(a) for a in modified_attributes.columns.to_flat_index()]
 
     # join back to geometries in b, creating attribute diff
     if spatial:
@@ -318,9 +302,7 @@ def gdf_diff(
 
         # find all rows with modified geometries, retaining new geometries only
         common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-        modified_geometries = common_mod_geoms[
-            ~common_a.geom_equals_exact(common_b, precision)
-        ]
+        modified_geometries = common_mod_geoms[~common_a.geom_equals_exact(common_b, precision)]
 
         # join modified attributes to modified geometries,
         # creating a data structure containing all modifications, where _merge indicates
@@ -343,9 +325,7 @@ def gdf_diff(
 
         # modified attributes retains left geom from above join
         m_attributes = (
-            modified_attributes_geometries[
-                modified_attributes_geometries["_merge"] == "left_only"
-            ]
+            modified_attributes_geometries[modified_attributes_geometries["_merge"] == "left_only"]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
             .reset_index(drop=False)
@@ -353,9 +333,7 @@ def gdf_diff(
 
         # modified attributes and geometries retains either geometry
         m_attributes_geometries = (
-            modified_attributes_geometries[
-                modified_attributes_geometries["_merge"] == "both"
-            ]
+            modified_attributes_geometries[modified_attributes_geometries["_merge"] == "both"]
             .rename(columns={"geometry_x": "geometry"})[attribute_diff_columns]
             .set_geometry("geometry")
             .reset_index(drop=False)
@@ -363,9 +341,7 @@ def gdf_diff(
 
         # modified geoms only, using source column names
         m_geometries = (
-            modified_attributes_geometries[
-                modified_attributes_geometries["_merge"] == "right_only"
-            ]
+            modified_attributes_geometries[modified_attributes_geometries["_merge"] == "right_only"]
             .rename(columns={"geometry_y": "geometry"})[columns]
             .set_geometry("geometry")
             .reset_index(drop=False)
@@ -373,9 +349,7 @@ def gdf_diff(
     else:
         m_attributes = modified_attributes.reset_index(drop=False)
         # no spatial changes, return empty geodataframes for geometry diffs
-        m_attributes_geometries = geopandas.GeoDataFrame(
-            columns=["geometry"], geometry="geometry"
-        )
+        m_attributes_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
         m_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
 
     # generate unchanged dataframe
@@ -417,15 +391,11 @@ def gdf_diff(
     unchanged[primary_key] = unchanged.index
     unchanged = unchanged[fields_a_src].reset_index(drop=True)
 
-    additions = df_b_src.merge(
-        additions, how="inner", left_index=True, right_index=True
-    )
+    additions = df_b_src.merge(additions, how="inner", left_index=True, right_index=True)
     additions[primary_key] = additions.index
     additions = additions[fields_b_src].reset_index(drop=True)
 
-    deletions = df_a_src.merge(
-        deletions, how="inner", left_index=True, right_index=True
-    )
+    deletions = df_a_src.merge(deletions, how="inner", left_index=True, right_index=True)
     deletions[primary_key] = deletions.index
     deletions = deletions[fields_a_src].reset_index(drop=True)
 
@@ -487,9 +457,7 @@ def compare(
             "No primary key supplied, script will attempt to hash on geometries (and hash_fields, if specified)"
         )
         # are there geometries in both datasets?
-        if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
-            df_a, geopandas.GeoDataFrame
-        ):
+        if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(df_a, geopandas.GeoDataFrame):
             hash_geometry = True
         else:
             raise ValueError(
@@ -569,9 +537,5 @@ def compare(
 
     # re-write source datasets if new pk generated (and some kind of output generated)
     if dump_inputs and mode == "a":
-        df_a.to_file(
-            out_file, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a"
-        )
-        df_b.to_file(
-            out_file, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a"
-        )
+        df_a.to_file(out_file, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a")
+        df_b.to_file(out_file, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a")
