@@ -525,6 +525,7 @@ def compare(
         shutil.rmtree(out_file)
 
     for key in ["NEW", "DELETED", "MODIFIED_BOTH", "MODIFIED_ATTR", "MODIFIED_GEOM"]:
+        LOG.info(f"{key}: {len(diff[key])} records")
         if len(diff[key]) > 0:
             # add empty geometry column for writing non-spatial data to .gpkg
             # (does not work for .gdb driver, .gdb output fails with non-spatial data)
@@ -537,5 +538,6 @@ def compare(
 
     # re-write source datasets if new pk generated (and some kind of output generated)
     if dump_inputs and mode == "a":
+        LOG.info(f"Writing source data to {out_file}, with geometry hash key {hash_key}")
         df_a.to_file(out_file, driver="OpenFileGDB", layer="source_" + suffix_a, mode="a")
         df_b.to_file(out_file, driver="OpenFileGDB", layer="source_" + suffix_b, mode="a")
