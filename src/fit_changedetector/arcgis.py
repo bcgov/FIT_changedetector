@@ -9,29 +9,90 @@ import fit_changedetector as fcd
 
 sys.path.remove(CHANGEDETECTOR_DEV)
 
-# logging to arcpy translator
-PYTHON_LIBRARY = r"\\spatialfiles.bcgov\work\ilmb\dss\dsswhse\Resources\Scripts\Python\Library"
-sys.path.append(PYTHON_LIBRARY)
-import custom_modules.arcpy_logging as arclog
-
-sys.path.remove(PYTHON_LIBRARY)
-
 import logging
 import os
 
 # import sys
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 import arcpy
 
 LOG = logging.getLogger(__name__)
-LOG.setLevel("INFO")
-ah = arclog.ArcpyHandler()
-LOG.addHandler(ah)
 
 
-if __name__ == "__main__":
+class ArcpyHandler(logging.Handler):
+    """A minimal stdlib logging to arcpy.AddMessage() handler.
+
+    Taken from:
+      https://github.com/knu2xs/arcpy-logging;
+      https://knu2xs.github.io/arcpy-logging
+
+    Logging message handler capable of routing logging through ArcPy AddMessage, AddWarning and
+    AddError methods.
+    DEBUG and INFO logging messages are be handled by the AddMessage method. WARNING logging
+    messages are handled by the AddWarning method. ERROR and CRITICAL logging messages are handled
+    by the AddError method.
+
+    Basic use consists of the following:
+
+    .. code-block:: python
+
+        log = logging.getLogger(__name__)
+        log.setLevel('INFO')
+        ah = ArcpyHandler()
+        log.addHandler(ah)
+        log.info("my log message")
+    """
+
+    terminator = ""  # no newline character needed, everything goes through arcpy.AddMessage
+
+    def __init__(self, level: Union[int, str] = 10):
+        # call the parent to cover rest of any potential setup
+        super().__init__(level=level)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """
+        Args:
+            record: Record containing all information needed to emit a new logging event.
+
+        .. note::
+
+            This method should not be called directly, but rather enables the ``Logger`` methods to
+            be able to use this handler correctly.
+
+        """
+        # run through the formatter to honor logging formatter settings
+        msg = self.format(record)
+
+        # route anything NOTSET (0), DEBUG (10) or INFO (20) through AddMessage
+        if record.levelno <= 20:
+            arcpy.AddMessage(msg)
+
+        # route all WARN (30) messages through AddWarning
+        elif record.levelno == 30:
+            arcpy.AddWarning(msg)
+
+        # everything else; ERROR (40), FATAL (50) and CRITICAL (50), route through AddError
+        else:
+            arcpy.AddError(msg)
+
+
+def setup_logging(debug):
+    LOG.handlers.clear()  # required to avoid duplicate messages in arcgis window
+    if debug:
+        LOG.setLevel("DEBUG")
+    else:
+        LOG.setLevel("INFO")
+    logging.basicConfig(
+        format="%(asctime)s:%(levelname)s:%(name)s: %(message)s",
+    )
+    ah = ArcpyHandler()
+    LOG.addHandler(ah)
+
+
+def compare():
     param = {
         "data_original": arcpy.GetParameterAsText(0),
         "data_new": arcpy.GetParameterAsText(1),
@@ -46,7 +107,13 @@ if __name__ == "__main__":
         "suffix_b": arcpy.GetParameter(10),
         "drop_null_geometry": arcpy.GetParameter(11),
         "dump_inputs": arcpy.GetParameter(12),
+        "debug": arcpy.GetParameter(13),
     }
+    # setup logging to arcgis
+    setup_logging(param["debug"])
+
+    # note parameters supplied to tool
+    LOG.debug(f"supplied parameters: {param}")
 
     # break input feature class references into two strings: (gdb, layer)
     gdb_original = Path(param["data_original"]).parent
@@ -57,8 +124,6 @@ if __name__ == "__main__":
     # generate output filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     out_file = os.path.join(param["out_folder"], f"changedetector_{timestamp}.gdb")
-
-    # arcpy.AddMessage(param)
 
     try:
         fcd.compare(
@@ -81,3 +146,7 @@ if __name__ == "__main__":
         arcpy.AddError(arcpy.GetMessages())
     except Exception as e:
         arcpy.AddError(e)
+
+
+if __name__ == "__main__":
+    compare()
