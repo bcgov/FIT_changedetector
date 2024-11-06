@@ -39,7 +39,8 @@ def add_hash_key(
     if not fields and not hash_geometry:
         raise ValueError("Nothing to hash, specify hash_geometry and/or columns to hash")
 
-    # Fail if attempting include a geometry based column in fields [], this information wil be captured by the geometry
+    # Fail if attempting include a geometry based column in fields [],
+    # this information wil be captured by the geometry
     for f in fields:
         if f in fcd.area_length_fields:
             raise ValueError(
@@ -51,7 +52,8 @@ def add_hash_key(
     # (if non-default precision is provided, presume that the user is right)
     if df.geometry.crs.is_geographic and precision == 0.01:
         LOG.warning(
-            "Data is projected in degrees, default precision of 0.01m specified. Adjusting to .0000001 degrees"
+            "Data is projected in degrees, default precision of 0.01m specified. "
+            "Adjusting to .0000001 degrees"
         )
         precision = 0.0000001
 
@@ -65,7 +67,8 @@ def add_hash_key(
                 df = df[df.geometry.notnull()]
             else:
                 raise ValueError(
-                    "Cannot reliably hash null geometries, specify drop_null_geometry or remove nulls from source dataset before re-processing"
+                    "Cannot reliably hash null geometries, specify drop_null_geometry or remove "
+                    "nulls from source dataset before re-processing"
                 )
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
@@ -91,11 +94,13 @@ def add_hash_key(
     if len(df) != len(df[new_field].drop_duplicates()):
         if fields == ["geometry_normalized"]:
             raise ValueError(
-                "Duplicate geometries are present in source, consider adding more columns to hash or editing data"
+                "Duplicate geometries are present in source, consider adding more columns to hash "
+                "or editing data"
             )
         else:
             raise ValueError(
-                "Duplicate values for output hash are present, consider adding more columns to hash or editing data"
+                "Duplicate values for output hash are present, consider adding more columns to hash "
+                "or editing data"
             )
     return df
 
@@ -134,11 +139,13 @@ def gdf_diff(
         spatial = True
     elif isinstance(df_a, geopandas.GeoDataFrame) and not isinstance(df_b, geopandas.GeoDataFrame):
         raise ValueError(
-            "Cannot compare spatial and non-spatial sources - spatial component found in source 1 but not in source 2."
+            "Cannot compare spatial and non-spatial sources - spatial component found in source 1 "
+            "but not in source 2."
         )
     elif isinstance(df_b, geopandas.GeoDataFrame) and not isinstance(df_a, geopandas.GeoDataFrame):
         raise ValueError(
-            "Cannot compare spatial and non-spatial sources - spatial component found in source 2 but not in source 1."
+            "Cannot compare spatial and non-spatial sources - spatial component found in source 2 "
+            "but not in source 1."
         )
     else:
         spatial = False
@@ -220,7 +227,8 @@ def gdf_diff(
 
         if geomtypes_a != geomtypes_b:
             raise ValueError(
-                f"Geometry types {','.join(list(geomtypes_a))} and {','.join(list(geomtypes_b))} are not equivalent"
+                f"Geometry types {','.join(list(geomtypes_a))} and {','.join(list(geomtypes_b))} "
+                "are not equivalent"
             )
 
         # are CRS equivalent?
@@ -230,11 +238,13 @@ def gdf_diff(
     # is primary key unique in both datasets?
     if len(df_a) != len(df_a[[primary_key]].drop_duplicates()):
         raise ValueError(
-            f"Duplicate values exist for primary_key {primary_key}, in dataframe a, consider using another primary key or pre-processing to remove duplicates"
+            f"Duplicate values exist for primary_key {primary_key}, in dataframe a, consider using "
+            "another primary key or pre-processing to remove duplicates"
         )
     if len(df_b) != len(df_b[[primary_key]].drop_duplicates()):
         raise ValueError(
-            f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using another primary key or pre-processing to remove duplicates"
+            f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using "
+            "another primary key or pre-processing to remove duplicates"
         )
 
     # set pandas dataframe index to primary key
@@ -451,17 +461,20 @@ def compare(
             )
             hash_fields = []
 
-    # if no primary key provided, link the two datasets by presuming geometries are the same (hash on geometry)
+    # if no primary key provided, link the two datasets by presuming geometries are the same
+    # (hash on geometry)
     else:
         LOG.warning(
-            "No primary key supplied, script will attempt to hash on geometries (and hash_fields, if specified)"
+            "No primary key supplied, script will attempt to hash on geometries (and hash_fields, "
+            "if specified)"
         )
         # are there geometries in both datasets?
         if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(df_a, geopandas.GeoDataFrame):
             hash_geometry = True
         else:
             raise ValueError(
-                "Cannot compare the datasets - if no primary key is available, geometries must be present in both source datasets"
+                "Cannot compare the datasets - if no primary key is available, geometries must be "
+                "present in both source datasets"
             )
 
     # validate that provided fields/pk/hash columns are present in data
