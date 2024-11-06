@@ -18,7 +18,8 @@ from pathlib import Path
 
 import arcpy
 
-LOG = logging.getLogger(__name__)
+# do not name the logger, we want to add the handler to the root logger
+LOG = logging.getLogger()
 
 
 class ArcpyHandler(logging.Handler):
@@ -50,16 +51,38 @@ class ArcpyHandler(logging.Handler):
             arcpy.AddError(msg)
 
 
-def setup_logging(debug):
-    LOG.handlers.clear()  # required to avoid duplicate messages in arcgis window
-    ah = ArcpyHandler()
+def setup_logging(logfile, debug=False):
+    """
+    Log to arcpy api and to file
+
+    Note
+    - handlers are added to the root logger (for auto-handling of messages from modules)
+    - because handlers are added to the root logger, they must be cleared to avoid duplication
+      when the tool is run multiple times in the same arcgis session
+
+    """
+    # debug and info are the only levels supported
     if debug:
-        ah.setLevel(logging.DEBUG)
+        LOG.setLevel(logging.DEBUG)
     else:
-        ah.setLevel(logging.INFO)
-    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    ah.setFormatter(formatter)
+        LOG.setLevel(logging.INFO)
+
+    # clear existing handlers
+    LOG.handlers.clear()
+
+    # set format
+    log_frmt = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+    # add arcpy handler, logging to arcpy.AddMessage/AddWarning/AddError
+    ah = ArcpyHandler()
+    ah.setFormatter(log_frmt)
     LOG.addHandler(ah)
+
+    # add file handler, presuming that logfile path is valid/exists
+    # (valid assumption as long as the script is called via the arcgis tool)
+    fh = logging.FileHandler(logfile)
+    fh.setFormatter(log_frmt)
+    LOG.addHandler(fh)
 
 
 def compare():
@@ -79,8 +102,14 @@ def compare():
         "dump_inputs": arcpy.GetParameter(12),
         "debug": arcpy.GetParameter(13),
     }
-    # setup logging to arcgis
-    setup_logging(param["debug"])
+
+    # generate output filenames with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    out_file = os.path.join(param["out_folder"], f"changedetector_{timestamp}.gdb")
+    logfile = os.path.join(param["out_folder"], f"changedetector_{timestamp}.txt")
+
+    # setup logging to arcgis and file
+    setup_logging(logfile, param["debug"])
 
     # note parameters supplied to tool
     LOG.debug(f"supplied parameters: {pprint.pformat(param)}")
@@ -90,10 +119,6 @@ def compare():
     layer_original = Path(param["data_original"]).name
     gdb_new = Path(param["data_new"]).parent
     layer_new = Path(param["data_new"]).name
-
-    # generate output filename
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-    out_file = os.path.join(param["out_folder"], f"changedetector_{timestamp}.gdb")
 
     try:
         fcd.compare(
