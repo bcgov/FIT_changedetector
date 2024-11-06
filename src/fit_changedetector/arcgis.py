@@ -15,7 +15,6 @@ import os
 import pprint
 from datetime import datetime
 from pathlib import Path
-from typing import Union
 
 import arcpy
 
