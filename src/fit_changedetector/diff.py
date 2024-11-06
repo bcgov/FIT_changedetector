@@ -537,6 +537,9 @@ def compare(
         LOG.warning(f"{out_file} exists in - overwriting")
         shutil.rmtree(out_file)
 
+    # squelch pyogrio INFO logs
+    logging.getLogger("pyogrio._io").setLevel(logging.WARNING)
+
     for key in ["NEW", "DELETED", "MODIFIED_BOTH", "MODIFIED_ATTR", "MODIFIED_GEOM"]:
         LOG.info(f"{key}: {len(diff[key])} records")
         if len(diff[key]) > 0:
