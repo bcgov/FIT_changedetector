@@ -12,7 +12,7 @@ sys.path.remove(CHANGEDETECTOR_DEV)
 import logging
 import os
 
-# import sys
+import pprint
 from datetime import datetime
 from pathlib import Path
 from typing import Union
@@ -48,10 +48,6 @@ class ArcpyHandler(logging.Handler):
 
     terminator = ""  # no newline character needed, everything goes through arcpy.AddMessage
 
-    def __init__(self, level: Union[int, str] = 10):
-        # call the parent to cover rest of any potential setup
-        super().__init__(level=level)
-
     def emit(self, record: logging.LogRecord) -> None:
         """
         Args:
@@ -81,14 +77,13 @@ class ArcpyHandler(logging.Handler):
 
 def setup_logging(debug):
     LOG.handlers.clear()  # required to avoid duplicate messages in arcgis window
-    if debug:
-        LOG.setLevel("DEBUG")
-    else:
-        LOG.setLevel("INFO")
-    logging.basicConfig(
-        format="%(asctime)s:%(levelname)s:%(name)s: %(message)s",
-    )
     ah = ArcpyHandler()
+    if debug:
+        ah.setLevel(logging.DEBUG)
+    else:
+        ah.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    ah.setFormatter(formatter)
     LOG.addHandler(ah)
 
 
@@ -113,7 +108,7 @@ def compare():
     setup_logging(param["debug"])
 
     # note parameters supplied to tool
-    LOG.debug(f"supplied parameters: {param}")
+    LOG.debug(f"supplied parameters: {pprint.pformat(param)}")
 
     # break input feature class references into two strings: (gdb, layer)
     gdb_original = Path(param["data_original"]).parent
