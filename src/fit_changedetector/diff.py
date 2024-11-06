@@ -498,7 +498,7 @@ def compare(
     # - hash multi column primary keys (without geom) for simplicity
     # - hash with geometry if no primary key specified
     if hash_geometry or len(primary_key) > 1:
-        LOG.info(f"Adding hashed key (synthetic primary key) to {src_a} as {hash_key}")
+        LOG.info(f"Adding hashed key to source_{suffix_a} as {hash_key}")
         df_a = fcd.add_hash_key(
             df_a,
             new_field=hash_key,
@@ -507,7 +507,7 @@ def compare(
             precision=precision,
             drop_null_geometry=drop_null_geometry,
         )
-        LOG.info(f"Adding hashed key (synthetic primary key) to {src_b} as {hash_key}")
+        LOG.info(f"Adding hashed key to source_{suffix_b} as {hash_key}")
         df_b = fcd.add_hash_key(
             df_b,
             new_field=hash_key,
