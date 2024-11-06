@@ -23,27 +23,9 @@ LOG = logging.getLogger(__name__)
 
 
 class ArcpyHandler(logging.Handler):
-    """A minimal stdlib logging to arcpy.AddMessage() handler.
-
-    Taken from:
-      https://github.com/knu2xs/arcpy-logging;
-      https://knu2xs.github.io/arcpy-logging
-
-    Logging message handler capable of routing logging through ArcPy AddMessage, AddWarning and
-    AddError methods.
-    DEBUG and INFO logging messages are be handled by the AddMessage method. WARNING logging
-    messages are handled by the AddWarning method. ERROR and CRITICAL logging messages are handled
-    by the AddError method.
-
-    Basic use consists of the following:
-
-    .. code-block:: python
-
-        log = logging.getLogger(__name__)
-        log.setLevel('INFO')
-        ah = ArcpyHandler()
-        log.addHandler(ah)
-        log.info("my log message")
+    """
+    A minimal arcpy.AddMessage() logging handler.
+    Taken from https://github.com/knu2xs/arcpy-logging
     """
 
     terminator = ""  # no newline character needed, everything goes through arcpy.AddMessage
@@ -52,12 +34,6 @@ class ArcpyHandler(logging.Handler):
         """
         Args:
             record: Record containing all information needed to emit a new logging event.
-
-        .. note::
-
-            This method should not be called directly, but rather enables the ``Logger`` methods to
-            be able to use this handler correctly.
-
         """
         # run through the formatter to honor logging formatter settings
         msg = self.format(record)
