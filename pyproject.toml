@@ -46,3 +46,4 @@ version = {attr = "fit_changedetector.__version__"}
 
 [tool.ruff]
 line-length = 100
+exclude = ["arcgis_*py"]
