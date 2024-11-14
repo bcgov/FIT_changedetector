@@ -1,18 +1,17 @@
-import sys
+# import sys
 
 # start with trying to import from path
-CHANGEDETECTOR_DEV = (
-   r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
-)
-sys.path.append(CHANGEDETECTOR_DEV)
-import fit_changedetector as fcd
-sys.path.remove(CHANGEDETECTOR_DEV)
+# CHANGEDETECTOR_DEV = (
+#    r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
+# )
+# sys.path.append(CHANGEDETECTOR_DEV)
+# import fit_changedetector as fcd
+
+# sys.path.remove(CHANGEDETECTOR_DEV)
 
 import logging
 import os
 import pprint
-
-# import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -136,6 +135,7 @@ def compare():
             out_file=out_file,
             primary_key=param["primary_key"],
             fields=param["fields"],
+            ignore_fields=param["ignore_fields"],
             suffix_a=param["suffix_a"],
             suffix_b=param["suffix_b"],
             drop_null_geometry=param["drop_null_geometry"],

@@ -427,7 +427,8 @@ def compare(
     layer_b,
     out_file,
     primary_key=[],
-    fields=None,
+    fields=[],
+    ignore_fields=[],
     suffix_a="a",
     suffix_b="b",
     drop_null_geometry=True,
@@ -479,9 +480,15 @@ def compare(
 
     # validate that provided fields/pk/hash columns are present in data
     for source in [(src_a, df_a), (src_b, df_b)]:
+        # fail if fields/hash fields/pk are not present
         for fieldname in fields + hash_fields + primary_key:
             if fieldname not in source[1].columns:
                 raise ValueError(f"Field {fieldname} is not present in {source[0]}")
+
+        # if ignore_fields are not present in data, just warn
+        for fieldname in ignore_fields:
+            if fieldname not in source[1].columns:
+                LOG.warning(f"Field {fieldname} is not present in {source[0]}, nothing to ignore")
 
     # if specified, reproject both sources
     if crs:
@@ -525,6 +532,7 @@ def compare(
         df_b,
         primary_key[0],  # pk is always a single column after above processing
         fields=fields,
+        ignore_fields=ignore_fields,
         precision=precision,
         suffix_a=suffix_a,
         suffix_b=suffix_b,
