@@ -1,13 +1,16 @@
-# import sys
+# ruff: noqa: F401
+# ruff: noqa: E402
+# ruff: noqua: I001
 
-# start with trying to import from path
-# CHANGEDETECTOR_DEV = (
-#    r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
-# )
-# sys.path.append(CHANGEDETECTOR_DEV)
-# import fit_changedetector as fcd
+import sys
 
-# sys.path.remove(CHANGEDETECTOR_DEV)
+CHANGEDETECTOR_DEV = (
+    r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
+)
+sys.path.append(CHANGEDETECTOR_DEV)
+import fit_changedetector as fcd
+
+sys.path.remove(CHANGEDETECTOR_DEV)
 
 import logging
 import os
@@ -16,8 +19,6 @@ from datetime import datetime
 from pathlib import Path
 
 import arcpy
-
-import fit_changedetector as fcd
 
 # do not name the logger, we want to add the handler to the root logger
 LOG = logging.getLogger()
