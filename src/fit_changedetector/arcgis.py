@@ -1,6 +1,6 @@
 # ruff: noqa: F401
 # ruff: noqa: E402
-# ruff: noqua: I001
+# ruff: noqa: I001
 
 import sys
 
