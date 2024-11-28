@@ -128,11 +128,13 @@ def gdf_diff(
     Output diff is represented by five dataframes:
     - additions (with same schema as dataset b)
     - deletions (with same schema as dataset a)
-    - modifications - geometry only (with )
-    - modifications - attribute only
-    - modifications - geometry and attribute
+    - modifications - geometry only (with same schema as dataset b)
+    - modifications - attribute only (modified schema)
+    - modifications - geometry and attribute (modified schema)
 
-    The attribute change dataframes include values from both sources.
+    The attribute change dataframes include columns common to both sources, and
+    for columns where changes have occured, values from both sources (a column
+    for each source).
     """
     # are input datasets spatial?
     if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(df_b, geopandas.GeoDataFrame):
@@ -156,6 +158,11 @@ def gdf_diff(
             f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
         )
 
+    # retain a full copy of both sources for writing unchanged source schemas to
+    # NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute changee detection)
+    df_a_src = df_a.copy()
+    df_b_src = df_b.copy()
+
     # standardize geometry column name
     if spatial and df_a.geometry.name != "geometry":
         df_a = df_a.rename_geometry("geometry")
@@ -169,12 +176,6 @@ def gdf_diff(
     for f in df_b.columns:
         if f.upper() in fcd.area_length_fields:
             df_b = df_b.drop(columns=[f])
-
-    # after making above tweaks, retain a full copy of sources for writing
-    # all source fields to NEW/UNCHANGED/DELETED (not just common fields
-    # used for comparison)
-    df_a_src = df_a.copy()
-    df_b_src = df_b.copy()
 
     ignore_fields = list(set([f.upper() for f in ignore_fields]))
 
@@ -331,7 +332,7 @@ def gdf_diff(
             indicator=True,
         )
 
-        # generate the output mofications dataframes
+        # generate the output modifications dataframes
 
         # modified attributes retains left geom from above join
         m_attributes = (
@@ -349,12 +350,13 @@ def gdf_diff(
             .reset_index(drop=False)
         )
 
-        # modified geoms only, using source column names
+        # modified geoms only - retain just geometry (and primary key as index)
         m_geometries = (
             modified_attributes_geometries[modified_attributes_geometries["_merge"] == "right_only"]
-            .rename(columns={"geometry_y": "geometry"})[columns]
+            .rename(columns={"geometry_y": "geometry"})[["geometry"]]
             .set_geometry("geometry")
             .reset_index(drop=False)
+            .set_index(primary_key)
         )
     else:
         m_attributes = modified_attributes.reset_index(drop=False)
@@ -408,6 +410,16 @@ def gdf_diff(
     deletions = df_a_src.merge(deletions, how="inner", left_index=True, right_index=True)
     deletions[primary_key] = deletions.index
     deletions = deletions[fields_a_src].reset_index(drop=True)
+
+    # also join modifications_geom back to source b layer (to preserve source schema)
+    # this output will be empty for non-spatial comparisons - and therefore not written to file.
+    # so, for non-spatial, matching the schema is not required
+    if spatial:
+        df_b_src = df_b_src.drop(columns=[df_b_src.geometry.name])
+        m_geometries = df_b_src.merge(m_geometries, how="inner", left_index=True, right_index=True)
+        m_geometries[primary_key] = m_geometries.index
+        m_geometries = m_geometries[fields_b_src].reset_index(drop=True)
+        m_geometries = geopandas.GeoDataFrame(m_geometries, geometry="geometry")
 
     if return_type == "gdf":
         return {
