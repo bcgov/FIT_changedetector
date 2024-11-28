@@ -39,9 +39,7 @@ def test_add_hash_empty():
 def test_invalid_hash_precision():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     with pytest.raises(ValueError):
-        df = fcd.add_hash_key(
-            df, "test_hash", fields=[], hash_geometry=True, precision=999
-        )
+        df = fcd.add_hash_key(df, "test_hash", fields=[], hash_geometry=True, precision=999)
 
 
 def test_add_hash_ll(caplog):
@@ -83,13 +81,14 @@ def test_diff_source_columns(gdf):
     df_b = gdf.copy()
     df_b.loc[:, "C"] = df_b.loc[:, "col1"]  # different schema in source b
     d = fcd.gdf_diff(df_a, df_b, primary_key="pk", return_type="gdf")
-    assert list(d["NEW"].columns) == list(df_b.columns)  # empty, but has updated schema
-    assert list(d["DELETED"].columns) == list(
-        df_a.columns
-    )  # empty, but has source schema
-    assert list(d["UNCHANGED"].columns) == list(
-        df_a.columns
-    )  # unchanged data in source schema a
+    # additions - schema b
+    assert list(d["NEW"].columns) == list(df_b.columns)
+    # deleted - schema a
+    assert list(d["DELETED"].columns) == list(df_a.columns)
+    # unchanged - schema a
+    assert list(d["UNCHANGED"].columns) == list(df_a.columns)
+    # modified geometries - schema b
+    assert list(d["MODIFIED_GEOM"].columns) == list(df_b.columns)
 
 
 def test_diff_ignore_columns_default():
@@ -189,9 +188,9 @@ def test_precision():
         df_a, df_b, primary_key="id", return_type="gdf", precision=0.001
     )["MODIFIED_GEOM"]
     # compare with 1m precision - no changes
-    diff_low_precision = fcd.gdf_diff(
-        df_a, df_b, primary_key="id", return_type="gdf", precision=1
-    )["MODIFIED_GEOM"]
+    diff_low_precision = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf", precision=1)[
+        "MODIFIED_GEOM"
+    ]
     assert len(diff_high_precision) == 2
     assert len(diff_low_precision) == 0
 
