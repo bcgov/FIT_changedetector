@@ -119,7 +119,7 @@ def compare():
     LOG.info(f"Output file: {out_file}")
 
     # if debugging, note all parameters supplied to tool
-    LOG.debug(f"supplied parameters: {pprint.pformat(param)}")
+    LOG.info(f"script tool parameters: {pprint.pformat(param)}")
 
     # break input feature class references into two strings: (gdb, layer)
     gdb_original = Path(param["data_original"]).parent
