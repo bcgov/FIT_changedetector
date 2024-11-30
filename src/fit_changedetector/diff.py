@@ -213,9 +213,10 @@ def gdf_diff(
     df_a = df_a[fields]
     df_b = df_b[fields]
 
-    # are general data types of the common fields equivalent?
-    if list(df_a.dtypes) != list(df_b.dtypes):
-        raise ValueError("Field types do not match")
+    # are data types equivalent for fields to be compared?
+    for f in df_a.columns:
+        if df_a[f].dtype != df_b[f].dtype:
+            raise ValueError(f"Field types do not match. {f}: ({df_a[f].dtype}, {df_b[f].dtype})")
 
     # are geometry data types equivalent?
     if spatial:
