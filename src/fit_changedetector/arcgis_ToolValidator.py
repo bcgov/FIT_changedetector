@@ -60,16 +60,16 @@ class ToolValidator:
         # populate possible field names to pk/include/exclude/hash field parameters,
         # including fields common to both sources and not in the ignore list
         if self.params[0].value is not None and self.params[1].value is not None:
-            fields_1 = set([f.name for f in arcpy.ListFields(self.params[0].value)])
-            fields_2 = set([f.name for f in arcpy.ListFields(self.params[1].value)])
+            fields_1 = [f.name for f in arcpy.ListFields(self.params[0].value)]
+            fields_2 = [f.name for f in arcpy.ListFields(self.params[1].value)]
 
             # intersect to get the common fields
-            common_fields = fields_2.intersection(fields_1)
-            fieldlist = []
-            for f in common_fields:
-                if f.upper() not in IGNORE_FIELDS:
-                    fieldlist.append(f)
-
+            common_fields = list(set(fields_2).intersection(set(fields_1)))
+            common_fields = [f for f in common_fields if f.upper() not in IGNORE_FIELDS]
+            
+            # ordering is lost after converting into sets, re-order based on first input fc
+            fieldlist = [f for f in fields_1 if f in common_fields]
+            
             self.params[3].filter.list = fieldlist
             self.params[4].filter.list = fieldlist
             self.params[5].filter.list = fieldlist
