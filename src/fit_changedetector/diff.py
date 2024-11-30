@@ -433,8 +433,8 @@ def gdf_diff(
 
 
 def compare(
-    in_file_a,
-    in_file_b,
+    file_a,
+    file_b,
     layer_a,
     layer_b,
     out_file,
@@ -451,12 +451,12 @@ def compare(
     dump_inputs=False,
 ):
     # shortcuts to source layer paths for logging
-    src_a = os.path.join(in_file_a, layer_a or "")
-    src_b = os.path.join(in_file_b, layer_b or "")
+    src_a = os.path.join(file_a, layer_a or "")
+    src_b = os.path.join(file_b, layer_b or "")
 
     # load source data
-    df_a = geopandas.read_file(in_file_a, layer=layer_a)
-    df_b = geopandas.read_file(in_file_b, layer=layer_b)
+    df_a = geopandas.read_file(file_a, layer=layer_a)
+    df_b = geopandas.read_file(file_b, layer=layer_b)
 
     # default output is changedetector_YYYYMMDD_HHMM.gdb
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")

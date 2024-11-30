@@ -89,8 +89,8 @@ def setup_logging(logfile, debug=False):
 
 def compare():
     param = {
-        "data_original": arcpy.GetParameterAsText(0),
-        "data_new": arcpy.GetParameterAsText(1),
+        "original_fc": arcpy.GetParameterAsText(0),
+        "new_fc": arcpy.GetParameterAsText(1),
         "out_folder": arcpy.GetParameterAsText(2),
         "primary_key": arcpy.GetParameter(3),
         "fields": arcpy.GetParameter(4),
@@ -113,26 +113,30 @@ def compare():
     # setup logging to arcgis and file
     setup_logging(logfile, param["debug"])
 
-    # log inputs and outputs
-    LOG.info(f"Original data: {param['data_original']}")
-    LOG.info(f"New data: {param['data_new']}")
+    # note all parameters supplied to tool
+    LOG.info(f"Script tool parameters: {pprint.pformat(param)}")
+    # note target file
     LOG.info(f"Output file: {out_file}")
 
-    # if debugging, note all parameters supplied to tool
-    LOG.info(f"script tool parameters: {pprint.pformat(param)}")
-
-    # break input feature class references into two strings: (gdb, layer)
-    gdb_original = Path(param["data_original"]).parent
-    layer_original = Path(param["data_original"]).name
-    gdb_new = Path(param["data_new"]).parent
-    layer_new = Path(param["data_new"]).name
+    # extract path/layer from source feature class
+    # There is probably an arcpy method for determining the source type,
+    # but just looking at the extension is simple and seems safe
+    for src in ["original", "new"]:
+        if Path(param[f"{src}_fc"]).suffix == ".gdb":
+            param[src+"_file"] = Path(param[f"{src}_fc"]).parent
+            param[src+"_layer"] = Path(param[f"{src}_fc"]).name
+        elif Path(param[f"{src}_fc"]).suffix == ".shp":
+            param[src+"_file"] = param[f"{src}_fc"]
+            param[src+"_layer"] = Path(param[f"{src}_fc"]).stem
+        else:
+            arcpy.AddError("Only .gdb and .shp are supported")
 
     try:
         fcd.compare(
-            gdb_original,
-            gdb_new,
-            layer_original,
-            layer_new,
+            file_a=param["original_file"],
+            file_b=param["new_file"],
+            layer_a=param["original_layer"],
+            layer_b=param["new_layer"],
             out_file=out_file,
             primary_key=param["primary_key"],
             fields=param["fields"],
