@@ -192,7 +192,7 @@ def gdf_diff(
 
     # if provided a list of fields to work with, validate that list
     if fields:
-        fields = list(set(fields + [primary_key]))
+        fields = list(set(fields + [primary_key, "geometry"]))
         if len(set(fields).intersection(fields_common)) != len(fields):
             raise ValueError("Provided fields are not common to both datasets")
     else:
