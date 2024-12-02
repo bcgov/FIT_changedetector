@@ -2,6 +2,7 @@ import geopandas
 import pytest
 from geopandas import GeoDataFrame
 from shapely.geometry import Point
+from shapely.geometry.multipoint import MultiPoint
 
 import fit_changedetector as fcd
 
@@ -116,6 +117,23 @@ def test_diff_ignore_columns(gdf):
         ignore_fields=["col2"],
     )
     assert "col2" not in d["MODIFIED_ATTR"].columns
+
+
+def test_diff_mixed_geom_types(gdf):
+    df_a = gdf.copy()
+    df_b = gdf.copy()
+    df_a.at[0, "geometry"] = MultiPoint([df_a.at[0, "geometry"]])
+    d = fcd.gdf_diff(
+        df_a,
+        df_b,
+        primary_key="pk",
+        return_type="gdf",
+        suffix_a="a",
+    )
+    assert (
+        len(d["UNCHANGED"].geom_type.unique()) == 1
+        and d["UNCHANGED"].geom_type.unique()[0].upper() == "MULTIPOINT"
+    )
 
 
 def test_diff_ignore_pk(gdf):

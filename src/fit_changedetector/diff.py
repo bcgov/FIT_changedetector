@@ -6,10 +6,32 @@ from datetime import datetime
 
 import geopandas
 import pandas
+from shapely.geometry.linestring import LineString
+from shapely.geometry.multilinestring import MultiLineString
+from shapely.geometry.multipoint import MultiPoint
+from shapely.geometry.multipolygon import MultiPolygon
+from shapely.geometry.point import Point
+from shapely.geometry.polygon import Polygon
 
 import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
+
+
+def promote_to_multi(df):
+    """Promote all geometries in the dataframe to multipart"""
+    df.geometry = [
+        MultiPoint([feature]) if isinstance(feature, Point) else feature for feature in df.geometry
+    ]
+    df.geometry = [
+        MultiLineString([feature]) if isinstance(feature, LineString) else feature
+        for feature in df.geometry
+    ]
+    df.geometry = [
+        MultiPolygon([feature]) if isinstance(feature, Polygon) else feature
+        for feature in df.geometry
+    ]
+    return df
 
 
 def add_hash_key(
@@ -158,8 +180,28 @@ def gdf_diff(
             f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
         )
 
-    # retain a full copy of both sources for writing unchanged source schemas to
-    # NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute changee detection)
+    # promote mixed single/multipart features to multipart
+    # (shapefiles can have mixed types, but the .gdb driver does not accept this)
+    if spatial:
+        types_a = sorted(
+            [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
+        )
+        types_b = sorted(
+            [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
+        )
+
+        # if more than one type of geometry present in one of the sources, promote both sources
+        # to multipart
+        if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
+            len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
+        ):
+            LOG.info("Mixed singlepart/multipart geometries found, promoting all to multipart")
+            df_a = promote_to_multi(df_a)
+            df_b = promote_to_multi(df_b)
+
+    # retain a full copy of both sources for writing unchanged source schemas (apart from above
+    # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
+    # changee detection)
     df_a_src = df_a.copy()
     df_b_src = df_b.copy()
 
@@ -218,18 +260,19 @@ def gdf_diff(
         if df_a[f].dtype != df_b[f].dtype:
             raise ValueError(f"Field types do not match. {f}: ({df_a[f].dtype}, {df_b[f].dtype})")
 
-    # are geometry data types equivalent?
+    # some spatial data checks for typical issues
     if spatial:
-        geomtypes_a = set(
-            [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()]
+        # ensure geometry types are equivalent
+        types_a = sorted(
+            [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
         )
-        geomtypes_b = set(
-            [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()]
+        types_b = sorted(
+            [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
         )
 
-        if geomtypes_a != geomtypes_b:
+        if types_a != types_b:
             raise ValueError(
-                f"Geometry types {','.join(list(geomtypes_a))} and {','.join(list(geomtypes_b))} "
+                f"Geometry types {','.join(list(types_a))} and {','.join(list(types_b))} "
                 "are not equivalent"
             )
 
