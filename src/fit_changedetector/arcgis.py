@@ -122,7 +122,7 @@ def compare():
     # There is probably an arcpy method for determining the source type,
     # but just looking at the extension is simple and seems safe
     for src in ["original", "new"]:
-        if Path(param[f"{src}_fc"]).suffix == ".gdb":
+        if Path(param[f"{src}_fc"]).parent.suffix == ".gdb":
             param[src+"_file"] = Path(param[f"{src}_fc"]).parent
             param[src+"_layer"] = Path(param[f"{src}_fc"]).name
         elif Path(param[f"{src}_fc"]).suffix == ".shp":
