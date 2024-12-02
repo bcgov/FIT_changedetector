@@ -494,6 +494,19 @@ def compare(
     precision=0.01,
     dump_inputs=False,
 ):
+    """
+    Compare two datasets:
+      - open two data sources, load to geopandas dataframes (gdf)
+      - if no primary key specified, add one to each gdf as new column based on geometry hash
+      - compare the datasets with gdf_diff, assigning input records to one of:
+         + NEW
+         + DELETED
+         + UNCHANGED
+         + MODIFIED_BOTH
+         + MODIFIED_ATTR
+         + MODIFED_GEOM
+      - write results to .gdb
+    """
     # shortcuts to source layer paths for logging
     src_a = os.path.join(file_a, layer_a or "")
     src_b = os.path.join(file_b, layer_b or "")
