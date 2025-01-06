@@ -416,15 +416,15 @@ def gdf_diff(
     else:
         modifications = modified_attributes
 
-    modifications["status"] = "modifications"
-    additions["status"] = "additions"
-    deletions["status"] = "deletions"
+    modifications["_fcd_status_"] = "modifications"
+    additions["_fcd_status_"] = "additions"
+    deletions["_fcd_status_"] = "deletions"
     # concatenate ids of all changes into a single dataframe, tagged by status of change
     changes = pandas.concat(
         [
-            additions["status"],
-            deletions["status"],
-            modifications["status"],
+            additions["_fcd_status_"],
+            deletions["_fcd_status_"],
+            modifications["_fcd_status_"],
         ]
     )
 

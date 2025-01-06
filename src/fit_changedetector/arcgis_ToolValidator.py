@@ -66,10 +66,10 @@ class ToolValidator:
             # intersect to get the common fields
             common_fields = list(set(fields_2).intersection(set(fields_1)))
             common_fields = [f for f in common_fields if f.upper() not in IGNORE_FIELDS]
-            
+
             # ordering is lost after converting into sets, re-order based on first input fc
             fieldlist = [f for f in fields_1 if f in common_fields]
-            
+
             self.params[3].filter.list = fieldlist
             self.params[4].filter.list = fieldlist
             self.params[5].filter.list = fieldlist
