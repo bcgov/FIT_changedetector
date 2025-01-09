@@ -31,6 +31,42 @@ def test_add_hash_key_geom_columns():
     assert df["test_hash"].iloc[0] == "4a55cfe9a6b8c0863e0c1c4c18eef7a367fd7f54"
 
 
+def test_add_hash_key_geom_dups(gdf):
+    gdf = GeoDataFrame(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["a", "b", "c"],
+            "geometry": [Point(1, 1), Point(1, 1), Point(1, 2)],
+        }
+    ).set_crs("EPSG:3005")
+    with pytest.raises(ValueError):
+        gdf = fcd.add_hash_key(gdf, "test_hash")
+
+
+def test_add_hash_key_hash_dups(gdf):
+    gdf = GeoDataFrame(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["a", "a", "c"],
+            "geometry": [Point(1, 1), Point(1, 1), Point(1, 2)],
+        }
+    ).set_crs("EPSG:3005")
+    with pytest.raises(ValueError):
+        gdf = fcd.add_hash_key(gdf, "test_hash", fields=["col2"])
+
+
+def test_add_hash_key_allow_dups(gdf):
+    gdf = GeoDataFrame(
+        {
+            "col1": [1, 2, 3],
+            "col2": ["a", "a", "c"],
+            "geometry": [Point(1, 1), Point(1, 1), Point(1, 2)],
+        }
+    ).set_crs("EPSG:3005")
+    gdf = fcd.add_hash_key(gdf, "test_hash", fields=["col2"], allow_duplicates=True)
+    assert len(gdf.drop_duplicates(subset=["test_hash"])) == 2
+
+
 def test_add_hash_empty():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     with pytest.raises(ValueError):

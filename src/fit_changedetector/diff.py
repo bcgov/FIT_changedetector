@@ -40,6 +40,7 @@ def add_hash_key(
     fields=[],
     hash_geometry=True,
     drop_null_geometry=True,
+    allow_duplicates=False,
     precision=0.01,
 ):
     """Add new column to input dataframe, containing hash of input columns and/or geometry"""
@@ -95,10 +96,10 @@ def add_hash_key(
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df = df.copy()  # copy so the original df does not get the new column
-        df["geometry_normalized"] = (
+        df["_geometry_normalized_"] = (
             df[df.geometry.name].normalize().set_precision(precision, mode="pointwise")
         )
-        fields = fields + ["geometry_normalized"]
+        fields = fields + ["_geometry_normalized_"]
 
     # add sha1 hash of provided fields
     df[new_field] = df[fields].apply(
@@ -110,11 +111,11 @@ def add_hash_key(
 
     # remove the normalized/reduced precision geometry
     if hash_geometry:
-        df = df.drop(columns=["geometry_normalized"])
+        df = df.drop(columns=["_geometry_normalized_"])
 
-    # fail if hashes are not unique
-    if len(df) != len(df[new_field].drop_duplicates()):
-        if fields == ["geometry_normalized"]:
+    # fail if hashes are not unique (and not instructed otherwise)
+    if len(df) != len(df[new_field].drop_duplicates()) and not allow_duplicates:
+        if fields == ["_geometry_normalized_"]:
             raise ValueError(
                 "Duplicate geometries are present in source, consider adding more columns to hash "
                 "or editing data"
