@@ -142,6 +142,14 @@ written to `new_hash_column`:
         -hf park_name \
         -hk new_hash_column
 
+Note that the CLI is not available in the GTS system/esri managed conda environments.  
+To use the CLI on GTS, open a "Python Command Prompt", deactivate the default environment and 
+activate the changedetector conda environment:
+
+    > conda deactivate
+    > conda activate Q:\dss_workarea\_contractors\sinorris\conda_environments\changedetector_env
+    (changedetector_env)> changedetector --help
+    
 ## Development and testing
 
 Presuming that GDAL is already installed to your system:
