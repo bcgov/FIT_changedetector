@@ -181,25 +181,6 @@ def gdf_diff(
             f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
         )
 
-    # promote mixed single/multipart features to multipart
-    # (shapefiles can have mixed types, but the .gdb driver does not accept this)
-    if spatial:
-        types_a = sorted(
-            [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
-        )
-        types_b = sorted(
-            [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
-        )
-
-        # if more than one type of geometry present in one of the sources, promote both sources
-        # to multipart
-        if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
-            len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
-        ):
-            LOG.info("Mixed singlepart/multipart geometries found, promoting all to multipart")
-            df_a = promote_to_multi(df_a)
-            df_b = promote_to_multi(df_b)
-
     # retain a full copy of both sources for writing unchanged source schemas (apart from above
     # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
     # changee detection)
@@ -358,7 +339,9 @@ def gdf_diff(
 
         # find all rows with modified geometries, retaining new geometries only
         common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-        modified_geometries = common_mod_geoms[~common_a.geom_equals_exact(common_b, precision)]
+        modified_geometries = common_mod_geoms[
+            ~common_a.normalize().geom_equals_exact(common_b.normalize(), precision)
+        ]
 
         # join modified attributes to modified geometries,
         # creating a data structure containing all modifications, where _merge indicates
@@ -515,6 +498,24 @@ def compare(
     # load source data
     df_a = geopandas.read_file(file_a, layer=layer_a)
     df_b = geopandas.read_file(file_b, layer=layer_b)
+
+    # promote mixed single/multipart features to multipart
+    # (shapefiles can have mixed types, but the .gdb driver does not accept this)
+    types_a = sorted(
+        [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
+    )
+    types_b = sorted(
+        [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()], key=len
+    )
+
+    # if more than one type of geometry present in one of the sources, promote both sources
+    # to multipart
+    if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
+        len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
+    ):
+        LOG.info("Mixed singlepart/multipart geometries found, promoting all to multipart")
+        df_a = promote_to_multi(df_a)
+        df_b = promote_to_multi(df_b)
 
     # default output is changedetector_YYYYMMDD_HHMM.gdb
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
