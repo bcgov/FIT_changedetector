@@ -137,6 +137,11 @@ def add_hash_key(
     help="Comma separated list of fields to compare (do not include primary key)",
 )
 @click.option(
+    "--ignore-fields",
+    "-if",
+    help="Comma separated list of fields to ignore",
+)
+@click.option(
     "--out-file",
     "-o",
     type=click.Path(),
@@ -201,6 +206,7 @@ def compare(
     layer_b,
     out_file,
     fields,
+    ignore_fields,
     primary_key,
     hash_key,
     hash_fields,
@@ -218,6 +224,7 @@ def compare(
 
     # parse multi-item parameters
     fields = split_string(fields)
+    ignore_fields = split_string(ignore_fields)
     primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
@@ -230,6 +237,7 @@ def compare(
             out_file,
             primary_key=primary_key,
             fields=fields,
+            ignore_fields=ignore_fields,
             suffix_a=suffix_a,
             suffix_b=suffix_b,
             drop_null_geometry=drop_null_geometry,

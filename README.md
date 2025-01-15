@@ -100,29 +100,32 @@ Schemas for records contained in the `MODIFIED` keys include only columns where 
         Compare two datasets
 
     Options:
-    --layer-a TEXT            Name of layer to use within in_file_a
-    --layer-b TEXT            Name of layer to use within in_file_b
-    -f, --fields TEXT         Comma separated list of fields to compare (do not
-                                include primary key)
-    -o, --out-file PATH       Path to output file, defaults to
-                                ./changedetector_YYYYMMDD_HHMM.gdb
-    -pk, --primary-key TEXT   Comma separated list of primary key column(s),
-                                common to both datasets
-    -hk, --hash-key TEXT      Name of new column to add as hash key
-    -hf, --hash-fields TEXT   Comma separated list of fields to include in the
-                                hash (in addition to geometry)
-    -p, --precision FLOAT     Coordinate precision for geometry hash and
-                                comparison. Default=0.01
-    -a, --suffix-a TEXT       Suffix to append to column names from data source
-                                A when comparing attributes
-    -b, --suffix-b TEXT       Suffix to append to column names from data source
-                                B when comparing attributes
-    -d, --drop-null-geometry  Drop records with null geometry
-    --crs TEXT                Coordinate reference system to use when hashing
-                                geometries (eg EPSG:3005)
-    -v, --verbose             Increase verbosity.
-    -q, --quiet               Decrease verbosity.
-    --help                    Show this message and exit.
+    --layer-a TEXT             Name of layer to use within in_file_a
+    --layer-b TEXT             Name of layer to use within in_file_b
+    -f, --fields TEXT          Comma separated list of fields to compare (do not
+                               include primary key)
+    -if, --ignore-fields TEXT  Comma separated list of fields to ignore
+    -o, --out-file PATH        Path to output file, defaults to
+                               ./changedetector_YYYYMMDD_HHMM.gdb
+    -pk, --primary-key TEXT    Comma separated list of primary key column(s),
+                               common to both datasets
+    -hk, --hash-key TEXT       Name of new column to add as hash key
+    -hf, --hash-fields TEXT    Comma separated list of fields to include in the
+                               hash (in addition to geometry)
+    -p, --precision FLOAT      Coordinate precision for geometry hash and
+                               comparison. Default=0.01
+    -a, --suffix-a TEXT        Suffix to append to column names from data source
+                               A when comparing attributes
+    -b, --suffix-b TEXT        Suffix to append to column names from data source
+                               B when comparing attributes
+    -d, --drop-null-geometry   Drop records with null geometry
+    -i, --dump-inputs          Dump input layers (with new hash key) to output
+                               .gdb
+    --crs TEXT                 Coordinate reference system to use when hashing
+                               geometries (eg EPSG:3005)
+    -v, --verbose              Increase verbosity.
+    -q, --quiet                Decrease verbosity.
+    --help                     Show this message and exit.
 
 Examples:
 
