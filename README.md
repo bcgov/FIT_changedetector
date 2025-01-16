@@ -127,7 +127,7 @@ Schemas for records contained in the `MODIFIED` keys include only columns where 
     -q, --quiet                Decrease verbosity.
     --help                     Show this message and exit.
 
-Examples:
+##### Examples
 
 Compare the test datasets using their known primary key:
 
@@ -145,10 +145,17 @@ written to `new_hash_column`:
         -hf park_name \
         -hk new_hash_column
 
-Note that the CLI is not available in the GTS system/esri managed conda environments.  
-To use the CLI on GTS, open a "Python Command Prompt", deactivate the default environment and 
-activate the changedetector conda environment:
 
+##### GTS
+
+Note that the CLI is not currently available in the BC GTS Esri Python/conda environments.  
+To use the CLI on GTS, open a "Python Command Prompt", initialize conda (if you have not already done so), deactivate the 
+default environment, and activate the pre-built `changedetector_env` environment:
+
+    > conda init cmd.exe  # if required
+
+    <restart the Python Command Prompt>
+    
     > conda deactivate
     > conda activate Q:\dss_workarea\_contractors\sinorris\conda_environments\changedetector_env
     (changedetector_env)> changedetector --help
