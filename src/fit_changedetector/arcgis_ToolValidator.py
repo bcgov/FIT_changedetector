@@ -8,8 +8,6 @@ IGNORE_FIELDS = [
     "OBJECTID",
     "OID_",  # ArcPro adds this to csv files
     "FID",
-    "GLOBALID",
-    "GLOBAL_ID",
     "SHAPE_LENGTH",
     "SHAPE_LENG",  # .shp truncation
     "SHAPE",
