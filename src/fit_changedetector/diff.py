@@ -18,6 +18,10 @@ import fit_changedetector as fcd
 LOG = logging.getLogger(__name__)
 
 
+def default_list(val):
+    return val if val is not None else []
+
+
 def promote_to_multi(df):
     """Promote all geometries in the dataframe to multipart"""
     df.geometry = [
@@ -37,12 +41,13 @@ def promote_to_multi(df):
 def add_hash_key(
     df,
     new_field,
-    fields=[],
+    fields=None,
     hash_geometry=True,
     drop_null_geometry=True,
     allow_duplicates=False,
     precision=0.01,
 ):
+    fields = default_list(fields)
     """Add new column to input dataframe, containing hash of input columns and/or geometry"""
     pandas.options.mode.chained_assignment = None
 
@@ -132,8 +137,8 @@ def gdf_diff(
     df_a,
     df_b,
     primary_key,
-    fields=[],
-    ignore_fields=[],
+    fields=None,
+    ignore_fields=None,
     precision=0.01,
     suffix_a="a",
     suffix_b="b",
@@ -159,6 +164,8 @@ def gdf_diff(
     for columns where changes have occured, values from both sources (a column
     for each source).
     """
+    fields = default_list(fields)
+    ignore_fields = default_list(ignore_fields)
     # are input datasets spatial?
     if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(df_b, geopandas.GeoDataFrame):
         spatial = True
@@ -466,15 +473,15 @@ def compare(
     layer_a,
     layer_b,
     out_file,
-    primary_key=[],
-    fields=[],
-    ignore_fields=[],
+    primary_key=None,
+    fields=None,
+    ignore_fields=None,
     suffix_a="a",
     suffix_b="b",
     drop_null_geometry=True,
     crs=None,
     hash_key=None,
-    hash_fields=[],
+    hash_fields=None,
     precision=0.01,
     dump_inputs=False,
 ):
@@ -491,6 +498,11 @@ def compare(
          + MODIFED_GEOM
       - write results to .gdb
     """
+    primary_key = default_list(primary_key)
+    fields = default_list(fields)
+    ignore_fields = default_list(ignore_fields)
+    hash_fields = default_list(hash_fields)
+
     # shortcuts to source layer paths for logging
     src_a = os.path.join(file_a, layer_a or "")
     src_b = os.path.join(file_b, layer_b or "")
