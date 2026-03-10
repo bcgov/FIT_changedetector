@@ -9,7 +9,7 @@ readme = "README.md"
 authors = [
   {name="Simon Norris", email="snorris@hillcrestgeo.ca"},
 ]
-description = "Download open data, monitor and report on changes"
+description = "Compare geo-data, report on diffs"
 requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 1 - Planning",
@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
   "click",
   "cligj",
-  "geopandas<1.1.0",
+  "geopandas>=1.0",
 ]
 
 [project.optional-dependencies]
