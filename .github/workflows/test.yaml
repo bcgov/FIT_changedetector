@@ -1,4 +1,5 @@
 name: Test
+
 on:
   push:
     branches: [ main]
@@ -14,6 +15,10 @@ on:
       - 'requirements*.txt'
       - 'src/fit_changedetector/**'
       - 'tests/**'
+
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
