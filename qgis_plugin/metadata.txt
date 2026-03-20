@@ -1,0 +1,33 @@
+[general]
+name=FIT Change Detector
+qgisMinimumVersion=3.16
+description=GUI wrapper for the FIT changedetector tool. Compare two geospatial datasets and report additions, deletions and modifications.
+version=0.1.0
+author=Simon Norris
+email=snorris@hillcrestgeo.ca
+
+about=A QGIS plugin that provides a graphical interface for the fit_changedetector
+    Python package (https://github.com/bcgov/FIT_changedetector).
+
+    Compares two vector datasets and classifies changes into:
+    - NEW: features added in dataset B
+    - DELETED: features removed from dataset A
+    - UNCHANGED: features identical in both datasets
+    - MODIFIED_ATTR: attribute-only changes
+    - MODIFIED_GEOM: geometry-only changes
+    - MODIFIED_BOTH: attribute and geometry changes
+
+    Requires the fit_changedetector package to be installed in the QGIS Python
+    environment, OR the 'changedetector' CLI tool to be available on PATH.
+
+tracker=https://github.com/bcgov/FIT_changedetector/issues
+repository=https://github.com/bcgov/FIT_changedetector
+
+hasProcessingProvider=yes
+tags=analysis, change detection, diff, vector, comparison, GIS, bcgov
+
+homepage=https://github.com/bcgov/FIT_changedetector
+category=Analysis
+icon=icon.png
+experimental=True
+deprecated=False
