@@ -557,7 +557,6 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("FIT ChangeDetector GUI")
-        self.minsize(680, 500)
         self._build()
 
     def _build(self):
@@ -572,16 +571,9 @@ class App(tk.Tk):
         nb = ttk.Notebook(nb_frame)
         nb.pack(fill="both", expand=True)
 
-        # Shared output console (bottom third)
+        # Shared output console (bottom, default minimum size)
         console_frame = tk.LabelFrame(paned, text="Output")
-        paned.add(console_frame, minsize=80)
-
-        def _set_sash():
-            h = paned.winfo_height()
-            if h > 1:
-                paned.sash_place(0, 0, h - 80)
-
-        self.after(50, _set_sash)
+        paned.add(console_frame, minsize=100)
         self.console = OutputConsole(console_frame)
         self.console.pack(fill="both", expand=True, padx=4, pady=4)
 
@@ -599,6 +591,20 @@ class App(tk.Tk):
         # Status bar
         self.status = tk.Label(self, text="Ready", anchor="w", relief="sunken", bd=1)
         self.status.pack(side="bottom", fill="x")
+
+        def _fit():
+            self.update_idletasks()
+            # Size window to fit all compare tab parameters + 100px console
+            form_h = compare_tab.winfo_reqheight()
+            nb_h = nb.winfo_reqheight()
+            status_h = self.status.winfo_reqheight()
+            win_h = form_h + (nb_h - compare_scroll.winfo_reqheight()) + 100 + status_h + 16
+            self.geometry(f"680x{win_h}")
+            self.minsize(680, win_h)
+            self.update_idletasks()
+            paned.sash_place(0, 0, paned.winfo_height() - 100)
+
+        self.after(50, _fit)
 
 
 # ---------------------------------------------------------------------------
