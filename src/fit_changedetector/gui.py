@@ -30,6 +30,43 @@ def _browse_file(entry: tk.Entry, title: str = "Select file", save: bool = False
         entry.insert(0, path)
 
 
+def _list_layers(path: str) -> list:
+    """Return layer names available in *path*, or [] on failure."""
+    path = path.strip()
+    if not path:
+        return []
+    try:
+        import fiona
+        return fiona.listlayers(path)
+    except Exception:
+        pass
+    try:
+        import pyogrio
+        return [str(r[0]) for r in pyogrio.list_layers(path)]
+    except Exception:
+        return []
+
+
+def _list_fields(path: str, layer: str = None) -> list:
+    """Return attribute field names for *path*/*layer*, or [] on failure."""
+    path = path.strip()
+    if not path:
+        return []
+    kw = {"layer": layer} if layer else {}
+    try:
+        import fiona
+        with fiona.open(path, **kw) as src:
+            return list(src.schema["properties"].keys())
+    except Exception:
+        pass
+    try:
+        import pyogrio
+        info = pyogrio.read_info(path, **kw)
+        return list(info["fields"])
+    except Exception:
+        return []
+
+
 def _labeled_row(parent, row: int, label: str, column_span: int = 1):
     """Return a (frame, entry) pair placed at *row* inside *parent*."""
     tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
@@ -38,12 +75,21 @@ def _labeled_row(parent, row: int, label: str, column_span: int = 1):
     return entry
 
 
-def _file_row(parent, row: int, label: str, save: bool = False, browse_title: str = "Select file"):
-    """Return an Entry pre-equipped with a Browse button."""
+def _file_row(parent, row: int, label: str, save: bool = False, browse_title: str = "Select file", on_change=None):
+    """Return an Entry pre-equipped with a Browse button.
+
+    *on_change*, if provided, is called with the selected path after browse.
+    """
     tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
     entry = tk.Entry(parent, width=44)
     entry.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
-    btn = tk.Button(parent, text="Browse…", command=lambda: _browse_file(entry, browse_title, save))
+
+    def _browse():
+        _browse_file(entry, browse_title, save)
+        if on_change:
+            on_change(entry.get())
+
+    btn = tk.Button(parent, text="Browse…", command=_browse)
     btn.grid(row=row, column=2, padx=(2, 6), pady=3)
     return entry
 
@@ -72,6 +118,77 @@ def _add_multi(cmd: list, flag: str, value: str) -> None:
     """Repeat *flag val* for each comma/space-separated token in *value*."""
     for token in value.replace(",", " ").split():
         cmd += [flag, token]
+
+
+# ---------------------------------------------------------------------------
+# Field picker widget
+# ---------------------------------------------------------------------------
+
+
+class _FieldEntry(tk.Frame):
+    """Entry with a 'Pick…' button for selecting comma-separated field names.
+
+    Call :meth:`set_choices` to populate the picker list after fields are known.
+    The widget's :meth:`get` returns the entry text, compatible with plain Entry.
+    """
+
+    def __init__(self, parent, **kw):
+        super().__init__(parent, **kw)
+        self._choices: list = []
+        self.entry = tk.Entry(self, width=42)
+        self.entry.pack(side="left", fill="x", expand=True)
+        self._btn = tk.Button(self, text="Pick…", command=self._pick, padx=4)
+        self._btn.pack(side="left", padx=(2, 0))
+
+    def get(self) -> str:
+        return self.entry.get()
+
+    def set_choices(self, fields: list) -> None:
+        self._choices = list(fields)
+
+    def _pick(self):
+        if not self._choices:
+            return
+        top = tk.Toplevel(self)
+        top.title("Select fields")
+        top.resizable(False, True)
+        top.minsize(220, 160)
+
+        current = {v.strip() for v in self.entry.get().replace(",", " ").split() if v.strip()}
+
+        # Scrollable list of checkboxes
+        container = tk.Frame(top)
+        container.pack(fill="both", expand=True, padx=8, pady=8)
+        vsb = ttk.Scrollbar(container, orient="vertical")
+        canvas = tk.Canvas(container, yscrollcommand=vsb.set, highlightthickness=0)
+        vsb.config(command=canvas.yview)
+        vsb.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        inner = tk.Frame(canvas)
+        win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
+        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
+
+        vars_ = []
+        for field in self._choices:
+            var = tk.BooleanVar(value=field in current)
+            tk.Checkbutton(inner, text=field, variable=var, anchor="w").pack(fill="x")
+            vars_.append((field, var))
+
+        def _ok():
+            selected = [f for f, v in vars_ if v.get()]
+            self.entry.delete(0, tk.END)
+            self.entry.insert(0, ", ".join(selected))
+            top.destroy()
+
+        btn_frame = tk.Frame(top)
+        btn_frame.pack(fill="x", padx=8, pady=(0, 8))
+        tk.Button(btn_frame, text="OK", command=_ok, bg="#0078d4", fg="white", padx=8).pack(side="left", padx=4)
+        tk.Button(btn_frame, text="Clear all", command=lambda: [v.set(False) for _, v in vars_]).pack(side="left", padx=4)
+        tk.Button(btn_frame, text="Cancel", command=top.destroy).pack(side="left", padx=4)
+
+        top.grab_set()
+        top.wait_window()
 
 
 # ---------------------------------------------------------------------------
@@ -154,9 +271,19 @@ class CompareTab(tk.Frame):
     def _build(self):
         r = 0
         # --- Input files ---
-        self.file_a = _file_row(self, r, "Input file A *", browse_title="Select file A")
+        self.file_a = _file_row(
+            self, r, "Input file A *", browse_title="Select file A",
+            on_change=lambda p: self._populate_layers(p, self.layer_a),
+        )
+        self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
+        self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         r += 1
-        self.file_b = _file_row(self, r, "Input file B *", browse_title="Select file B")
+        self.file_b = _file_row(
+            self, r, "Input file B *", browse_title="Select file B",
+            on_change=lambda p: self._populate_layers(p, self.layer_b),
+        )
+        self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
+        self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         r += 1
         self.out_file = _file_row(self, r, "Output file", save=True, browse_title="Save output as")
         r += 1
@@ -166,11 +293,18 @@ class CompareTab(tk.Frame):
         )
         r += 1
 
-        # --- Layer names ---
-        self.layer_a = _labeled_row(self, r, "Layer A")
+        # --- Layer names (comboboxes populated from source files) ---
+        tk.Label(self, text="Layer A", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.layer_a = ttk.Combobox(self, width=47)
+        self.layer_a.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        self.layer_b = _labeled_row(self, r, "Layer B")
+        tk.Label(self, text="Layer B", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.layer_b = ttk.Combobox(self, width=47)
+        self.layer_b.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
+
+        self.layer_a.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
+        self.layer_b.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
 
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
@@ -178,13 +312,15 @@ class CompareTab(tk.Frame):
         r += 1
 
         # --- Key options ---
-        self.primary_key = _labeled_row(self, r, "Primary key (-pk)")
-        tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
+        tk.Label(self, text="Primary key (-pk)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.primary_key = _FieldEntry(self)
+        self.primary_key.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
         self.hash_key = _labeled_row(self, r, "Hash key column (-hk)")
         r += 1
-        self.hash_fields = _labeled_row(self, r, "Hash fields (-hf)")
-        tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
+        tk.Label(self, text="Hash fields (-hf)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.hash_fields = _FieldEntry(self)
+        self.hash_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -193,11 +329,13 @@ class CompareTab(tk.Frame):
         r += 1
 
         # --- Field filters ---
-        self.fields = _labeled_row(self, r, "Fields to compare (-f)")
-        tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
+        tk.Label(self, text="Fields to compare (-f)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.fields = _FieldEntry(self)
+        self.fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        self.ignore_fields = _labeled_row(self, r, "Ignore fields (-if)")
-        tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
+        tk.Label(self, text="Ignore fields (-if)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.ignore_fields = _FieldEntry(self)
+        self.ignore_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -252,6 +390,28 @@ class CompareTab(tk.Frame):
         self.run_btn.pack(side="left", padx=4)
         self.copy_btn = tk.Button(btn_frame, text="Copy command", command=self._copy)
         self.copy_btn.pack(side="left", padx=4)
+
+    def _populate_layers(self, path: str, combobox: ttk.Combobox) -> None:
+        """Read layers from *path* and update *combobox* values."""
+        layers = _list_layers(path)
+        combobox["values"] = layers
+        if layers:
+            combobox.set(layers[0])
+        else:
+            combobox.set("")
+        self._update_fields()
+
+    def _update_fields(self) -> None:
+        """Load fields from the selected sources/layers and update all field pickers."""
+        fields_a = _list_fields(self.file_a.get(), self.layer_a.get() or None)
+        fields_b = _list_fields(self.file_b.get(), self.layer_b.get() or None)
+        if fields_a and fields_b:
+            set_b = set(fields_b)
+            available = [f for f in fields_a if f in set_b]
+        else:
+            available = fields_a or fields_b
+        for widget in (self.primary_key, self.hash_fields, self.fields, self.ignore_fields):
+            widget.set_choices(available)
 
     def _build_cmd(self) -> list:
         cmd = ["changedetector"]
