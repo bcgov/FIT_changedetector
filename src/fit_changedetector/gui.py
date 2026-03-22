@@ -183,7 +183,7 @@ class _FieldEntry(tk.Frame):
 
         btn_frame = tk.Frame(top)
         btn_frame.pack(fill="x", padx=8, pady=(0, 8))
-        tk.Button(btn_frame, text="OK", command=_ok, bg="#0078d4", fg="white", padx=8).pack(side="left", padx=4)
+        tk.Button(btn_frame, text="OK", command=_ok, padx=8).pack(side="left", padx=4)
         tk.Button(btn_frame, text="Clear all", command=lambda: [v.set(False) for _, v in vars_]).pack(side="left", padx=4)
         tk.Button(btn_frame, text="Cancel", command=top.destroy).pack(side="left", padx=4)
 
@@ -382,8 +382,6 @@ class CompareTab(tk.Frame):
             btn_frame,
             text="Run compare",
             command=self._run,
-            bg="#0078d4",
-            fg="white",
             padx=12,
             pady=4,
         )
@@ -515,8 +513,6 @@ class AddHashKeyTab(tk.Frame):
             btn_frame,
             text="Run add-hash-key",
             command=self._run,
-            bg="#0078d4",
-            fg="white",
             padx=12,
             pady=4,
         )
@@ -569,16 +565,23 @@ class App(tk.Tk):
         paned = tk.PanedWindow(self, orient="vertical", sashrelief="raised", sashwidth=6)
         paned.pack(fill="both", expand=True, padx=4, pady=4)
 
-        # --- Notebook (top half) ---
+        # --- Notebook (top two-thirds) ---
         nb_frame = tk.Frame(paned)
         paned.add(nb_frame, minsize=100)
 
         nb = ttk.Notebook(nb_frame)
         nb.pack(fill="both", expand=True)
 
-        # Shared output console (bottom half)
+        # Shared output console (bottom third)
         console_frame = tk.LabelFrame(paned, text="Output")
         paned.add(console_frame, minsize=80)
+
+        def _set_sash():
+            h = paned.winfo_height()
+            if h > 1:
+                paned.sash_place(0, 0, h - 80)
+
+        self.after(50, _set_sash)
         self.console = OutputConsole(console_frame)
         self.console.pack(fill="both", expand=True, padx=4, pady=4)
 
