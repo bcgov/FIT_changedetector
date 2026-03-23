@@ -366,13 +366,13 @@ class CompareTab(tk.Frame):
         r += 1
 
         # --- Misc options ---
-        self.precision = _labeled_row(self, r, "Precision")
+        self.precision = _labeled_row(self, r, "Coordinate precision")
         self.precision.insert(0, "0.01")
         r += 1
-        self.suffix_a = _labeled_row(self, r, "Suffix A")
+        self.suffix_a = _labeled_row(self, r, "Column name suffix - original")
         self.suffix_a.insert(0, "original")
         r += 1
-        self.suffix_b = _labeled_row(self, r, "Suffix B")
+        self.suffix_b = _labeled_row(self, r, "Column name suffix - new")
         self.suffix_b.insert(0, "new")
         r += 1
         ttk.Separator(self, orient="horizontal").grid(
@@ -383,7 +383,7 @@ class CompareTab(tk.Frame):
         # --- Checkboxes ---
         self.drop_null = _check_row(self, r, "Drop null geometry")
         r += 1
-        self.dump_inputs = _check_row(self, r, "Dump inputs to output")
+        self.dump_inputs = _check_row(self, r, "Save input datasets to generated output .gdb")
         r += 1
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
