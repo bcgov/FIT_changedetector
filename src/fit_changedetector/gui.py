@@ -8,9 +8,11 @@ Usage:
     python gui.py
 """
 
+import os
 import subprocess
 import sys
 import threading
+from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, scrolledtext, ttk
 
@@ -88,6 +90,23 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
         _browse_file(entry, browse_title, save)
         if on_change:
             on_change(entry.get())
+
+    btn = tk.Button(parent, text="Browse…", command=_browse)
+    btn.grid(row=row, column=2, padx=(2, 6), pady=3)
+    return entry
+
+
+def _folder_row(parent, row: int, label: str, browse_title: str = "Select folder"):
+    """Return an Entry pre-equipped with a Browse button that opens a directory dialog."""
+    tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
+    entry = tk.Entry(parent, width=44)
+    entry.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
+
+    def _browse():
+        path = filedialog.askdirectory(title=browse_title)
+        if path:
+            entry.delete(0, tk.END)
+            entry.insert(0, path)
 
     btn = tk.Button(parent, text="Browse…", command=_browse)
     btn.grid(row=row, column=2, padx=(2, 6), pady=3)
@@ -272,20 +291,20 @@ class CompareTab(tk.Frame):
         r = 0
         # --- Input files ---
         self.file_a = _file_row(
-            self, r, "Input file A *", browse_title="Select file A",
+            self, r, "Original file *", browse_title="Select original file",
             on_change=lambda p: self._populate_layers(p, self.layer_a),
         )
         self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         r += 1
         self.file_b = _file_row(
-            self, r, "Input file B *", browse_title="Select file B",
+            self, r, "New file *", browse_title="Select new file",
             on_change=lambda p: self._populate_layers(p, self.layer_b),
         )
         self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         r += 1
-        self.out_file = _file_row(self, r, "Output file", save=True, browse_title="Save output as")
+        self.out_file = _folder_row(self, r, "Output folder", browse_title="Select output folder")
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -311,14 +330,24 @@ class CompareTab(tk.Frame):
         )
         r += 1
 
-        # --- Key options ---
-        tk.Label(self, text="Primary key (-pk)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        # --- Key / field options ---
+        tk.Label(self, text="Primary key field(s)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.primary_key = _FieldEntry(self)
         self.primary_key.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        self.hash_key = _labeled_row(self, r, "Hash key column (-hk)")
+        tk.Label(self, text="Fields to INCLUDE in comparison", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.fields = _FieldEntry(self)
+        self.fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        tk.Label(self, text="Hash fields (-hf)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Fields to EXCLUDE from comparison", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.ignore_fields = _FieldEntry(self)
+        self.ignore_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        r += 1
+        tk.Label(self, text="Hash field name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.hash_key = ttk.Combobox(self, width=47)
+        self.hash_key.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        r += 1
+        tk.Label(self, text="Hash fields", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.hash_fields = _FieldEntry(self)
         self.hash_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
@@ -328,30 +357,17 @@ class CompareTab(tk.Frame):
         )
         r += 1
 
-        # --- Field filters ---
-        tk.Label(self, text="Fields to compare (-f)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
-        self.fields = _FieldEntry(self)
-        self.fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
-        r += 1
-        tk.Label(self, text="Ignore fields (-if)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
-        self.ignore_fields = _FieldEntry(self)
-        self.ignore_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
-        r += 1
-
-        ttk.Separator(self, orient="horizontal").grid(
-            row=r, column=0, columnspan=3, sticky="ew", pady=6
-        )
-        r += 1
-
         # --- Misc options ---
-        self.precision = _labeled_row(self, r, "Precision (-p)")
+        self.precision = _labeled_row(self, r, "Precision")
         self.precision.insert(0, "0.01")
         r += 1
-        self.suffix_a = _labeled_row(self, r, "Suffix A (-a)")
+        self.suffix_a = _labeled_row(self, r, "Suffix A")
+        self.suffix_a.insert(0, "original")
         r += 1
-        self.suffix_b = _labeled_row(self, r, "Suffix B (-b)")
+        self.suffix_b = _labeled_row(self, r, "Suffix B")
+        self.suffix_b.insert(0, "new")
         r += 1
-        self.crs = _labeled_row(self, r, "CRS (--crs)")
+        self.crs = _labeled_row(self, r, "CRS")
         tk.Label(self, text="e.g. EPSG:3005").grid(row=r, column=2, sticky="w", padx=4)
         r += 1
 
@@ -361,15 +377,10 @@ class CompareTab(tk.Frame):
         r += 1
 
         # --- Checkboxes ---
-        self.drop_null = _check_row(self, r, "Drop null geometry (-d)")
+        self.drop_null = _check_row(self, r, "Drop null geometry")
         r += 1
-        self.dump_inputs = _check_row(self, r, "Dump inputs to output (-i)")
+        self.dump_inputs = _check_row(self, r, "Dump inputs to output")
         r += 1
-        self.verbose = _check_row(self, r, "Verbose (-v)")
-        r += 1
-        self.quiet = _check_row(self, r, "Quiet (-q)")
-        r += 1
-
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
         )
@@ -410,13 +421,10 @@ class CompareTab(tk.Frame):
             available = fields_a or fields_b
         for widget in (self.primary_key, self.hash_fields, self.fields, self.ignore_fields):
             widget.set_choices(available)
+        self.hash_key["values"] = available
 
     def _build_cmd(self) -> list:
-        cmd = ["changedetector"]
-        if self.verbose.get():
-            cmd.append("-v")
-        elif self.quiet.get():
-            cmd.append("-q")
+        cmd = ["changedetector", "-v"]
         cmd.append("compare")
         cmd.append(self.file_a.get().strip())
         cmd.append(self.file_b.get().strip())
@@ -427,7 +435,10 @@ class CompareTab(tk.Frame):
         _add_multi(cmd, "-hf", self.hash_fields.get())
         _add_multi(cmd, "-f", self.fields.get())
         _add_multi(cmd, "-if", self.ignore_fields.get())
-        _add_opt(cmd, "-o", self.out_file.get())
+        folder = self.out_file.get().strip()
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        out_path = os.path.join(folder, f"changedetector_{timestamp}.gdb") if folder else f"changedetector_{timestamp}.gdb"
+        cmd += ["-o", out_path]
         _add_opt(cmd, "-p", self.precision.get())
         _add_opt(cmd, "-a", self.suffix_a.get())
         _add_opt(cmd, "-b", self.suffix_b.get())
@@ -441,7 +452,7 @@ class CompareTab(tk.Frame):
     def _run(self):
         cmd = self._build_cmd()
         if not cmd[cmd.index("compare") + 1]:
-            self.console.append("[ERROR] Input file A is required.\n")
+            self.console.append("[ERROR] Original file is required.\n")
             return
         self.console.run_command(cmd, self.run_btn, self.copy_btn)
 
@@ -477,16 +488,16 @@ class AddHashKeyTab(tk.Frame):
         )
         r += 1
 
-        self.in_layer = _labeled_row(self, r, "Input layer (--in-layer)")
+        self.in_layer = _labeled_row(self, r, "Input layer")
         r += 1
-        self.out_layer = _labeled_row(self, r, "Output layer (--out-layer)")
+        self.out_layer = _labeled_row(self, r, "Output layer")
         r += 1
-        self.hash_key = _labeled_row(self, r, "Hash key column (-hk)")
+        self.hash_key = _labeled_row(self, r, "Hash field name")
         r += 1
-        self.hash_fields = _labeled_row(self, r, "Hash fields (-hf)")
+        self.hash_fields = _labeled_row(self, r, "Hash fields")
         tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
         r += 1
-        self.crs = _labeled_row(self, r, "CRS (--crs)")
+        self.crs = _labeled_row(self, r, "CRS")
         tk.Label(self, text="e.g. EPSG:3005").grid(row=r, column=2, sticky="w", padx=4)
         r += 1
 
@@ -495,13 +506,8 @@ class AddHashKeyTab(tk.Frame):
         )
         r += 1
 
-        self.drop_null = _check_row(self, r, "Drop null geometry (-d)")
+        self.drop_null = _check_row(self, r, "Drop null geometry")
         r += 1
-        self.verbose = _check_row(self, r, "Verbose (-v)")
-        r += 1
-        self.quiet = _check_row(self, r, "Quiet (-q)")
-        r += 1
-
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
         )
@@ -521,11 +527,7 @@ class AddHashKeyTab(tk.Frame):
         self.copy_btn.pack(side="left", padx=4)
 
     def _build_cmd(self) -> list:
-        cmd = ["changedetector"]
-        if self.verbose.get():
-            cmd.append("-v")
-        elif self.quiet.get():
-            cmd.append("-q")
+        cmd = ["changedetector", "-v"]
         cmd.append("add-hash-key")
         cmd.append(self.in_file.get().strip())
         cmd.append(self.out_file.get().strip())
