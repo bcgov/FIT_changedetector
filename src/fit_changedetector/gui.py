@@ -473,11 +473,24 @@ class AddHashKeyTab(tk.Frame):
 
     def _build(self):
         r = 0
-        self.in_file = _file_row(self, r, "Input file *", browse_title="Select input file")
+        # --- Input file ---
+        self.in_file = _file_row(
+            self, r, "Input file *", browse_title="Select input file",
+            on_change=lambda p: self._populate_layers(p, self.in_layer),
+        )
+        self.in_file.bind("<FocusOut>", lambda e: self._populate_layers(self.in_file.get(), self.in_layer))
+        self.in_file.bind("<Return>", lambda e: self._populate_layers(self.in_file.get(), self.in_layer))
+        r += 1
+        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.in_layer = ttk.Combobox(self, width=47)
+        self.in_layer.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.in_layer.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
         r += 1
         self.out_file = _file_row(
             self, r, "Output file *", save=True, browse_title="Save output as"
         )
+        r += 1
+        self.out_layer = _labeled_row(self, r, "Output layer")
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -485,15 +498,12 @@ class AddHashKeyTab(tk.Frame):
         )
         r += 1
 
-        self.in_layer = _labeled_row(self, r, "Input layer")
-        r += 1
-        self.out_layer = _labeled_row(self, r, "Output layer")
-        r += 1
+        # --- Hash options ---
         self.hash_key = _labeled_row(self, r, "Hash field name")
         r += 1
-        self.hash_fields = _labeled_row(self, r, "Hash fields")
-        tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
-        r += 1
+        tk.Label(self, text="Hash fields", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.hash_fields = _FieldEntry(self)
+        self.hash_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -503,6 +513,7 @@ class AddHashKeyTab(tk.Frame):
 
         self.drop_null = _check_row(self, r, "Drop null geometry")
         r += 1
+
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
         )
@@ -520,6 +531,19 @@ class AddHashKeyTab(tk.Frame):
         self.run_btn.pack(side="left", padx=4)
         self.copy_btn = tk.Button(btn_frame, text="Copy command", command=self._copy)
         self.copy_btn.pack(side="left", padx=4)
+
+    def _populate_layers(self, path: str, combobox: ttk.Combobox) -> None:
+        layers = _list_layers(path)
+        combobox["values"] = layers
+        if layers:
+            combobox.set(layers[0])
+        else:
+            combobox.set("")
+        self._update_fields()
+
+    def _update_fields(self) -> None:
+        fields = _list_fields(self.in_file.get(), self.in_layer.get() or None)
+        self.hash_fields.set_choices(fields)
 
     def _build_cmd(self) -> list:
         cmd = ["changedetector", "add-hash-key", "-v"]
