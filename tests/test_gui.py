@@ -10,6 +10,7 @@ pytest.importorskip("tkinter", reason="tkinter not available")
 
 from fit_changedetector.cli import cli  # noqa: E402
 from fit_changedetector.gui import (  # noqa: E402
+    AddHashKeyTab,
     CompareTab,
     OutputConsole,
     _list_fields,
@@ -100,6 +101,53 @@ def test_compare(tmp_path):
         for layer, expected in change_counts.items():
             df = geopandas.read_file(out_path, layer=layer)
             assert len(df) == expected, f"{layer}: expected {expected} rows, got {len(df)}"
+
+    finally:
+        root.destroy()
+
+
+def test_add_hash_key(tmp_path):
+    import tkinter as tk
+
+    root = tk.Tk()
+    root.withdraw()
+
+    try:
+        console = OutputConsole(root)
+        tab = AddHashKeyTab(root, console)
+
+        path_in = os.path.abspath(PARKS_A)
+        out_path = str(tmp_path / "out.gdb")
+
+        # Set input file and trigger layer + field loading
+        tab.in_file.delete(0, tk.END)
+        tab.in_file.insert(0, path_in)
+        tab._populate_layers(path_in, tab.in_layer)
+
+        # Layer should be auto-selected
+        assert tab.in_layer.get() == PARKS_LAYER
+
+        # Hash fields picker should have the available fields as choices
+        assert tab.hash_fields._choices == PARKS_FIELDS
+
+        # Set output path
+        tab.out_file.delete(0, tk.END)
+        tab.out_file.insert(0, out_path)
+
+        # Verify the assembled command
+        cmd = tab._build_cmd()
+        assert path_in in cmd
+        assert out_path in cmd
+
+        # Run the CLI
+        runner = CliRunner()
+        result = runner.invoke(cli, cmd[1:])
+        assert result.exit_code == 0, result.output
+
+        # Verify the output layer contains the expected hash for the first record
+        df = geopandas.read_file(out_path)
+        assert "fcd_hash_id" in df.columns
+        assert df["fcd_hash_id"].iloc[0] == "fe370ca2e67ae006d003a2448eba4d2797f9ec03"
 
     finally:
         root.destroy()
