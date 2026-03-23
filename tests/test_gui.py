@@ -51,7 +51,6 @@ def test_compare(tmp_path):
 
         path_a = os.path.abspath(PARKS_A)
         path_b = os.path.abspath(PARKS_B)
-        out_path = str(tmp_path / "out.gdb")
 
         # Set file paths and trigger layer + field loading
         tab.file_a.delete(0, tk.END)
@@ -70,10 +69,10 @@ def test_compare(tmp_path):
         for widget in (tab.primary_key, tab.hash_fields, tab.fields, tab.ignore_fields):
             assert widget._choices == PARKS_FIELDS
 
-        # Set primary key and output path
+        # Set primary key and output folder
         tab.primary_key.entry.insert(0, "id")
         tab.out_file.delete(0, tk.END)
-        tab.out_file.insert(0, out_path)
+        tab.out_file.insert(0, str(tmp_path))
 
         # Verify the assembled command
         cmd = tab._build_cmd()
@@ -81,6 +80,9 @@ def test_compare(tmp_path):
         assert path_b in cmd
         assert "-pk" in cmd
         assert "id" in cmd
+
+        # Derive the output .gdb path from the command
+        out_path = cmd[cmd.index("-o") + 1]
 
         # Run the CLI with the same args (strip the leading "changedetector" token)
         runner = CliRunner()
