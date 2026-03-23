@@ -23,7 +23,9 @@ jobs:
 
       - name: Install build tools
         shell: bash -el {0}
-        run: conda install -y constructor build
+        run: |
+          conda install -y constructor
+          pip install build
 
       - name: Build wheel
         shell: bash -el {0}
