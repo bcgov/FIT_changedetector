@@ -593,7 +593,7 @@ class App(tk.Tk):
 
         # Shared output console (bottom, default minimum size)
         console_frame = tk.LabelFrame(paned, text="Output")
-        paned.add(console_frame, minsize=100)
+        paned.add(console_frame, minsize=120)
         self.console = OutputConsole(console_frame)
         self.console.pack(fill="both", expand=True, padx=4, pady=4)
 
@@ -614,16 +614,16 @@ class App(tk.Tk):
 
         def _fit():
             self.update_idletasks()
-            # Size window to fit all compare tab parameters + 100px console
+            # Size window to fit all compare tab parameters + 120px console
             form_h = compare_tab.winfo_reqheight()
             nb_h = nb.winfo_reqheight()
             status_h = self.status.winfo_reqheight()
-            win_h = form_h + (nb_h - compare_scroll.winfo_reqheight()) + 100 + status_h + 16
+            win_h = form_h + (nb_h - compare_scroll.winfo_reqheight()) + 120 + status_h + 16
             win_w = compare_tab.winfo_reqwidth() + 16
             self.geometry(f"{win_w}x{win_h}")
             self.minsize(win_w, win_h)
             self.update_idletasks()
-            paned.sash_place(0, 0, paned.winfo_height() - 100)
+            paned.sash_place(0, 0, paned.winfo_height() - 120)
 
         self.after(50, _fit)
 
