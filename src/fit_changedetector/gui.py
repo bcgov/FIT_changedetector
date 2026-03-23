@@ -305,7 +305,7 @@ class CompareTab(tk.Frame):
         self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         r += 1
-        tk.Label(self, text="Original file layer name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.layer_a = ttk.Combobox(self, width=47)
         self.layer_a.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.layer_a.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
@@ -317,7 +317,7 @@ class CompareTab(tk.Frame):
         self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         r += 1
-        tk.Label(self, text="New file layer name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.layer_b = ttk.Combobox(self, width=47)
         self.layer_b.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.layer_b.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
