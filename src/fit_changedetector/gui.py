@@ -499,7 +499,7 @@ class AddHashKeyTab(tk.Frame):
         r += 1
 
         # --- Hash options ---
-        self.hash_key = _labeled_row(self, r, "Hash field name")
+        self.hash_key = _labeled_row(self, r, "Output hash field name")
         r += 1
         tk.Label(self, text="Hash fields", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.hash_fields = _FieldEntry(self)
