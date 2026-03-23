@@ -420,8 +420,7 @@ class CompareTab(tk.Frame):
         self.hash_key["values"] = available
 
     def _build_cmd(self) -> list:
-        cmd = ["changedetector", "-v"]
-        cmd.append("compare")
+        cmd = ["changedetector", "compare", "-v"]
         cmd.append(self.file_a.get().strip())
         cmd.append(self.file_b.get().strip())
         _add_opt(cmd, "--layer-a", self.layer_a.get())
@@ -523,8 +522,7 @@ class AddHashKeyTab(tk.Frame):
         self.copy_btn.pack(side="left", padx=4)
 
     def _build_cmd(self) -> list:
-        cmd = ["changedetector", "-v"]
-        cmd.append("add-hash-key")
+        cmd = ["changedetector", "add-hash-key", "-v"]
         cmd.append(self.in_file.get().strip())
         cmd.append(self.out_file.get().strip())
         _add_opt(cmd, "--in-layer", self.in_layer.get())
