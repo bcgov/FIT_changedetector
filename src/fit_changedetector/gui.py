@@ -305,6 +305,11 @@ class CompareTab(tk.Frame):
         self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         r += 1
+        tk.Label(self, text="Original file layer name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        self.layer_a = ttk.Combobox(self, width=47)
+        self.layer_a.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.layer_a.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
+        r += 1
         self.file_b = _file_row(
             self, r, "New file *", browse_title="Select new file",
             on_change=lambda p: self._populate_layers(p, self.layer_b),
@@ -312,26 +317,13 @@ class CompareTab(tk.Frame):
         self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         r += 1
-        self.out_file = _folder_row(self, r, "Output folder", browse_title="Select output folder")
-        r += 1
-
-        ttk.Separator(self, orient="horizontal").grid(
-            row=r, column=0, columnspan=3, sticky="ew", pady=6
-        )
-        r += 1
-
-        # --- Layer names (comboboxes populated from source files) ---
-        tk.Label(self, text="Layer A", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
-        self.layer_a = ttk.Combobox(self, width=47)
-        self.layer_a.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
-        r += 1
-        tk.Label(self, text="Layer B", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="New file layer name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
         self.layer_b = ttk.Combobox(self, width=47)
         self.layer_b.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
-        r += 1
-
-        self.layer_a.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
         self.layer_b.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
+        r += 1
+        self.out_file = _folder_row(self, r, "Output folder", browse_title="Select output folder")
+        r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
