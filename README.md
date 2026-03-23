@@ -146,6 +146,50 @@ written to `new_hash_column`:
         -hk new_hash_column
 
 
+#### GUI
+
+A tkinter-based graphical interface is available for users who prefer not to use the command line. It wraps the `compare` and `add-hash-key` commands.
+
+**Launching the GUI**
+
+With the package installed and the environment active:
+
+    python src/fit_changedetector/gui.py
+
+On GTS, double-click `changedetector.vbs` in the repo root to launch without a console window.
+
+**Compare tab**
+
+| Field | Description |
+|-------|-------------|
+| Original file | Path to the baseline dataset |
+| └ Layer | Layer within the original file (auto-populated) |
+| New file | Path to the updated dataset |
+| └ Layer | Layer within the new file (auto-populated) |
+| Output folder | Folder to write the output `.gdb` (filename generated automatically) |
+| Primary key field(s) | Field(s) uniquely identifying records across both datasets |
+| Fields to INCLUDE in comparison | Limit comparison to these fields (leave blank to compare all) |
+| Fields to EXCLUDE from comparison | Fields to skip during comparison |
+| Hash field name | Column to create as a synthetic hash key (optional) |
+| Hash fields | Fields to include in the hash, in addition to geometry (optional) |
+| Suffix A / Suffix B | Suffixes appended to column names in `MODIFIED_*` output layers (defaults: `original` / `new`) |
+| Drop null geometry | Exclude records with null geometry before comparing |
+| Save input datasets to output .gdb | Write the hashed input layers to the output file |
+
+**Add Hash Key tab**
+
+| Field | Description |
+|-------|-------------|
+| Input file | Path to the source dataset |
+| └ Layer | Layer within the input file (auto-populated) |
+| Output file | Path to write the output file |
+| Output layer | Name for the output layer (optional) |
+| Output hash field name | Name of the new hash column (default: `fcd_hash_id`) |
+| Hash fields | Fields to include in the hash, in addition to geometry (optional) |
+| Drop null geometry | Exclude records with null geometry |
+
+Command output is streamed to the panel at the bottom of the window. A log file with the same name as the output `.gdb` is written alongside it.
+
 ##### GTS
 
 Note that the CLI is not currently available in the BC GTS Esri Python/conda environments.  
@@ -160,6 +204,29 @@ default environment, and activate the pre-built `changedetector_env` environment
     > conda activate Q:\dss_workarea\_contractors\sinorris\conda_environments\changedetector_env
     (changedetector_env)> changedetector --help
     
+## Windows installer
+
+A self-extracting Windows installer can be built using [conda constructor](https://github.com/conda/constructor). The installer bundles Python, all geospatial dependencies, the CLI, and a desktop shortcut that launches the GUI.
+
+**Prerequisites** (on the build machine):
+
+    conda install constructor build
+
+**Build steps:**
+
+    # 1. Build the wheel
+    python -m build --wheel
+
+    # 2. Copy the wheel into the installer directory
+    copy dist\fit_changedetector-*.whl installer\
+
+    # 3. Build the installer
+    constructor installer\
+
+This produces a `FIT_ChangeDetector-<version>-Windows-x86_64.exe` installer. Running it on a Windows machine installs the environment and places a `FIT ChangeDetector.vbs` shortcut on the desktop.
+
+**Updating the version** — edit `version` in `installer/construct.yaml` and the wheel filename in `extra_files` to match `src/fit_changedetector/__init__.py`.
+
 ## Development and testing
 
 Presuming that GDAL is already installed to your system:
