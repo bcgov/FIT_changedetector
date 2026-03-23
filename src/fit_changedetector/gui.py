@@ -249,8 +249,9 @@ class OutputConsole(tk.Frame):
         run_btn.config(state="disabled")
 
         def _worker():
-            log_fh = open(logfile, "w") if logfile else None
+            log_fh = None
             try:
+                log_fh = open(logfile, "w") if logfile else None
                 proc = subprocess.Popen(
                     cmd,
                     stdout=subprocess.PIPE,
@@ -445,10 +446,10 @@ class CompareTab(tk.Frame):
         return cmd
 
     def _run(self):
-        cmd = self._build_cmd()
-        if not cmd[cmd.index("compare") + 1]:
+        if not self.file_a.get().strip():
             self.console.append("[ERROR] Original file is required.\n")
             return
+        cmd = self._build_cmd()
         out_path = cmd[cmd.index("-o") + 1]
         logfile = os.path.splitext(out_path)[0] + ".txt"
         self.console.run_command(cmd, self.run_btn, self.copy_btn, logfile=logfile)
