@@ -242,13 +242,14 @@ class OutputConsole(tk.Frame):
         self.text.see(tk.END)
         self.text.config(state="disabled")
 
-    def run_command(self, cmd: list, run_btn: tk.Button, copy_btn: tk.Button):
-        """Execute *cmd* in a background thread, streaming output here."""
+    def run_command(self, cmd: list, run_btn: tk.Button, copy_btn: tk.Button, logfile: str = None):
+        """Execute *cmd* in a background thread, streaming output here and optionally to *logfile*."""
         self.clear()
         self.append("$ " + " ".join(cmd) + "\n\n")
         run_btn.config(state="disabled")
 
         def _worker():
+            log_fh = open(logfile, "w") if logfile else None
             try:
                 proc = subprocess.Popen(
                     cmd,
@@ -259,9 +260,14 @@ class OutputConsole(tk.Frame):
                 )
                 for line in proc.stdout:
                     self.after(0, self.append, line)
+                    if log_fh:
+                        log_fh.write(line)
                 proc.wait()
                 rc = proc.returncode
-                self.after(0, self.append, f"\n[Process exited with code {rc}]\n")
+                exit_msg = f"\n[Process exited with code {rc}]\n"
+                self.after(0, self.append, exit_msg)
+                if log_fh:
+                    log_fh.write(exit_msg)
             except FileNotFoundError:
                 self.after(
                     0,
@@ -270,6 +276,8 @@ class OutputConsole(tk.Frame):
                     "Install it with:  pip install fit-changedetector\n",
                 )
             finally:
+                if log_fh:
+                    log_fh.close()
                 self.after(0, run_btn.config, {"state": "normal"})
 
         threading.Thread(target=_worker, daemon=True).start()
@@ -367,10 +375,6 @@ class CompareTab(tk.Frame):
         self.suffix_b = _labeled_row(self, r, "Suffix B")
         self.suffix_b.insert(0, "new")
         r += 1
-        self.crs = _labeled_row(self, r, "CRS")
-        tk.Label(self, text="e.g. EPSG:3005").grid(row=r, column=2, sticky="w", padx=4)
-        r += 1
-
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
         )
@@ -442,7 +446,7 @@ class CompareTab(tk.Frame):
         _add_opt(cmd, "-p", self.precision.get())
         _add_opt(cmd, "-a", self.suffix_a.get())
         _add_opt(cmd, "-b", self.suffix_b.get())
-        _add_opt(cmd, "--crs", self.crs.get())
+
         if self.drop_null.get():
             cmd.append("-d")
         if self.dump_inputs.get():
@@ -454,7 +458,9 @@ class CompareTab(tk.Frame):
         if not cmd[cmd.index("compare") + 1]:
             self.console.append("[ERROR] Original file is required.\n")
             return
-        self.console.run_command(cmd, self.run_btn, self.copy_btn)
+        out_path = cmd[cmd.index("-o") + 1]
+        logfile = os.path.splitext(out_path)[0] + ".txt"
+        self.console.run_command(cmd, self.run_btn, self.copy_btn, logfile=logfile)
 
     def _copy(self):
         cmd = self._build_cmd()
@@ -497,8 +503,6 @@ class AddHashKeyTab(tk.Frame):
         self.hash_fields = _labeled_row(self, r, "Hash fields")
         tk.Label(self, text="(comma-separated)").grid(row=r, column=2, sticky="w", padx=4)
         r += 1
-        self.crs = _labeled_row(self, r, "CRS")
-        tk.Label(self, text="e.g. EPSG:3005").grid(row=r, column=2, sticky="w", padx=4)
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -535,7 +539,7 @@ class AddHashKeyTab(tk.Frame):
         _add_opt(cmd, "--out-layer", self.out_layer.get())
         _add_opt(cmd, "-hk", self.hash_key.get())
         _add_multi(cmd, "-hf", self.hash_fields.get())
-        _add_opt(cmd, "--crs", self.crs.get())
+
         if self.drop_null.get():
             cmd.append("-d")
         return cmd
@@ -601,8 +605,9 @@ class App(tk.Tk):
             nb_h = nb.winfo_reqheight()
             status_h = self.status.winfo_reqheight()
             win_h = form_h + (nb_h - compare_scroll.winfo_reqheight()) + 100 + status_h + 16
-            self.geometry(f"680x{win_h}")
-            self.minsize(680, win_h)
+            win_w = compare_tab.winfo_reqwidth() + 16
+            self.geometry(f"{win_w}x{win_h}")
+            self.minsize(win_w, win_h)
             self.update_idletasks()
             paned.sash_place(0, 0, paned.winfo_height() - 100)
 
