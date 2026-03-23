@@ -82,7 +82,7 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
     """Return an Entry pre-equipped with a Browse button.
 
     *on_change*, if provided, is called with the selected path after browse.
-    When *allow_dir* is True, a second Folder… button is shown alongside Browse….
+    When *allow_dir* is True, FileGDB and Other… buttons are shown (FileGDB first).
     """
     tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
     entry = tk.Entry(parent, width=44)
@@ -103,9 +103,11 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
 
     btn_frame = tk.Frame(parent)
     btn_frame.grid(row=row, column=2, padx=(2, 6), pady=3)
-    tk.Button(btn_frame, text="Browse…", command=_browse).pack(side="left")
     if allow_dir:
-        tk.Button(btn_frame, text="Folder…", command=_browse_dir).pack(side="left", padx=(2, 0))
+        tk.Button(btn_frame, text="FileGDB…", command=_browse_dir).pack(side="left")
+        tk.Button(btn_frame, text="Other…", command=_browse).pack(side="left", padx=(2, 0))
+    else:
+        tk.Button(btn_frame, text="Browse…", command=_browse).pack(side="left")
     return entry
 
 
