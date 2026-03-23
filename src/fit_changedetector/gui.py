@@ -77,10 +77,12 @@ def _labeled_row(parent, row: int, label: str, column_span: int = 1):
     return entry
 
 
-def _file_row(parent, row: int, label: str, save: bool = False, browse_title: str = "Select file", on_change=None):
+def _file_row(parent, row: int, label: str, save: bool = False, browse_title: str = "Select file",
+              on_change=None, allow_dir: bool = False):
     """Return an Entry pre-equipped with a Browse button.
 
     *on_change*, if provided, is called with the selected path after browse.
+    When *allow_dir* is True, a second Folder… button is shown alongside Browse….
     """
     tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
     entry = tk.Entry(parent, width=44)
@@ -91,8 +93,19 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
         if on_change:
             on_change(entry.get())
 
-    btn = tk.Button(parent, text="Browse…", command=_browse)
-    btn.grid(row=row, column=2, padx=(2, 6), pady=3)
+    def _browse_dir():
+        path = filedialog.askdirectory(title=browse_title)
+        if path:
+            entry.delete(0, tk.END)
+            entry.insert(0, path)
+            if on_change:
+                on_change(path)
+
+    btn_frame = tk.Frame(parent)
+    btn_frame.grid(row=row, column=2, padx=(2, 6), pady=3)
+    tk.Button(btn_frame, text="Browse…", command=_browse).pack(side="left")
+    if allow_dir:
+        tk.Button(btn_frame, text="Folder…", command=_browse_dir).pack(side="left", padx=(2, 0))
     return entry
 
 
@@ -301,7 +314,7 @@ class CompareTab(tk.Frame):
         # --- Input files ---
         self.file_a = _file_row(
             self, r, "Original file *", browse_title="Select original file",
-            on_change=lambda p: self._populate_layers(p, self.layer_a),
+            on_change=lambda p: self._populate_layers(p, self.layer_a), allow_dir=True,
         )
         self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
         self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
@@ -313,7 +326,7 @@ class CompareTab(tk.Frame):
         r += 1
         self.file_b = _file_row(
             self, r, "New file *", browse_title="Select new file",
-            on_change=lambda p: self._populate_layers(p, self.layer_b),
+            on_change=lambda p: self._populate_layers(p, self.layer_b), allow_dir=True,
         )
         self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
         self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
