@@ -204,6 +204,29 @@ default environment, and activate the pre-built `changedetector_env` environment
     > conda activate Q:\dss_workarea\_contractors\sinorris\conda_environments\changedetector_env
     (changedetector_env)> changedetector --help
     
+## Windows installer
+
+A self-extracting Windows installer can be built using [conda constructor](https://github.com/conda/constructor). The installer bundles Python, all geospatial dependencies, the CLI, and a desktop shortcut that launches the GUI.
+
+**Prerequisites** (on the build machine):
+
+    conda install constructor build
+
+**Build steps:**
+
+    # 1. Build the wheel
+    python -m build --wheel
+
+    # 2. Copy the wheel into the installer directory
+    copy dist\fit_changedetector-*.whl installer\
+
+    # 3. Build the installer
+    constructor installer\
+
+This produces a `FIT_ChangeDetector-<version>-Windows-x86_64.exe` installer. Running it on a Windows machine installs the environment and places a `FIT ChangeDetector.vbs` shortcut on the desktop.
+
+**Updating the version** — edit `version` in `installer/construct.yaml` and the wheel filename in `extra_files` to match `src/fit_changedetector/__init__.py`.
+
 ## Development and testing
 
 Presuming that GDAL is already installed to your system:
