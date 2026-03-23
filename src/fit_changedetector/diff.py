@@ -37,7 +37,7 @@ def promote_to_multi(df):
 def add_hash_key(
     df,
     new_field,
-    fields=[],
+    fields: list = [],
     hash_geometry=True,
     drop_null_geometry=True,
     allow_duplicates=False,
@@ -129,9 +129,9 @@ def add_hash_key(
 
 
 def gdf_diff(
-    df_a,
-    df_b,
-    primary_key,
+    df_a: geopandas.GeoDataFrame,
+    df_b: geopandas.GeoDataFrame,
+    primary_key: str,
     fields=[],
     ignore_fields=[],
     precision=0.01,
@@ -491,6 +491,7 @@ def compare(
          + MODIFED_GEOM
       - write results to .gdb
     """
+
     # shortcuts to source layer paths for logging
     src_a = os.path.join(file_a, layer_a or "")
     src_b = os.path.join(file_b, layer_b or "")
@@ -601,7 +602,7 @@ def compare(
     diff = fcd.gdf_diff(
         df_a,
         df_b,
-        primary_key[0],  # pk is always a single column after above processing
+        primary_key[0],  # pk is always a single column (a string) after above processing
         fields=fields,
         ignore_fields=ignore_fields,
         precision=precision,
