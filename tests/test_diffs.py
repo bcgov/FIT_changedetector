@@ -1,4 +1,7 @@
+import json
+
 import geopandas
+import pandas
 import pytest
 from geopandas import GeoDataFrame
 from shapely.geometry import Point
@@ -229,6 +232,29 @@ def test_precision():
     ]
     assert len(diff_high_precision) == 2
     assert len(diff_low_precision) == 0
+
+
+def test_nullable_integer_columns(tmp_path):
+    """Integer columns containing nulls should be cast to pandas nullable Int types, not float64."""
+    geojson = {
+        "type": "FeatureCollection",
+        "features": [
+            {"type": "Feature", "properties": {"id": 1, "count": 5},    "geometry": {"type": "Point", "coordinates": [0, 0]}},
+            {"type": "Feature", "properties": {"id": 2, "count": None}, "geometry": {"type": "Point", "coordinates": [1, 1]}},
+        ],
+    }
+    path = tmp_path / "nullable_int.geojson"
+    path.write_text(json.dumps(geojson))
+
+    df = geopandas.read_file(str(path))
+    # Without fix: null forces integer column to float64
+    assert df["count"].dtype == "float64"
+
+    from fit_changedetector.diff import _cast_dtypes
+    df = _cast_dtypes(df, str(path))
+    # After fix: column should be nullable Int32, null preserved
+    assert df["count"].dtype == "Int32"
+    assert pandas.isna(df.loc[df["id"] == 2, "count"].iloc[0])
 
 
 def test_invalid_diff_precision(gdf):
