@@ -13,9 +13,39 @@ from shapely.geometry.multipolygon import MultiPolygon
 from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
 
+import pyogrio
+
 import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
+
+# Mapping from numpy integer dtypes to pandas nullable equivalents.
+# When a nullable integer column is read via geopandas/pyogrio, nulls force
+# an upcast to float64. Casting to the pandas nullable type restores fidelity.
+_NULLABLE_INT_MAP = {
+    "int8": "Int8",
+    "int16": "Int16",
+    "int32": "Int32",
+    "int64": "Int64",
+}
+
+
+def _cast_dtypes(df, path, layer=None):
+    """Cast *df* columns to match source types using pandas nullable dtypes.
+
+    Uses pyogrio.read_info to retrieve the original field types from *path*/*layer*
+    and re-casts any integer columns that were upcast to float due to null values.
+    """
+    kw = {"layer": layer} if layer else {}
+    info = pyogrio.read_info(path, **kw)
+    src_dtypes = dict(zip(info["fields"], info["dtypes"]))
+    for col, src_dtype in src_dtypes.items():
+        if col not in df.columns:
+            continue
+        target = _NULLABLE_INT_MAP.get(str(src_dtype))
+        if target and str(df[col].dtype) != target:
+            df[col] = df[col].astype(target)
+    return df
 
 
 def promote_to_multi(df):
@@ -497,8 +527,8 @@ def compare(
     src_b = os.path.join(file_b, layer_b or "")
 
     # load source data
-    df_a = geopandas.read_file(file_a, layer=layer_a)
-    df_b = geopandas.read_file(file_b, layer=layer_b)
+    df_a = _cast_dtypes(geopandas.read_file(file_a, layer=layer_a), file_a, layer_a)
+    df_b = _cast_dtypes(geopandas.read_file(file_b, layer=layer_b), file_b, layer_b)
 
     # promote mixed single/multipart features to multipart
     # (shapefiles can have mixed types, but the .gdb driver does not accept this)
