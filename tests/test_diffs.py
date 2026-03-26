@@ -234,16 +234,16 @@ def test_precision():
     assert len(diff_low_precision) == 0
 
 
-def test_nullable_integer_columns(tmp_path):
-    """Integer columns containing nulls should be cast to pandas nullable Int types, not float64."""
+def test_nullable_columns(tmp_path):
+    """Integer and string columns with nulls should use pandas nullable dtypes."""
     geojson = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1, "count": 5},    "geometry": {"type": "Point", "coordinates": [0, 0]}},
-            {"type": "Feature", "properties": {"id": 2, "count": None}, "geometry": {"type": "Point", "coordinates": [1, 1]}},
+            {"type": "Feature", "properties": {"id": 1, "count": 5,    "name": "Alice"}, "geometry": {"type": "Point", "coordinates": [0, 0]}},
+            {"type": "Feature", "properties": {"id": 2, "count": None, "name": None},    "geometry": {"type": "Point", "coordinates": [1, 1]}},
         ],
     }
-    path = tmp_path / "nullable_int.geojson"
+    path = tmp_path / "nullable.geojson"
     path.write_text(json.dumps(geojson))
 
     df = geopandas.read_file(str(path))
@@ -252,9 +252,11 @@ def test_nullable_integer_columns(tmp_path):
 
     from fit_changedetector.diff import _cast_dtypes
     df = _cast_dtypes(df, str(path))
-    # After fix: column should be nullable Int32, null preserved
+    # After fix: nullable types, nulls preserved
     assert df["count"].dtype == "Int32"
+    assert df["name"].dtype == "string"
     assert pandas.isna(df.loc[df["id"] == 2, "count"].iloc[0])
+    assert pandas.isna(df.loc[df["id"] == 2, "name"].iloc[0])
 
 
 def test_invalid_diff_precision(gdf):

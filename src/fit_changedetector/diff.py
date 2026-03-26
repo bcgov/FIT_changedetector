@@ -19,30 +19,30 @@ import fit_changedetector as fcd
 
 LOG = logging.getLogger(__name__)
 
-# Mapping from numpy integer dtypes to pandas nullable equivalents.
-# When a nullable integer column is read via geopandas/pyogrio, nulls force
-# an upcast to float64. Casting to the pandas nullable type restores fidelity.
-_NULLABLE_INT_MAP = {
-    "int8": "Int8",
-    "int16": "Int16",
-    "int32": "Int32",
-    "int64": "Int64",
+# Mapping from OGR field types to pandas nullable equivalents.
+# Ensures null-tolerant dtypes are used regardless of whether nulls are present,
+# avoiding silent upcasts (e.g. int → float64) or inconsistent NA representations.
+_NULLABLE_OGR_MAP = {
+    "OFTInteger":    "Int32",
+    "OFTInteger64":  "Int64",
+    "OFTString":     "string",
+    "OFTWideString": "string",
 }
 
 
 def _cast_dtypes(df, path, layer=None):
-    """Cast *df* columns to match source types using pandas nullable dtypes.
+    """Cast *df* columns to pandas nullable dtypes matching the source OGR field types.
 
-    Uses pyogrio.read_info to retrieve the original field types from *path*/*layer*
-    and re-casts any integer columns that were upcast to float due to null values.
+    Uses pyogrio.read_info to retrieve OGR field types from *path*/*layer* and
+    re-casts integer and string columns to their pandas nullable equivalents.
     """
     kw = {"layer": layer} if layer else {}
     info = pyogrio.read_info(path, **kw)
-    src_dtypes = dict(zip(info["fields"], info["dtypes"]))
-    for col, src_dtype in src_dtypes.items():
+    ogr_types = dict(zip(info["fields"], info["ogr_types"]))
+    for col, ogr_type in ogr_types.items():
         if col not in df.columns:
             continue
-        target = _NULLABLE_INT_MAP.get(str(src_dtype))
+        target = _NULLABLE_OGR_MAP.get(ogr_type)
         if target and str(df[col].dtype) != target:
             df[col] = df[col].astype(target)
     return df
