@@ -1,5 +1,5 @@
 name: FIT_ChangeDetector
-version: 0.0.1a1
+version: 0.0.1a2
 company: GeoBC FIT Section
 
 channels:
@@ -17,7 +17,7 @@ specs:
 # Build the wheel first: python -m build --wheel
 # Then copy the .whl into this directory before running constructor.
 extra_files:
-  - fit_changedetector-0.0.1a1-py3-none-any.whl
+  - fit_changedetector-0.0.1a2-py3-none-any.whl
 
 post_install: post_install.bat
 
