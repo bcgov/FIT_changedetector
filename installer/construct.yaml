@@ -1,0 +1,24 @@
+name: FIT_ChangeDetector
+version: 0.0.1a1
+company: GeoBC FIT Section
+
+channels:
+  - conda-forge
+
+specs:
+  - python=3.12
+  - geopandas>=1.0.0
+  - fiona
+  - click
+  - cligj
+  - pip
+
+# Files copied into the install prefix during installation.
+# Build the wheel first: python -m build --wheel
+# Then copy the .whl into this directory before running constructor.
+extra_files:
+  - fit_changedetector-0.0.1a1-py3-none-any.whl
+
+post_install: post_install.bat
+
+license_file: ../LICENSE
