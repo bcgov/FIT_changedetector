@@ -2,27 +2,52 @@
 # ruff: noqa: E402
 # ruff: noqa: I001
 
-import sys
-
-CHANGEDETECTOR_DEV = (
-    r"\\spatialfiles.bcgov\work\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\src"
-)
-sys.path.append(CHANGEDETECTOR_DEV)
-import fit_changedetector as fcd
-
-sys.path.remove(CHANGEDETECTOR_DEV)
-
 import logging
 import os
 import pprint
 from datetime import datetime
 from pathlib import Path
+import subprocess
 
 import arcpy
+
+VENV_PYTHON = r"\\spatialfiles.bcgov\WORK\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\.venv\Scripts\python.exe"
+
 
 # do not name the logger, we want to add the handler to the root logger
 LOG = logging.getLogger()
 
+
+def build_cli_args(param, out_file):
+    args = [param["original_file"], param["new_file"], "--out-file", str(out_file)]
+    if param["original_layer"]:
+        args += ["--layer-a", param["original_layer"]]
+    if param["new_layer"]:
+        args += ["--layer-b", param["new_layer"]]
+    if param["primary_key"]:
+        args += ["--primary-key", ",".join(param["primary_key"])]
+    if param["fields"]:
+        args += ["--fields", ",".join(param["fields"])]
+    if param["ignore_fields"]:
+        args += ["--ignore-fields", ",".join(param["ignore_fields"])]
+    if param["hash_key"]:
+        args += ["--hash-key", param["hash_key"]]
+    if param["hash_fields"]:
+        args += ["--hash-fields", ",".join(param["hash_fields"])]
+    if param["precision"] is not None:
+        args += ["--precision", str(param["precision"])]
+    if param["suffix_a"]:
+        args += ["--suffix-a", param["suffix_a"]]
+    if param["suffix_b"]:
+        args += ["--suffix-b", param["suffix_b"]]
+    if param["drop_null_geometry"]:
+        args.append("--drop-null-geometry")
+    if param["dump_inputs"]:
+        args.append("--dump-inputs")
+    args.append("-v")           # always INFO level, matches current default
+    if param["debug"]:
+        args.append("-v")       # second -v -> DEBUG (cligj count option)
+    return args
 
 class ArcpyHandler(logging.Handler):
     """
@@ -131,28 +156,21 @@ def compare():
         else:
             arcpy.AddError("Only .gdb and .shp are supported")
 
-    try:
-        fcd.compare(
-            file_a=param["original_file"],
-            file_b=param["new_file"],
-            layer_a=param["original_layer"],
-            layer_b=param["new_layer"],
-            out_file=out_file,
-            primary_key=param["primary_key"],
-            fields=param["fields"],
-            ignore_fields=param["ignore_fields"],
-            suffix_a=param["suffix_a"],
-            suffix_b=param["suffix_b"],
-            drop_null_geometry=param["drop_null_geometry"],
-            hash_key=param["hash_key"],
-            hash_fields=param["hash_fields"],
-            precision=param["precision"],
-            dump_inputs=param["dump_inputs"],
-        )
-    except arcpy.ExecuteError:
-        arcpy.AddError(arcpy.GetMessages())
-    except Exception as e:
-        arcpy.AddError(e)
+    cli_args = build_cli_args(param, out_file)
+    proc = subprocess.Popen(
+        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "compare"] + cli_args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    for line in proc.stdout:
+        LOG.info(line.rstrip())
+    proc.wait()
+
+    if proc.returncode != 0:
+        arcpy.AddError("External compare script failed — see messages above.")
+        raise arcpy.ExecuteError
 
 
 if __name__ == "__main__":
