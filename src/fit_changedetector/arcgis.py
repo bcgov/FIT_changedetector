@@ -156,14 +156,22 @@ def compare():
         else:
             arcpy.AddError("Only .gdb and .shp are supported")
 
+
     cli_args = build_cli_args(param, out_file)
+
+    env = os.environ.copy()
+    env.pop("PYTHONHOME", None)
+    env.pop("PYTHONPATH", None)
+
     proc = subprocess.Popen(
         [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "compare"] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         bufsize=1,
+        env=env,
     )
+
     for line in proc.stdout:
         LOG.info(line.rstrip())
     proc.wait()
