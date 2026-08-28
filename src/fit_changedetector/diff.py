@@ -30,15 +30,51 @@ _NULLABLE_OGR_MAP = {
     "OFTWideString": "string",
 }
 
+# Curve types (e.g. CircularString, CompoundCurve, CurvePolygon - as found in some
+# .gdb sources) are not supported. shapely itself has no curve geometry classes, so
+# GDAL always segments curves into a linear approximation before a geometry can even
+# become a shapely object - at a precision this tool does not control - so reject the
+# source outright rather than silently comparing an unvalidated approximation.
+# https://github.com/bcgov/FIT_changedetector/issues/66
+_SUPPORTED_GEOMETRY_TYPES = {
+    "Point",
+    "LineString",
+    "Polygon",
+    "MultiPoint",
+    "MultiLineString",
+    "MultiPolygon",
+}
 
-def _cast_dtypes(df, path, layer=None):
+
+def _check_geometry_type(geometry_type, src):
+    """Raise if *geometry_type* (from pyogrio.read_info) is not supported.
+
+    None (non-spatial source) and "Unknown" (mixed simple types within one layer,
+    e.g. Point + MultiPoint together - handled separately via promote_to_multi)
+    are allowed through unchecked.
+    """
+    if geometry_type is None or geometry_type == "Unknown":
+        return
+    base_type = geometry_type.split(" ")[
+        0
+    ]  # strip " Z"/" M"/" ZM" dimensionality suffix
+    if base_type not in _SUPPORTED_GEOMETRY_TYPES:
+        raise ValueError(
+            f"Geometry type '{geometry_type}' in {src} is not supported "
+            f"(no curves) - only {sorted(_SUPPORTED_GEOMETRY_TYPES)} are supported."
+        )
+
+
+def _cast_dtypes(df, path, layer=None, src=None):
     """Cast *df* columns to pandas nullable dtypes matching the source OGR field types.
 
     Uses pyogrio.read_info to retrieve OGR field types from *path*/*layer* and
     re-casts integer and string columns to their pandas nullable equivalents.
+    Also validates the source's geometry type, see _check_geometry_type.
     """
     kw = {"layer": layer} if layer else {}
     info = pyogrio.read_info(path, **kw)
+    _check_geometry_type(info["geometry_type"], src if src is not None else path)
     ogr_types = dict(zip(info["fields"], info["ogr_types"]))
     for col, ogr_type in ogr_types.items():
         if col not in df.columns:
@@ -83,7 +119,9 @@ def _read_source(path, layer, label):
                 f"--layer-{label} cannot be used when reading source {label} from stdin"
             )
         data = sys.stdin.buffer.read()
-        df = _cast_dtypes(geopandas.read_file(io.BytesIO(data)), io.BytesIO(data))
+        df = _cast_dtypes(
+            geopandas.read_file(io.BytesIO(data)), io.BytesIO(data), src="stdin"
+        )
         return df, "stdin"
     if path.lower().endswith(_PARQUET_EXTENSIONS):
         if layer:
@@ -91,8 +129,9 @@ def _read_source(path, layer, label):
                 f"--layer-{label} cannot be used when reading source {label} from parquet"
             )
         return _normalize_string_dtypes(geopandas.read_parquet(path)), path
-    df = _cast_dtypes(geopandas.read_file(path, layer=layer), path, layer)
-    return df, os.path.join(path, layer or "")
+    src = os.path.join(path, layer or "")
+    df = _cast_dtypes(geopandas.read_file(path, layer=layer), path, layer, src=src)
+    return df, src
 
 
 def promote_to_multi(df):

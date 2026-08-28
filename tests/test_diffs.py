@@ -4,7 +4,7 @@ import geopandas
 import pandas
 import pytest
 from geopandas import GeoDataFrame
-from shapely.geometry import Point, Polygon
+from shapely.geometry import GeometryCollection, MultiPoint, Point, Polygon
 
 import fit_changedetector as fcd
 
@@ -356,3 +356,57 @@ def test_invalid_diff_precision(gdf):
     df_b.at[2, "col2"] = "uuu"
     with pytest.raises(ValueError):
         fcd.gdf_diff(df_a, df_b, primary_key="pk", precision=999)
+
+
+def test_unsupported_geometry_type_rejected(tmp_path):
+    """GeometryCollection is not one of the supported geometry types and is
+    rejected rather than silently compared. Used here as a stand-in for any
+    unsupported type, since shapely has no curve geometry classes to construct
+    a real curve-typed fixture with - see _check_geometry_type in diff.py for
+    why curve types specifically are also rejected.
+
+    https://github.com/bcgov/FIT_changedetector/issues/66
+    """
+    gdf = GeoDataFrame(
+        {"id": [1]},
+        geometry=[
+            GeometryCollection([Point(0, 0), Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])])
+        ],
+        crs="EPSG:3005",
+    )
+    path = tmp_path / "geometrycollection.geojson"
+    gdf.to_file(path, driver="GeoJSON")
+
+    with pytest.raises(ValueError, match="GeometryCollection"):
+        fcd.compare(
+            str(path),
+            "tests/data/parks_b.geojson",
+            None,
+            None,
+            str(tmp_path / "out.gdb"),
+            primary_key=["id"],
+        )
+
+
+def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
+    """A layer mixing single/multipart geometries of the same base type (e.g.
+    Point + MultiPoint) reports geometry_type "Unknown" from pyogrio.read_info -
+    this is a legitimate, already-supported case (see promote_to_multi) and must
+    not be rejected by the unsupported/curve geometry type check.
+    """
+    points = [Point(0, 0), MultiPoint([(1, 1), (2, 2)])]
+    df_a = GeoDataFrame({"id": [1, 2]}, geometry=points, crs="EPSG:3005")
+    df_b = GeoDataFrame({"id": [1, 2]}, geometry=points, crs="EPSG:3005")
+    path_a = tmp_path / "mixed_a.geojson"
+    path_b = tmp_path / "mixed_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    fcd.compare(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        str(tmp_path / "out.gdb"),
+        primary_key=["id"],
+    )
