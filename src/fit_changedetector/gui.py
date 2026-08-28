@@ -21,7 +21,9 @@ from tkinter import filedialog, scrolledtext, ttk
 # ---------------------------------------------------------------------------
 
 
-def _browse_file(entry: tk.Entry, title: str = "Select file", save: bool = False) -> None:
+def _browse_file(
+    entry: tk.Entry, title: str = "Select file", save: bool = False
+) -> None:
     """Open a file-dialog and put the chosen path into *entry*."""
     if save:
         path = filedialog.asksaveasfilename(title=title)
@@ -39,11 +41,13 @@ def _list_layers(path: str) -> list:
         return []
     try:
         import fiona
+
         return fiona.listlayers(path)
     except Exception:
         pass
     try:
         import pyogrio
+
         return [str(r[0]) for r in pyogrio.list_layers(path)]
     except Exception:
         return []
@@ -57,12 +61,14 @@ def _list_fields(path: str, layer: str = None) -> list:
     kw = {"layer": layer} if layer else {}
     try:
         import fiona
+
         with fiona.open(path, **kw) as src:
             return list(src.schema["properties"].keys())
     except Exception:
         pass
     try:
         import pyogrio
+
         info = pyogrio.read_info(path, **kw)
         return list(info["fields"])
     except Exception:
@@ -71,20 +77,31 @@ def _list_fields(path: str, layer: str = None) -> list:
 
 def _labeled_row(parent, row: int, label: str, column_span: int = 1):
     """Return a (frame, entry) pair placed at *row* inside *parent*."""
-    tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
+    tk.Label(parent, text=label, anchor="w").grid(
+        row=row, column=0, sticky="w", padx=6, pady=3
+    )
     entry = tk.Entry(parent, width=50)
     entry.grid(row=row, column=1, columnspan=column_span, sticky="ew", padx=6, pady=3)
     return entry
 
 
-def _file_row(parent, row: int, label: str, save: bool = False, browse_title: str = "Select file",
-              on_change=None, allow_dir: bool = False):
+def _file_row(
+    parent,
+    row: int,
+    label: str,
+    save: bool = False,
+    browse_title: str = "Select file",
+    on_change=None,
+    allow_dir: bool = False,
+):
     """Return an Entry pre-equipped with a Browse button.
 
     *on_change*, if provided, is called with the selected path after browse.
     When *allow_dir* is True, FileGDB and Other… buttons are shown (FileGDB first).
     """
-    tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
+    tk.Label(parent, text=label, anchor="w").grid(
+        row=row, column=0, sticky="w", padx=6, pady=3
+    )
     entry = tk.Entry(parent, width=44)
     entry.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
 
@@ -105,7 +122,9 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
     btn_frame.grid(row=row, column=2, padx=(2, 6), pady=3)
     if allow_dir:
         tk.Button(btn_frame, text="FileGDB…", command=_browse_dir).pack(side="left")
-        tk.Button(btn_frame, text="Other…", command=_browse).pack(side="left", padx=(2, 0))
+        tk.Button(btn_frame, text="Other…", command=_browse).pack(
+            side="left", padx=(2, 0)
+        )
     else:
         tk.Button(btn_frame, text="Browse…", command=_browse).pack(side="left")
     return entry
@@ -113,7 +132,9 @@ def _file_row(parent, row: int, label: str, save: bool = False, browse_title: st
 
 def _folder_row(parent, row: int, label: str, browse_title: str = "Select folder"):
     """Return an Entry pre-equipped with a Browse button that opens a directory dialog."""
-    tk.Label(parent, text=label, anchor="w").grid(row=row, column=0, sticky="w", padx=6, pady=3)
+    tk.Label(parent, text=label, anchor="w").grid(
+        row=row, column=0, sticky="w", padx=6, pady=3
+    )
     entry = tk.Entry(parent, width=44)
     entry.grid(row=row, column=1, sticky="ew", padx=(6, 0), pady=3)
 
@@ -188,7 +209,9 @@ class _FieldEntry(tk.Frame):
         top.resizable(False, True)
         top.minsize(220, 160)
 
-        current = {v.strip() for v in self.entry.get().replace(",", " ").split() if v.strip()}
+        current = {
+            v.strip() for v in self.entry.get().replace(",", " ").split() if v.strip()
+        }
 
         # Scrollable list of checkboxes
         container = tk.Frame(top)
@@ -200,7 +223,9 @@ class _FieldEntry(tk.Frame):
         canvas.pack(side="left", fill="both", expand=True)
         inner = tk.Frame(canvas)
         win_id = canvas.create_window((0, 0), window=inner, anchor="nw")
-        inner.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
+        inner.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
         canvas.bind("<Configure>", lambda e: canvas.itemconfig(win_id, width=e.width))
 
         vars_ = []
@@ -218,8 +243,14 @@ class _FieldEntry(tk.Frame):
         btn_frame = tk.Frame(top)
         btn_frame.pack(fill="x", padx=8, pady=(0, 8))
         tk.Button(btn_frame, text="OK", command=_ok, padx=8).pack(side="left", padx=4)
-        tk.Button(btn_frame, text="Clear all", command=lambda: [v.set(False) for _, v in vars_]).pack(side="left", padx=4)
-        tk.Button(btn_frame, text="Cancel", command=top.destroy).pack(side="left", padx=4)
+        tk.Button(
+            btn_frame,
+            text="Clear all",
+            command=lambda: [v.set(False) for _, v in vars_],
+        ).pack(side="left", padx=4)
+        tk.Button(btn_frame, text="Cancel", command=top.destroy).pack(
+            side="left", padx=4
+        )
 
         top.grab_set()
         top.wait_window()
@@ -257,7 +288,9 @@ class OutputConsole(tk.Frame):
         self.text.see(tk.END)
         self.text.config(state="disabled")
 
-    def run_command(self, cmd: list, run_btn: tk.Button, copy_btn: tk.Button, logfile: str = None):
+    def run_command(
+        self, cmd: list, run_btn: tk.Button, copy_btn: tk.Button, logfile: str = None
+    ):
         """Execute *cmd* in a background thread, streaming output here and optionally to *logfile*."""
         self.clear()
         self.append("$ " + " ".join(cmd) + "\n\n")
@@ -315,30 +348,54 @@ class CompareTab(tk.Frame):
         r = 0
         # --- Input files ---
         self.file_a = _file_row(
-            self, r, "Original file *", browse_title="Select original file",
-            on_change=lambda p: self._populate_layers(p, self.layer_a), allow_dir=True,
+            self,
+            r,
+            "Original file *",
+            browse_title="Select original file",
+            on_change=lambda p: self._populate_layers(p, self.layer_a),
+            allow_dir=True,
         )
-        self.file_a.bind("<FocusOut>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
-        self.file_a.bind("<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a))
+        self.file_a.bind(
+            "<FocusOut>",
+            lambda e: self._populate_layers(self.file_a.get(), self.layer_a),
+        )
+        self.file_a.bind(
+            "<Return>", lambda e: self._populate_layers(self.file_a.get(), self.layer_a)
+        )
         r += 1
-        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="  └ Layer", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.layer_a = ttk.Combobox(self, width=47)
         self.layer_a.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.layer_a.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
         r += 1
         self.file_b = _file_row(
-            self, r, "New file *", browse_title="Select new file",
-            on_change=lambda p: self._populate_layers(p, self.layer_b), allow_dir=True,
+            self,
+            r,
+            "New file *",
+            browse_title="Select new file",
+            on_change=lambda p: self._populate_layers(p, self.layer_b),
+            allow_dir=True,
         )
-        self.file_b.bind("<FocusOut>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
-        self.file_b.bind("<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b))
+        self.file_b.bind(
+            "<FocusOut>",
+            lambda e: self._populate_layers(self.file_b.get(), self.layer_b),
+        )
+        self.file_b.bind(
+            "<Return>", lambda e: self._populate_layers(self.file_b.get(), self.layer_b)
+        )
         r += 1
-        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="  └ Layer", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.layer_b = ttk.Combobox(self, width=47)
         self.layer_b.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.layer_b.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
         r += 1
-        self.out_file = _folder_row(self, r, "Output folder", browse_title="Select output folder")
+        self.out_file = _folder_row(
+            self, r, "Output folder", browse_title="Select output folder"
+        )
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -347,25 +404,41 @@ class CompareTab(tk.Frame):
         r += 1
 
         # --- Key / field options ---
-        tk.Label(self, text="Primary key field(s)", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Primary key field(s)", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.primary_key = _FieldEntry(self)
-        self.primary_key.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.primary_key.grid(
+            row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3
+        )
         r += 1
-        tk.Label(self, text="Fields to INCLUDE in comparison", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Fields to INCLUDE in comparison", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.fields = _FieldEntry(self)
         self.fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        tk.Label(self, text="Fields to EXCLUDE from comparison", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Fields to EXCLUDE from comparison", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.ignore_fields = _FieldEntry(self)
-        self.ignore_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.ignore_fields.grid(
+            row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3
+        )
         r += 1
-        tk.Label(self, text="Hash field name", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Hash field name", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.hash_key = ttk.Combobox(self, width=47)
         self.hash_key.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         r += 1
-        tk.Label(self, text="Hash fields", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Hash fields", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.hash_fields = _FieldEntry(self)
-        self.hash_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.hash_fields.grid(
+            row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3
+        )
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -391,7 +464,9 @@ class CompareTab(tk.Frame):
         # --- Checkboxes ---
         self.drop_null = _check_row(self, r, "Drop null geometry")
         r += 1
-        self.dump_inputs = _check_row(self, r, "Save input datasets to generated output .gdb")
+        self.dump_inputs = _check_row(
+            self, r, "Save input datasets to generated output .gdb"
+        )
         r += 1
         ttk.Separator(self, orient="horizontal").grid(
             row=r, column=0, columnspan=3, sticky="ew", pady=6
@@ -431,7 +506,12 @@ class CompareTab(tk.Frame):
             available = [f for f in fields_a if f in set_b]
         else:
             available = fields_a or fields_b
-        for widget in (self.primary_key, self.hash_fields, self.fields, self.ignore_fields):
+        for widget in (
+            self.primary_key,
+            self.hash_fields,
+            self.fields,
+            self.ignore_fields,
+        ):
             widget.set_choices(available)
         self.hash_key["values"] = available
 
@@ -448,7 +528,11 @@ class CompareTab(tk.Frame):
         _add_multi(cmd, "-if", self.ignore_fields.get())
         folder = self.out_file.get().strip()
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        out_path = os.path.join(folder, f"changedetector_{timestamp}.gdb") if folder else f"changedetector_{timestamp}.gdb"
+        out_path = (
+            os.path.join(folder, f"changedetector_{timestamp}.gdb")
+            if folder
+            else f"changedetector_{timestamp}.gdb"
+        )
         cmd += ["-o", out_path]
         _add_opt(cmd, "-p", self.precision.get())
         _add_opt(cmd, "-a", self.suffix_a.get())
@@ -491,13 +575,24 @@ class AddHashKeyTab(tk.Frame):
         r = 0
         # --- Input file ---
         self.in_file = _file_row(
-            self, r, "Input file *", browse_title="Select input file",
+            self,
+            r,
+            "Input file *",
+            browse_title="Select input file",
             on_change=lambda p: self._populate_layers(p, self.in_layer),
         )
-        self.in_file.bind("<FocusOut>", lambda e: self._populate_layers(self.in_file.get(), self.in_layer))
-        self.in_file.bind("<Return>", lambda e: self._populate_layers(self.in_file.get(), self.in_layer))
+        self.in_file.bind(
+            "<FocusOut>",
+            lambda e: self._populate_layers(self.in_file.get(), self.in_layer),
+        )
+        self.in_file.bind(
+            "<Return>",
+            lambda e: self._populate_layers(self.in_file.get(), self.in_layer),
+        )
         r += 1
-        tk.Label(self, text="  └ Layer", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="  └ Layer", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.in_layer = ttk.Combobox(self, width=47)
         self.in_layer.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
         self.in_layer.bind("<<ComboboxSelected>>", lambda e: self._update_fields())
@@ -517,9 +612,13 @@ class AddHashKeyTab(tk.Frame):
         # --- Hash options ---
         self.hash_key = _labeled_row(self, r, "Output hash field name")
         r += 1
-        tk.Label(self, text="Hash fields", anchor="w").grid(row=r, column=0, sticky="w", padx=6, pady=3)
+        tk.Label(self, text="Hash fields", anchor="w").grid(
+            row=r, column=0, sticky="w", padx=6, pady=3
+        )
         self.hash_fields = _FieldEntry(self)
-        self.hash_fields.grid(row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3)
+        self.hash_fields.grid(
+            row=r, column=1, columnspan=2, sticky="ew", padx=6, pady=3
+        )
         r += 1
 
         ttk.Separator(self, orient="horizontal").grid(
@@ -597,7 +696,9 @@ class App(tk.Tk):
 
     def _build(self):
         # Top pane: notebook tabs
-        paned = tk.PanedWindow(self, orient="vertical", sashrelief="raised", sashwidth=6)
+        paned = tk.PanedWindow(
+            self, orient="vertical", sashrelief="raised", sashwidth=6
+        )
         paned.pack(fill="both", expand=True, padx=4, pady=4)
 
         # --- Notebook (top two-thirds) ---
@@ -634,7 +735,9 @@ class App(tk.Tk):
             form_h = compare_tab.winfo_reqheight()
             nb_h = nb.winfo_reqheight()
             status_h = self.status.winfo_reqheight()
-            win_h = form_h + (nb_h - compare_scroll.winfo_reqheight()) + 120 + status_h + 16
+            win_h = (
+                form_h + (nb_h - compare_scroll.winfo_reqheight()) + 120 + status_h + 16
+            )
             win_w = compare_tab.winfo_reqwidth() + 16
             self.geometry(f"{win_w}x{win_h}")
             self.minsize(win_w, win_h)

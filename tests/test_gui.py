@@ -100,7 +100,9 @@ def test_compare(tmp_path):
         }
         for layer, expected in change_counts.items():
             df = geopandas.read_file(out_path, layer=layer)
-            assert len(df) == expected, f"{layer}: expected {expected} rows, got {len(df)}"
+            assert len(df) == expected, (
+                f"{layer}: expected {expected} rows, got {len(df)}"
+            )
 
     finally:
         root.destroy()

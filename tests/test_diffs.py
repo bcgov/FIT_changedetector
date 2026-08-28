@@ -78,7 +78,9 @@ def test_add_hash_empty():
 def test_invalid_hash_precision():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     with pytest.raises(ValueError):
-        df = fcd.add_hash_key(df, "test_hash", fields=[], hash_geometry=True, precision=999)
+        df = fcd.add_hash_key(
+            df, "test_hash", fields=[], hash_geometry=True, precision=999
+        )
 
 
 def test_add_hash_ll(caplog):
@@ -227,9 +229,9 @@ def test_precision():
         df_a, df_b, primary_key="id", return_type="gdf", precision=0.001
     )["MODIFIED_GEOM"]
     # compare with 1m precision - no changes
-    diff_low_precision = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf", precision=1)[
-        "MODIFIED_GEOM"
-    ]
+    diff_low_precision = fcd.gdf_diff(
+        df_a, df_b, primary_key="id", return_type="gdf", precision=1
+    )["MODIFIED_GEOM"]
     assert len(diff_high_precision) == 2
     assert len(diff_low_precision) == 0
 
@@ -239,8 +241,16 @@ def test_nullable_columns(tmp_path):
     geojson = {
         "type": "FeatureCollection",
         "features": [
-            {"type": "Feature", "properties": {"id": 1, "count": 5,    "name": "Alice"}, "geometry": {"type": "Point", "coordinates": [0, 0]}},
-            {"type": "Feature", "properties": {"id": 2, "count": None, "name": None},    "geometry": {"type": "Point", "coordinates": [1, 1]}},
+            {
+                "type": "Feature",
+                "properties": {"id": 1, "count": 5, "name": "Alice"},
+                "geometry": {"type": "Point", "coordinates": [0, 0]},
+            },
+            {
+                "type": "Feature",
+                "properties": {"id": 2, "count": None, "name": None},
+                "geometry": {"type": "Point", "coordinates": [1, 1]},
+            },
         ],
     }
     path = tmp_path / "nullable.geojson"
@@ -251,6 +261,7 @@ def test_nullable_columns(tmp_path):
     assert df["count"].dtype == "float64"
 
     from fit_changedetector.diff import _cast_dtypes
+
     df = _cast_dtypes(df, str(path))
     # After fix: nullable types, nulls preserved
     assert df["count"].dtype == "Int32"
