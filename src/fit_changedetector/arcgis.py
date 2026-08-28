@@ -132,8 +132,8 @@ def compare():
         "debug": arcpy.GetParameter(13),
     }
 
-    # generate output filenames with timestamp
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    # generate output filenames with timestamp (local time, human readable)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
     out_file = os.path.join(param["out_folder"], f"changedetector_{timestamp}.gdb")
     logfile = os.path.join(param["out_folder"], f"changedetector_{timestamp}.txt")
 

@@ -29,9 +29,9 @@ def test_compare_pk(tmp_path):
         "MODIFIED_GEOM": 1,
     }
     assert result.exit_code == 0
-    for layer in change_counts:
+    for layer, count in change_counts.items():
         df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
-        assert len(df) == change_counts[layer]
+        assert len(df) == count
 
 
 def test_compare_hash(tmp_path):
@@ -54,9 +54,9 @@ def test_compare_hash(tmp_path):
         "MODIFIED_ATTR": 1,
     }
     assert result.exit_code == 0
-    for layer in change_counts:
+    for layer, count in change_counts.items():
         df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
-        assert len(df) == change_counts[layer]
+        assert len(df) == count
 
 
 def test_add_hash_key(tmp_path):
