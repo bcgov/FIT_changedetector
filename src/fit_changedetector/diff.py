@@ -97,7 +97,7 @@ def add_hash_key(
         )
 
     # Fail if attempting include a geometry based column in fields [],
-    # this information wil be captured by the geometry
+    # this information will be captured by the geometry
     for f in fields:
         if f in fcd.area_length_fields:
             raise ValueError(
@@ -190,7 +190,7 @@ def gdf_diff(
     - modifications - geometry and attribute (modified schema)
 
     The attribute change dataframes include columns common to both sources, and
-    for columns where changes have occured, values from both sources (a column
+    for columns where changes have occurred, values from both sources (a column
     for each source).
     """
     if fields is None:
@@ -228,7 +228,7 @@ def gdf_diff(
 
     # retain a full copy of both sources for writing unchanged source schemas (apart from above
     # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
-    # changee detection)
+    # change detection)
     df_a_src = df_a.copy()
     df_b_src = df_b.copy()
 

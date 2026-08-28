@@ -11,7 +11,7 @@ Install with pip:
     pip install fit_changedetector
 
 An ArcGIS Pro script tool is also provided (`arcgis.py`).
-Because an ArcGIS mananaged conda environment is unlikley to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
+Because an ArcGIS managed conda environment is unlikely to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
 
 In a Windows Command Prompt (with no active conda environment):
 
@@ -60,7 +60,7 @@ Dictionary keys:
 | `MODIFIED_GEOM` | records where geometries have changed but attribute columns have not |
 
 Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data.
-Schemas for records contained in the `MODIFIED` keys include only columns where a change has occured.
+Schemas for records contained in the `MODIFIED` keys include only columns where a change has occurred.
 For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
 
     >>> diff["MODIFIED_ATTR"]
