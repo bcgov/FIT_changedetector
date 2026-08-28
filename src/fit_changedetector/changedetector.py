@@ -105,7 +105,7 @@ def _normalize_string_dtypes(df):
 
 
 def _read_source(path, layer, label):
-    """Read a diff_to_gdb()/diff() source, casting dtypes as per _cast_dtypes.
+    """Read a diff_to_gdb()/file_diff() source, casting dtypes as per _cast_dtypes.
 
     A path of "-" reads GeoJSON from stdin instead of a file (no layer support,
     since a stream has no concept of multiple layers). A .parquet/.geoparquet path
@@ -660,9 +660,9 @@ def _read_and_diff(
     hash_fields,
     precision,
 ):
-    """Read both diff_to_gdb()/diff() sources, resolve/hash the primary key, and run gdf_diff.
+    """Read both diff_to_gdb()/file_diff() sources, resolve/hash the primary key, and run gdf_diff.
 
-    Shared by diff_to_gdb() (writes results to .gdb) and diff() (prints a JSON
+    Shared by diff_to_gdb() (writes results to .gdb) and file_diff() (prints a JSON
     summary) - everything up to producing the diff dict is identical between them;
     only what they do with the result differs.
 
@@ -806,7 +806,7 @@ def _read_and_diff(
     return diff, df_a, df_b, primary_key, hashed
 
 
-def diff(
+def file_diff(
     file_a,
     file_b,
     layer_a,
