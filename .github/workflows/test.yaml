@@ -20,6 +20,18 @@ permissions:
   contents: read
 
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint with ruff
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+      # ruff version pinned here should match the rev in .pre-commit-config.yaml
+      - name: Check lint rules
+        run: uvx ruff@0.16.3 check .
+      - name: Check formatting
+        run: uvx ruff@0.16.3 format --check .
   test:
     runs-on: ubuntu-latest
     name: test
