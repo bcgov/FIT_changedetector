@@ -157,6 +157,8 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
         changedetector compare -v - tests/data/parks_b.geojson -pk id
 
+`IN_FILE_A`/`IN_FILE_B` may also be `.parquet`/`.geoparquet` files (read via `geopandas.read_parquet()` rather than GDAL/OGR, since `pyogrio` has no parquet driver). Layer options are not valid for parquet sources, since parquet has no concept of multiple layers.
+
 
 #### ArcGIS
 
