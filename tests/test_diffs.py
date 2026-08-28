@@ -359,10 +359,11 @@ def test_invalid_diff_precision(gdf):
 
 
 def test_unsupported_geometry_type_rejected(tmp_path):
-    """GeometryCollection (and, by extension, curve types - shapely has no curve
-    geometry classes at all, so GDAL always segments curves into a linear
-    approximation before a geometry can become a shapely object in the first
-    place) is rejected rather than silently compared.
+    """GeometryCollection is not one of the supported geometry types and is
+    rejected rather than silently compared. Used here as a stand-in for any
+    unsupported type, since shapely has no curve geometry classes to construct
+    a real curve-typed fixture with - see _check_geometry_type in diff.py for
+    why curve types specifically are also rejected.
 
     https://github.com/bcgov/FIT_changedetector/issues/66
     """
