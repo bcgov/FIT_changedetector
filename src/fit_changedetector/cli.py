@@ -228,7 +228,6 @@ def compare(
     """Compare two datasets
 
     IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
-    IN_FILE_A/IN_FILE_B may be .parquet/.geoparquet files.
     """
     configure_logging(verbose - quiet)
 
