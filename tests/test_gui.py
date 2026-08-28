@@ -8,8 +8,8 @@ from click.testing import CliRunner
 # the python3-tk package).  pytest.importorskip must run before any gui import.
 pytest.importorskip("tkinter", reason="tkinter not available")
 
-from fit_changedetector.cli import cli  # noqa: E402
-from fit_changedetector.gui import (  # noqa: E402
+from fit_changedetector.cli import cli
+from fit_changedetector.gui import (
     AddHashKeyTab,
     CompareTab,
     OutputConsole,

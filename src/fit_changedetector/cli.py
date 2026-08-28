@@ -85,7 +85,7 @@ def add_hash_key(
     quiet,
 ):
     """Read input data, compute hash, write to new file"""
-    configure_logging((verbose - quiet))
+    configure_logging(verbose - quiet)
     df = geopandas.read_file(in_file, layer=in_layer)
 
     # validate provided fields
@@ -220,7 +220,7 @@ def compare(
     quiet,
 ):
     """Compare two datasets"""
-    configure_logging((verbose - quiet))
+    configure_logging(verbose - quiet)
 
     # parse multi-item parameters
     fields = split_string(fields)

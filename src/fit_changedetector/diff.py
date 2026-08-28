@@ -6,14 +6,13 @@ from datetime import datetime
 
 import geopandas
 import pandas
+import pyogrio
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multilinestring import MultiLineString
 from shapely.geometry.multipoint import MultiPoint
 from shapely.geometry.multipolygon import MultiPolygon
 from shapely.geometry.point import Point
 from shapely.geometry.polygon import Polygon
-
-import pyogrio
 
 import fit_changedetector as fcd
 

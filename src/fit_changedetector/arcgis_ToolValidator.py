@@ -1,5 +1,3 @@
-# ruff: noqa: F401
-# ruff: noqa: E402
 # ruff: noqa: F821
 
 # paste this into the Validation tab of the script tool properties

@@ -12,8 +12,8 @@ import os
 import subprocess
 import sys
 import threading
-from datetime import datetime
 import tkinter as tk
+from datetime import datetime
 from tkinter import filedialog, scrolledtext, ttk
 
 # ---------------------------------------------------------------------------
