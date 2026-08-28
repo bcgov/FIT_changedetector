@@ -1,5 +1,6 @@
 import hashlib
 import io
+import json
 import logging
 import os
 import shutil
@@ -643,36 +644,32 @@ def gdf_diff(
         }
 
 
-def compare(
+def _read_and_diff(
     file_a,
     file_b,
     layer_a,
     layer_b,
-    out_file,
-    primary_key=None,
-    fields=None,
-    ignore_fields=None,
-    suffix_a="a",
-    suffix_b="b",
-    drop_null_geometry=True,
-    crs=None,
-    hash_key=None,
-    hash_fields=None,
-    precision=0.01,
-    dump_inputs=False,
+    primary_key,
+    fields,
+    ignore_fields,
+    suffix_a,
+    suffix_b,
+    drop_null_geometry,
+    crs,
+    hash_key,
+    hash_fields,
+    precision,
 ):
-    """
-    Compare two datasets:
-      - open two data sources, load to geopandas dataframes (gdf)
-      - if no primary key specified, add one to each gdf as new column based on geometry hash
-      - compare the datasets with gdf_diff, assigning input records to one of:
-         + NEW
-         + DELETED
-         + UNCHANGED
-         + MODIFIED_BOTH
-         + MODIFIED_ATTR
-         + MODIFED_GEOM
-      - write results to .gdb
+    """Read both compare() sources, resolve/hash the primary key, and run gdf_diff.
+
+    Shared by compare() (writes results to .gdb) and summarize() (prints a JSON
+    summary) - everything up to producing the diff dict is identical between them;
+    only what they do with the result differs.
+
+    Returns (diff, df_a, df_b, primary_key, hashed) - df_a/df_b are the loaded,
+    hash-keyed (if applicable) sources; primary_key is always a single-item list
+    on return (a generated hash_key if none was supplied); hashed indicates
+    whether a hash key was generated (compare() uses this to force dump_inputs).
     """
     if primary_key is None:
         primary_key = []
@@ -711,11 +708,6 @@ def compare(
         )
         df_a = promote_to_multi(df_a)
         df_b = promote_to_multi(df_b)
-
-    # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
-    if not out_file:
-        out_file = f"changedetector_{timestamp}.gdb"
 
     # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
@@ -774,6 +766,7 @@ def compare(
     # add hashed key
     # - hash multi column primary keys (without geom) for simplicity
     # - hash with geometry if no primary key specified
+    hashed = False
     if hash_geometry or len(primary_key) > 1:
         LOG.info(f"Adding hashed key to source_{suffix_a} as {hash_key}")
         df_a = fcd.add_hash_key(
@@ -794,7 +787,7 @@ def compare(
             drop_null_geometry=drop_null_geometry,
         )
         primary_key = [hash_key]
-        dump_inputs = True
+        hashed = True
 
     # run the diff
     diff = fcd.gdf_diff(
@@ -809,6 +802,105 @@ def compare(
         suffix_a=suffix_a,
         suffix_b=suffix_b,
     )
+
+    return diff, df_a, df_b, primary_key, hashed
+
+
+def summarize(
+    file_a,
+    file_b,
+    layer_a,
+    layer_b,
+    primary_key=None,
+    fields=None,
+    ignore_fields=None,
+    suffix_a="a",
+    suffix_b="b",
+    drop_null_geometry=True,
+    crs=None,
+    hash_key=None,
+    hash_fields=None,
+    precision=0.01,
+):
+    """
+    Compare two datasets as per compare(), but instead of writing spatial output,
+    print a minimal JSON summary (record counts per category) to stdout - for the
+    common case of just wanting to know what changed, not a .gdb of the changes.
+    """
+    diff, _, _, _, _ = _read_and_diff(
+        file_a,
+        file_b,
+        layer_a,
+        layer_b,
+        primary_key,
+        fields,
+        ignore_fields,
+        suffix_a,
+        suffix_b,
+        drop_null_geometry,
+        crs,
+        hash_key,
+        hash_fields,
+        precision,
+    )
+    counts = {key: len(df) for key, df in diff.items()}
+    print(json.dumps(counts))
+
+
+def compare(
+    file_a,
+    file_b,
+    layer_a,
+    layer_b,
+    out_file,
+    primary_key=None,
+    fields=None,
+    ignore_fields=None,
+    suffix_a="a",
+    suffix_b="b",
+    drop_null_geometry=True,
+    crs=None,
+    hash_key=None,
+    hash_fields=None,
+    precision=0.01,
+    dump_inputs=False,
+):
+    """
+    Compare two datasets:
+      - open two data sources, load to geopandas dataframes (gdf)
+      - if no primary key specified, add one to each gdf as new column based on geometry hash
+      - compare the datasets with gdf_diff, assigning input records to one of:
+         + NEW
+         + DELETED
+         + UNCHANGED
+         + MODIFIED_BOTH
+         + MODIFIED_ATTR
+         + MODIFED_GEOM
+      - write results to .gdb
+    """
+    diff, df_a, df_b, primary_key, hashed = _read_and_diff(
+        file_a,
+        file_b,
+        layer_a,
+        layer_b,
+        primary_key,
+        fields,
+        ignore_fields,
+        suffix_a,
+        suffix_b,
+        drop_null_geometry,
+        crs,
+        hash_key,
+        hash_fields,
+        precision,
+    )
+    if hashed:
+        dump_inputs = True
+
+    # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
+    if not out_file:
+        out_file = f"changedetector_{timestamp}.gdb"
 
     # write output data
     mode = "w"  # for writing the first non-empty layer, subsequent writes are appends

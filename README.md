@@ -84,6 +84,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
     Commands:
       add-hash-key  Read input data, compute hash, write to new file
       compare       Compare two datasets
+      summary       Compare two datasets, printing a JSON summary of record...
 
     $ changedetector add-hash-key --help
     Usage: changedetector add-hash-key [OPTIONS] IN_FILE OUT_FILE
@@ -136,6 +137,43 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -d, --drop-null-geometry   Drop records with null geometry
       -i, --dump-inputs          Dump input layers (with new hash key) to output
                                  .gdb
+      --crs TEXT                 Coordinate reference system to use when hashing
+                                 geometries (eg EPSG:3005)
+      -v, --verbose              Increase verbosity.
+      -q, --quiet                Decrease verbosity.
+      --help                     Show this message and exit.
+
+    $ changedetector summary --help
+    Usage: changedetector summary [OPTIONS] IN_FILE_A IN_FILE_B
+
+      Compare two datasets, printing a JSON summary of record counts to stdout
+
+      Same comparison as `compare`, but for when spatial output isn't needed -
+      prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
+      instead of writing a .gdb.
+
+      IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+
+    Options:
+      --layer-a TEXT             Name of layer to use within in_file_a (not valid if
+                                 reading from stdin/parquet)
+      --layer-b TEXT             Name of layer to use within in_file_b (not valid if
+                                 reading from parquet)
+      -f, --fields TEXT          Comma separated list of fields to compare (do not
+                                 include primary key)
+      -if, --ignore-fields TEXT  Comma separated list of fields to ignore
+      -pk, --primary-key TEXT    Comma separated list of primary key column(s),
+                                 common to both datasets
+      -hk, --hash-key TEXT       Name of new column to add as hash key
+      -hf, --hash-fields TEXT    Comma separated list of fields to include in the
+                                 hash (in addition to geometry)
+      -p, --precision FLOAT      Coordinate precision for geometry hash and
+                                 comparison. Default=0.01
+      -a, --suffix-a TEXT        Suffix to append to column names from data source A
+                                 when comparing attributes
+      -b, --suffix-b TEXT        Suffix to append to column names from data source B
+                                 when comparing attributes
+      -d, --drop-null-geometry   Drop records with null geometry
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       -v, --verbose              Increase verbosity.

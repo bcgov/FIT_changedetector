@@ -257,5 +257,124 @@ def compare(
     )
 
 
+@cli.command()
+@click.argument("in_file_a", type=click.Path(exists=True, allow_dash=True))
+@click.argument("in_file_b", type=click.Path(exists=True))
+@click.option(
+    "--layer-a",
+    help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
+)
+@click.option(
+    "--layer-b",
+    help="Name of layer to use within in_file_b (not valid if reading from parquet)",
+)
+@click.option(
+    "--fields",
+    "-f",
+    help="Comma separated list of fields to compare (do not include primary key)",
+)
+@click.option(
+    "--ignore-fields",
+    "-if",
+    help="Comma separated list of fields to ignore",
+)
+@click.option(
+    "--primary-key",
+    "-pk",
+    help="Comma separated list of primary key column(s), common to both datasets",
+)
+@click.option(
+    "--hash-key",
+    "-hk",
+    default="fcd_hash_id",
+    help="Name of new column to add as hash key",
+)
+@click.option(
+    "--hash-fields",
+    "-hf",
+    help="Comma separated list of fields to include in the hash (in addition to geometry)",
+)
+@click.option(
+    "--precision",
+    "-p",
+    default=0.01,
+    help="Coordinate precision for geometry hash and comparison. Default=0.01",
+)
+@click.option(
+    "--suffix-a",
+    "-a",
+    default="original",
+    help="Suffix to append to column names from data source A when comparing attributes",
+)
+@click.option(
+    "--suffix-b",
+    "-b",
+    default="new",
+    help="Suffix to append to column names from data source B when comparing attributes",
+)
+@click.option(
+    "--drop-null-geometry",
+    "-d",
+    is_flag=True,
+    help="Drop records with null geometry",
+)
+@click.option(
+    "--crs",
+    help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
+)
+@verbose_opt
+@quiet_opt
+def summary(
+    in_file_a,
+    in_file_b,
+    layer_a,
+    layer_b,
+    fields,
+    ignore_fields,
+    primary_key,
+    hash_key,
+    hash_fields,
+    precision,
+    suffix_a,
+    suffix_b,
+    drop_null_geometry,
+    crs,
+    verbose,
+    quiet,
+):
+    """Compare two datasets, printing a JSON summary of record counts to stdout
+
+    Same comparison as `compare`, but for when spatial output isn't needed -
+    prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
+    instead of writing a .gdb.
+
+    IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+    """
+    configure_logging(verbose - quiet)
+
+    # parse multi-item parameters
+    fields = split_string(fields)
+    ignore_fields = split_string(ignore_fields)
+    primary_key = split_string(primary_key)
+    hash_fields = split_string(hash_fields)
+
+    fcd.summarize(
+        in_file_a,
+        in_file_b,
+        layer_a,
+        layer_b,
+        primary_key=primary_key,
+        fields=fields,
+        ignore_fields=ignore_fields,
+        suffix_a=suffix_a,
+        suffix_b=suffix_b,
+        drop_null_geometry=drop_null_geometry,
+        crs=crs,
+        hash_key=hash_key,
+        hash_fields=hash_fields,
+        precision=precision,
+    )
+
+
 if __name__ == "__main__":
     cli()

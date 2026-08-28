@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 
 import geopandas
@@ -32,6 +33,35 @@ def test_compare_pk(tmp_path):
     for layer, count in change_counts.items():
         df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
         assert len(df) == count
+
+
+def test_summary_pk(tmp_path, monkeypatch):
+    """summary produces the same counts as compare(), as JSON to stdout, and
+    writes no output file at all."""
+    repo_root = os.getcwd()
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "summary",
+            os.path.join(repo_root, "tests/data/parks_a.geojson"),
+            os.path.join(repo_root, "tests/data/parks_b.geojson"),
+            "-pk",
+            "id",
+        ],
+    )
+    assert result.exit_code == 0
+    assert os.listdir(tmp_path) == []
+    counts = json.loads(result.output)
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
 
 
 def test_compare_stdin(tmp_path):
