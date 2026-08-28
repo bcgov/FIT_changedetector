@@ -160,10 +160,9 @@ The script tool calls the above documented CLI. Documentation of the parameters 
 
 ## Development and testing
 
+Uses [uv](https://docs.astral.sh/uv/) for dependency management:
 
     $ git clone git@github.com:bcgov/FIT_changedetector.git
     $ cd FIT_changedetector
-    $ python -m venv .venv
-    $ source .venv/bin/activate
-    $ pip install -e .[test]
-    (.venv) $ py.test
+    $ uv sync --extra test
+    $ uv run pytest
