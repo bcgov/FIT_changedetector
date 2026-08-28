@@ -178,7 +178,9 @@ def changedetector():
     proc.wait()
 
     if proc.returncode != 0:
-        arcpy.AddError("External changedetector script failed — see messages above.")
+        arcpy.AddError(
+            "External changedetector diff2gdb script failed — see messages above."
+        )
         raise arcpy.ExecuteError
 
 
