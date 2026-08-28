@@ -21,3 +21,11 @@ repos:
     - id: codespell
       additional_dependencies:
         - tomli
+- repo: local
+  hooks:
+    - id: update-cli-docs
+      name: sync CLI --help output into README
+      entry: uv run python scripts/update_cli_docs.py
+      language: system
+      files: ^(README\.md|src/fit_changedetector/cli\.py)$
+      pass_filenames: false
