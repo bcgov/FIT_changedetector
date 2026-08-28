@@ -67,13 +67,15 @@ def promote_to_multi(df):
 def add_hash_key(
     df,
     new_field,
-    fields: list = [],
+    fields: list | None = None,
     hash_geometry=True,
     drop_null_geometry=True,
     allow_duplicates=False,
     precision=0.01,
 ):
     """Add new column to input dataframe, containing hash of input columns and/or geometry"""
+    if fields is None:
+        fields = []
     pandas.options.mode.chained_assignment = None
 
     # validate precision
@@ -164,8 +166,8 @@ def gdf_diff(
     df_a: geopandas.GeoDataFrame,
     df_b: geopandas.GeoDataFrame,
     primary_key: str,
-    fields=[],
-    ignore_fields=[],
+    fields=None,
+    ignore_fields=None,
     precision=0.01,
     suffix_a="a",
     suffix_b="b",
@@ -191,6 +193,11 @@ def gdf_diff(
     for columns where changes have occured, values from both sources (a column
     for each source).
     """
+    if fields is None:
+        fields = []
+    if ignore_fields is None:
+        ignore_fields = []
+
     # are input datasets spatial?
     if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
         df_b, geopandas.GeoDataFrame
@@ -199,14 +206,14 @@ def gdf_diff(
     elif isinstance(df_a, geopandas.GeoDataFrame) and not isinstance(
         df_b, geopandas.GeoDataFrame
     ):
-        raise ValueError(
+        raise TypeError(
             "Cannot compare spatial and non-spatial sources - spatial component found in source 1 "
             "but not in source 2."
         )
     elif isinstance(df_b, geopandas.GeoDataFrame) and not isinstance(
         df_a, geopandas.GeoDataFrame
     ):
-        raise ValueError(
+        raise TypeError(
             "Cannot compare spatial and non-spatial sources - spatial component found in source 2 "
             "but not in source 1."
         )
@@ -239,7 +246,7 @@ def gdf_diff(
         if f.upper() in fcd.area_length_fields:
             df_b = df_b.drop(columns=[f])
 
-    ignore_fields = list(set([f.upper() for f in ignore_fields]))
+    ignore_fields = list({f.upper() for f in ignore_fields})
 
     # ignore fields cannot be specified as pk, fail
     if primary_key.upper() in ignore_fields:
@@ -530,15 +537,15 @@ def compare(
     layer_a,
     layer_b,
     out_file,
-    primary_key=[],
-    fields=[],
-    ignore_fields=[],
+    primary_key=None,
+    fields=None,
+    ignore_fields=None,
     suffix_a="a",
     suffix_b="b",
     drop_null_geometry=True,
     crs=None,
     hash_key=None,
-    hash_fields=[],
+    hash_fields=None,
     precision=0.01,
     dump_inputs=False,
 ):
@@ -555,6 +562,14 @@ def compare(
          + MODIFED_GEOM
       - write results to .gdb
     """
+    if primary_key is None:
+        primary_key = []
+    if fields is None:
+        fields = []
+    if ignore_fields is None:
+        ignore_fields = []
+    if hash_fields is None:
+        hash_fields = []
 
     # shortcuts to source layer paths for logging
     src_a = os.path.join(file_a, layer_a or "")
@@ -586,8 +601,8 @@ def compare(
         df_a = promote_to_multi(df_a)
         df_b = promote_to_multi(df_b)
 
-    # default output is changedetector_YYYYMMDD_HHMM.gdb
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
     if not out_file:
         out_file = f"changedetector_{timestamp}.gdb"
 

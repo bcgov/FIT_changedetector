@@ -1,6 +1,8 @@
 # ruff: noqa: F821
+# ruff: noqa: N999
 
 # paste this into the Validation tab of the script tool properties
+# filename matches the ArcGIS ToolValidator class convention, not a PEP 8 module name
 
 IGNORE_FIELDS = [
     "OBJECTID",
