@@ -127,10 +127,16 @@ def add_hash_key(
 
 
 @cli.command()
-@click.argument("in_file_a", type=click.Path(exists=True))
+@click.argument("in_file_a", type=click.Path(exists=True, allow_dash=True))
 @click.argument("in_file_b", type=click.Path(exists=True))
-@click.option("--layer-a", help="Name of layer to use within in_file_a")
-@click.option("--layer-b", help="Name of layer to use within in_file_b")
+@click.option(
+    "--layer-a",
+    help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
+)
+@click.option(
+    "--layer-b",
+    help="Name of layer to use within in_file_b (not valid if reading from parquet)",
+)
 @click.option(
     "--fields",
     "-f",
@@ -219,7 +225,10 @@ def compare(
     verbose,
     quiet,
 ):
-    """Compare two datasets"""
+    """Compare two datasets
+
+    IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+    """
     configure_logging(verbose - quiet)
 
     # parse multi-item parameters
