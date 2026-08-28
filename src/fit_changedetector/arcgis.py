@@ -114,7 +114,7 @@ def setup_logging(logfile, debug=False):
     LOG.addHandler(fh)
 
 
-def compare():
+def changedetector():
     param = {
         "original_fc": arcpy.GetParameterAsText(0),
         "new_fc": arcpy.GetParameterAsText(1),
@@ -178,9 +178,9 @@ def compare():
     proc.wait()
 
     if proc.returncode != 0:
-        arcpy.AddError("External compare script failed — see messages above.")
+        arcpy.AddError("External changedetector script failed — see messages above.")
         raise arcpy.ExecuteError
 
 
 if __name__ == "__main__":
-    compare()
+    changedetector()
