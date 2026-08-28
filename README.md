@@ -170,6 +170,11 @@ A *partitioned* parquet dataset (a directory of many `.parquet` files) is not su
             -o "output_${name}.gdb"
       done
 
+`compare` has no bounding box / spatial filtering option, and won't - applying a bbox filter independently to each source risks reporting spurious `NEW`/`DELETED` records for anything that moved across the boundary between the two snapshots being compared, rather than genuinely appearing/disappearing from the source. Filter with another tool first, e.g.:
+
+    $ ogr2ogr -f GeoJSON /vsistdout/ dataset_a.gpkg -spat 1150000 470000 1200000 500000 | \
+        changedetector compare -v - dataset_b.gpkg -pk id
+
 
 #### ArcGIS
 
