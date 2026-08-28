@@ -34,6 +34,57 @@ def test_compare_pk(tmp_path):
         assert len(df) == count
 
 
+def test_compare_stdin(tmp_path):
+    runner = CliRunner()
+    with open("tests/data/parks_a.geojson", "rb") as f:
+        stdin_data = f.read()
+    result = runner.invoke(
+        cli,
+        [
+            "compare",
+            "-",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "-o",
+            str(os.path.join(tmp_path, "test.gdb")),
+        ],
+        input=stdin_data,
+    )
+    change_counts = {
+        "NEW": 1,
+        "DELETED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
+    assert result.exit_code == 0
+    for layer, count in change_counts.items():
+        df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
+        assert len(df) == count
+
+
+def test_compare_stdin_layer_a_not_allowed(tmp_path):
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "compare",
+            "-",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "--layer-a",
+            "foo",
+            "-o",
+            str(os.path.join(tmp_path, "test.gdb")),
+        ],
+        input=b"",
+    )
+    assert result.exit_code != 0
+    assert "stdin" in str(result.exception)
+
+
 def test_compare_hash(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
