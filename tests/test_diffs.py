@@ -7,7 +7,7 @@ from geopandas import GeoDataFrame
 from shapely.geometry import GeometryCollection, MultiPoint, Point, Polygon
 
 import fit_changedetector as fcd
-from fit_changedetector.diff import _validate_and_prepare_diff_inputs
+from fit_changedetector.changedetector import _validate_and_prepare_diff_inputs
 
 
 @pytest.fixture
@@ -341,7 +341,7 @@ def test_nullable_columns(tmp_path):
     # Without fix: null forces integer column to float64
     assert df["count"].dtype == "float64"
 
-    from fit_changedetector.diff import _cast_dtypes
+    from fit_changedetector.changedetector import _cast_dtypes
 
     df = _cast_dtypes(df, str(path))
     # After fix: nullable types, nulls preserved
@@ -480,8 +480,8 @@ def test_unsupported_geometry_type_rejected(tmp_path):
     """GeometryCollection is not one of the supported geometry types and is
     rejected rather than silently compared. Used here as a stand-in for any
     unsupported type, since shapely has no curve geometry classes to construct
-    a real curve-typed fixture with - see _check_geometry_type in diff.py for
-    why curve types specifically are also rejected.
+    a real curve-typed fixture with - see _check_geometry_type in
+    changedetector.py for why curve types specifically are also rejected.
 
     https://github.com/bcgov/FIT_changedetector/issues/66
     """

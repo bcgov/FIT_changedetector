@@ -1,7 +1,7 @@
-from .diff import add_hash_key as add_hash_key
-from .diff import diff as diff
-from .diff import diff_to_gdb as diff_to_gdb
-from .diff import gdf_diff as gdf_diff
+from .changedetector import add_hash_key as add_hash_key
+from .changedetector import diff as diff
+from .changedetector import diff_to_gdb as diff_to_gdb
+from .changedetector import gdf_diff as gdf_diff
 
 __version__ = "0.0.1a2"
 
