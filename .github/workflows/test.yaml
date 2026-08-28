@@ -5,14 +5,16 @@ on:
     branches: [ main]
     paths:
       - '.github/workflows/test.yaml'
-      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'src/fit_changedetector/**'
       - 'tests/**'
   pull_request:
     branches: [ main ]
     paths:
       - '.github/workflows/test.yaml'
-      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'uv.lock'
       - 'src/fit_changedetector/**'
       - 'tests/**'
 
@@ -53,30 +55,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4.1.3
 
-      - name: Update
-        run: |
-          apt-get update
-          apt-get -y install software-properties-common
-          add-apt-repository -y ppa:deadsnakes/ppa
-          apt-get update
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: |
-          apt-get install -y --no-install-recommends \
-            python${{ matrix.python-version }} \
-            python${{ matrix.python-version }}-dev \
-            python${{ matrix.python-version }}-venv \
-            python3-pip \
-            g++
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: |
-          python${{ matrix.python-version }} -m venv .venv
-          . .venv/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install -e .[test]
+        run: uv sync --extra test
 
       - name: Run tests
-        run: |
-          . .venv/bin/activate
-          python -m pytest -v -rxXs
+        run: uv run pytest -v -rxXs
