@@ -131,9 +131,12 @@ def add_hash_key(
 @click.argument("in_file_b", type=click.Path(exists=True))
 @click.option(
     "--layer-a",
-    help="Name of layer to use within in_file_a (not valid if reading from stdin)",
+    help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
 )
-@click.option("--layer-b", help="Name of layer to use within in_file_b")
+@click.option(
+    "--layer-b",
+    help="Name of layer to use within in_file_b (not valid if reading from parquet)",
+)
 @click.option(
     "--fields",
     "-f",

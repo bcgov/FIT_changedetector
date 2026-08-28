@@ -24,6 +24,7 @@ dependencies = [
   "click",
   "cligj",
   "geopandas>=1.0.0",
+  "pyarrow",
 ]
 
 [project.optional-dependencies]

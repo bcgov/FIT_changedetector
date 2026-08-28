@@ -49,11 +49,33 @@ def _cast_dtypes(df, path, layer=None):
     return df
 
 
+_PARQUET_EXTENSIONS = (".parquet", ".geoparquet")
+
+
+def _normalize_string_dtypes(df):
+    """Cast string-like columns to pandas' "string" dtype.
+
+    geopandas.read_parquet() and _cast_dtypes() (OGR string fields) can produce
+    different StringDtype storage variants for equivalent string columns (e.g.
+    pandas 3's default arrow-backed variant vs. the classic one) - these compare
+    unequal in gdf_diff's dtype check despite being equivalent, so normalize to
+    one consistent spelling regardless of source format.
+    """
+    for col in df.columns:
+        if col != df.geometry.name and pandas.api.types.is_string_dtype(df[col]):
+            df[col] = df[col].astype("string")
+    return df
+
+
 def _read_source(path, layer, label):
     """Read a compare() source, casting dtypes as per _cast_dtypes.
 
     A path of "-" reads GeoJSON from stdin instead of a file (no layer support,
-    since a stream has no concept of multiple layers).
+    since a stream has no concept of multiple layers). A .parquet/.geoparquet path
+    reads via geopandas.read_parquet() instead of the OGR-based geopandas.read_file() -
+    pyogrio has no parquet driver, and parquet already carries a precise schema, so
+    the OGR-based _cast_dtypes is not applicable (though string dtypes are still
+    normalized, see _normalize_string_dtypes).
     """
     if path == "-":
         if layer:
@@ -63,6 +85,12 @@ def _read_source(path, layer, label):
         data = sys.stdin.buffer.read()
         df = _cast_dtypes(geopandas.read_file(io.BytesIO(data)), io.BytesIO(data))
         return df, "stdin"
+    if path.lower().endswith(_PARQUET_EXTENSIONS):
+        if layer:
+            raise ValueError(
+                f"--layer-{label} cannot be used when reading source {label} from parquet"
+            )
+        return _normalize_string_dtypes(geopandas.read_parquet(path)), path
     df = _cast_dtypes(geopandas.read_file(path, layer=layer), path, layer)
     return df, os.path.join(path, layer or "")
 

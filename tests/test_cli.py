@@ -85,6 +85,91 @@ def test_compare_stdin_layer_a_not_allowed(tmp_path):
     assert "stdin" in str(result.exception)
 
 
+def _geojson_to_parquet(geojson_path, parquet_path):
+    geopandas.read_file(geojson_path).to_parquet(parquet_path)
+    return str(parquet_path)
+
+
+def test_compare_parquet(tmp_path):
+    parquet_a = _geojson_to_parquet(
+        "tests/data/parks_a.geojson", tmp_path / "parks_a.parquet"
+    )
+    parquet_b = _geojson_to_parquet(
+        "tests/data/parks_b.geojson", tmp_path / "parks_b.parquet"
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "compare",
+            parquet_a,
+            parquet_b,
+            "-pk",
+            "id",
+            "-o",
+            str(os.path.join(tmp_path, "test.gdb")),
+        ],
+    )
+    change_counts = {
+        "NEW": 1,
+        "DELETED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
+    assert result.exit_code == 0
+    for layer, count in change_counts.items():
+        df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer=layer)
+        assert len(df) == count
+
+
+def test_compare_parquet_mixed_with_geojson(tmp_path):
+    # source A as parquet, source B as geojson - exercises the string dtype
+    # normalization needed for the two sources' schemas to be considered equivalent
+    parquet_a = _geojson_to_parquet(
+        "tests/data/parks_a.geojson", tmp_path / "parks_a.parquet"
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "compare",
+            parquet_a,
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "-o",
+            str(os.path.join(tmp_path, "test.gdb")),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer="MODIFIED_ATTR")
+    assert len(df) == 4
+
+
+def test_compare_parquet_layer_not_allowed(tmp_path):
+    parquet_a = _geojson_to_parquet(
+        "tests/data/parks_a.geojson", tmp_path / "parks_a.parquet"
+    )
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "compare",
+            parquet_a,
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "--layer-a",
+            "foo",
+            "-o",
+            str(os.path.join(tmp_path, "test.gdb")),
+        ],
+    )
+    assert result.exit_code != 0
+    assert "parquet" in str(result.exception)
+
+
 def test_compare_hash(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
