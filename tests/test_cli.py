@@ -1,4 +1,5 @@
 import hashlib
+import json
 import os
 
 import geopandas
@@ -7,12 +8,12 @@ from click.testing import CliRunner
 from fit_changedetector.cli import cli
 
 
-def test_compare_pk(tmp_path):
+def test_diff2gdb_pk(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             "tests/data/parks_a.geojson",
             "tests/data/parks_b.geojson",
             "-pk",
@@ -34,14 +35,43 @@ def test_compare_pk(tmp_path):
         assert len(df) == count
 
 
-def test_compare_stdin(tmp_path):
+def test_diff_pk(tmp_path, monkeypatch):
+    """diff produces the same counts as diff2gdb(), as JSON to stdout, and
+    writes no output file at all."""
+    repo_root = os.getcwd()
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            os.path.join(repo_root, "tests/data/parks_a.geojson"),
+            os.path.join(repo_root, "tests/data/parks_b.geojson"),
+            "-pk",
+            "id",
+        ],
+    )
+    assert result.exit_code == 0
+    assert os.listdir(tmp_path) == []
+    counts = json.loads(result.output)
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
+
+
+def test_diff2gdb_stdin(tmp_path):
     runner = CliRunner()
     with open("tests/data/parks_a.geojson", "rb") as f:
         stdin_data = f.read()
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             "-",
             "tests/data/parks_b.geojson",
             "-pk",
@@ -64,12 +94,12 @@ def test_compare_stdin(tmp_path):
         assert len(df) == count
 
 
-def test_compare_stdin_layer_a_not_allowed(tmp_path):
+def test_diff2gdb_stdin_layer_a_not_allowed(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             "-",
             "tests/data/parks_b.geojson",
             "-pk",
@@ -90,7 +120,7 @@ def _geojson_to_parquet(geojson_path, parquet_path):
     return str(parquet_path)
 
 
-def test_compare_parquet(tmp_path):
+def test_diff2gdb_parquet(tmp_path):
     parquet_a = _geojson_to_parquet(
         "tests/data/parks_a.geojson", tmp_path / "parks_a.parquet"
     )
@@ -101,7 +131,7 @@ def test_compare_parquet(tmp_path):
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             parquet_a,
             parquet_b,
             "-pk",
@@ -123,7 +153,7 @@ def test_compare_parquet(tmp_path):
         assert len(df) == count
 
 
-def test_compare_parquet_mixed_with_geojson(tmp_path):
+def test_diff2gdb_parquet_mixed_with_geojson(tmp_path):
     # source A as parquet, source B as geojson - exercises the string dtype
     # normalization needed for the two sources' schemas to be considered equivalent
     parquet_a = _geojson_to_parquet(
@@ -133,7 +163,7 @@ def test_compare_parquet_mixed_with_geojson(tmp_path):
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             parquet_a,
             "tests/data/parks_b.geojson",
             "-pk",
@@ -147,7 +177,7 @@ def test_compare_parquet_mixed_with_geojson(tmp_path):
     assert len(df) == 4
 
 
-def test_compare_parquet_layer_not_allowed(tmp_path):
+def test_diff2gdb_parquet_layer_not_allowed(tmp_path):
     parquet_a = _geojson_to_parquet(
         "tests/data/parks_a.geojson", tmp_path / "parks_a.parquet"
     )
@@ -155,7 +185,7 @@ def test_compare_parquet_layer_not_allowed(tmp_path):
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             parquet_a,
             "tests/data/parks_b.geojson",
             "-pk",
@@ -170,12 +200,12 @@ def test_compare_parquet_layer_not_allowed(tmp_path):
     assert "parquet" in str(result.exception)
 
 
-def test_compare_hash(tmp_path):
+def test_diff2gdb_hash(tmp_path):
     runner = CliRunner()
     result = runner.invoke(
         cli,
         [
-            "compare",
+            "diff2gdb",
             "tests/data/parks_a.geojson",
             "tests/data/parks_b.geojson",
             "-hf",
@@ -237,7 +267,7 @@ def test_add_hash_key(tmp_path):
 #    result = runner.invoke(
 #        cli,
 #        [
-#            "compare",
+#            "diff2gdb",
 #            "tests/data/pets_1.geojson",
 #            "tests/data/pets_2.geojson",
 #            "-pk",

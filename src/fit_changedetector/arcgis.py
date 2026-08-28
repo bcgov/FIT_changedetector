@@ -114,7 +114,7 @@ def setup_logging(logfile, debug=False):
     LOG.addHandler(fh)
 
 
-def compare():
+def changedetector():
     param = {
         "original_fc": arcpy.GetParameterAsText(0),
         "new_fc": arcpy.GetParameterAsText(1),
@@ -165,7 +165,7 @@ def compare():
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "compare"] + cli_args,
+        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -178,9 +178,11 @@ def compare():
     proc.wait()
 
     if proc.returncode != 0:
-        arcpy.AddError("External compare script failed — see messages above.")
+        arcpy.AddError(
+            "External changedetector diff2gdb script failed — see messages above."
+        )
         raise arcpy.ExecuteError
 
 
 if __name__ == "__main__":
-    compare()
+    changedetector()
