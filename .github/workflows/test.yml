@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     name: pre-commit
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Run pre-commit hooks
@@ -41,7 +41,7 @@ jobs:
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
-      - uses: actions/checkout@v4.1.3
+      - uses: actions/checkout@v7.0.1
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
