@@ -142,7 +142,7 @@ Compare the test datasets using their known primary key:
     $ changedetector compare -v \
         tests/data/parks_a.geojson \
         tests/data/parks_b.geojson \
-        -pk fcd_load_id 
+        -pk id
 
 Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, written to `new_hash_column`:
 
@@ -151,6 +151,11 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
         tests/data/parks_b.geojson \
         -hf park_name \
         -hk new_hash_column
+
+`IN_FILE_A` may be `-` to read GeoJSON from stdin instead of a file, e.g. to compare a database export against a file on disk without writing the export to disk first:
+
+    $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
+        changedetector compare -v - tests/data/parks_b.geojson -pk id
 
 
 #### ArcGIS
