@@ -4,7 +4,7 @@ import geopandas
 import pandas
 import pytest
 from geopandas import GeoDataFrame
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
 import fit_changedetector as fcd
 
@@ -234,6 +234,86 @@ def test_precision():
     )["MODIFIED_GEOM"]
     assert len(diff_high_precision) == 2
     assert len(diff_low_precision) == 0
+
+
+def test_diff_geom_vertex_order_and_winding_not_modified():
+    """Vertex order / ring winding differences alone are not flagged as modified.
+
+    gdf_diff normalizes geometries before comparing (see gdf_diff's use of
+    .normalize().geom_equals_exact()), so it matches topological equality
+    (GeoSeries.geom_equals) rather than raw vertex-order-sensitive equality
+    (geom_equals_exact/geom_equals_identical without normalizing first).
+    """
+    square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+    rotated_start = Polygon([(10, 0), (10, 10), (0, 10), (0, 0), (10, 0)])
+    reversed_winding = Polygon([(0, 10), (10, 10), (10, 0), (0, 0), (0, 10)])
+
+    gs_a = geopandas.GeoSeries([square, square])
+    gs_b = geopandas.GeoSeries([rotated_start, reversed_winding])
+    # topologically identical regardless of vertex order/winding
+    assert list(gs_a.geom_equals(gs_b)) == [True, True]
+    # but not structurally/positionally identical without normalizing first
+    assert list(gs_a.geom_equals_exact(gs_b, 0)) == [False, False]
+    assert list(gs_a.geom_equals_identical(gs_b)) == [False, False]
+
+    df_a = GeoDataFrame({"id": [1, 2], "geometry": [square, square]}, crs="EPSG:3005")
+    df_b = GeoDataFrame(
+        {"id": [1, 2], "geometry": [rotated_start, reversed_winding]}, crs="EPSG:3005"
+    )
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
+    assert len(d["UNCHANGED"]) == 2
+    assert len(d["MODIFIED_GEOM"]) == 0
+
+
+def test_diff_geom_extra_vertex_flagged_modified():
+    """An added vertex on an existing edge (same shape/area, no topological
+    change) is still flagged MODIFIED_GEOM.
+
+    gdf_diff compares with geom_equals_exact (positional, vertex-count
+    sensitive), not the topological geom_equals, so a change to the vertex
+    list alone is detected even though GeoSeries.geom_equals considers the
+    two geometries equal (same point set/shape).
+    """
+    square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+    extra_vertex = Polygon([(0, 0), (5, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+
+    gs_a = geopandas.GeoSeries([square])
+    gs_b = geopandas.GeoSeries([extra_vertex])
+    # same shape/point-set...
+    assert list(gs_a.geom_equals(gs_b)) == [True]
+    # ...but not the same vertex list, even after normalizing
+    assert list(gs_a.normalize().geom_equals_exact(gs_b.normalize(), 0)) == [False]
+
+    df_a = GeoDataFrame({"id": [1], "geometry": [square]}, crs="EPSG:3005")
+    df_b = GeoDataFrame({"id": [1], "geometry": [extra_vertex]}, crs="EPSG:3005")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
+    assert len(d["MODIFIED_GEOM"]) == 1
+    assert len(d["UNCHANGED"]) == 0
+
+
+def test_diff_geom_tiny_shift_within_precision_not_modified():
+    """A coordinate shift smaller than the comparison precision is treated as
+    unchanged, even though strict equality (geom_equals/geom_equals_identical)
+    considers the geometries different.
+
+    geom_equals_exact's numeric tolerance is what gdf_diff relies on for
+    float-noise tolerant comparison - geom_equals/geom_equals_identical have
+    no such tolerance.
+    """
+    square = Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+    tiny_shift = Polygon([(0, 0), (10, 0.001), (10, 10), (0, 10), (0, 0)])
+
+    gs_a = geopandas.GeoSeries([square])
+    gs_b = geopandas.GeoSeries([tiny_shift])
+    assert list(gs_a.geom_equals(gs_b)) == [False]
+    assert list(gs_a.geom_equals_identical(gs_b)) == [False]
+    assert list(gs_a.geom_equals_exact(gs_b, 0.01)) == [True]
+
+    df_a = GeoDataFrame({"id": [1], "geometry": [square]}, crs="EPSG:3005")
+    df_b = GeoDataFrame({"id": [1], "geometry": [tiny_shift]}, crs="EPSG:3005")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf", precision=0.01)
+    assert len(d["UNCHANGED"]) == 1
+    assert len(d["MODIFIED_GEOM"]) == 0
 
 
 def test_nullable_columns(tmp_path):
