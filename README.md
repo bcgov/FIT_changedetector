@@ -157,7 +157,18 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
         changedetector compare -v - tests/data/parks_b.geojson -pk id
 
-`IN_FILE_A`/`IN_FILE_B` may also be `.parquet`/`.geoparquet` files (read via `geopandas.read_parquet()` rather than GDAL/OGR, since `pyogrio` has no parquet driver). Layer options are not valid for parquet sources, since parquet has no concept of multiple layers.
+Note that layer options are not valid for stdin and parquet sources - streams and parquet files have no concept of multiple layers.
+
+A *partitioned* parquet dataset (a directory of many `.parquet` files) is not supported as a single source - `compare()` loads an entire source into memory regardless of format, so there's no benefit to teaching it to read a partition directory as one dataset. Instead, run `compare` once per file, e.g. for two partitioned datasets with matching partition filenames:
+
+    $ for part in dataset_a/*.parquet; do
+        name=$(basename "$part" .parquet)
+        changedetector compare -v \
+            "$part" \
+            "dataset_b/${name}.parquet" \
+            -pk id \
+            -o "output_${name}.gdb"
+      done
 
 
 #### ArcGIS
