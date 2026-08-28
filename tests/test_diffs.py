@@ -7,6 +7,7 @@ from geopandas import GeoDataFrame
 from shapely.geometry import GeometryCollection, MultiPoint, Point, Polygon
 
 import fit_changedetector as fcd
+from fit_changedetector.diff import _validate_and_prepare_diff_inputs
 
 
 @pytest.fixture
@@ -356,6 +357,123 @@ def test_invalid_diff_precision(gdf):
     df_b.at[2, "col2"] = "uuu"
     with pytest.raises(ValueError):
         fcd.gdf_diff(df_a, df_b, primary_key="pk", precision=999)
+
+
+def _spatial_gdf():
+    """A small, valid, CRS-set GeoDataFrame - a base for
+    _validate_and_prepare_diff_inputs tests to mutate to break one rule.
+    """
+    return GeoDataFrame(
+        {
+            "pk": [1, 2, 3],
+            "col1": ["a", "b", "c"],
+            "geometry": [Point(0, 0), Point(1, 1), Point(2, 2)],
+        },
+        crs="EPSG:3005",
+    )
+
+
+def test_validate_diff_inputs_spatial_mismatch():
+    df_a = _spatial_gdf()
+    df_b = pandas.DataFrame(df_a.drop(columns="geometry"))
+    with pytest.raises(TypeError, match="source 1"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+    with pytest.raises(TypeError, match="source 2"):
+        _validate_and_prepare_diff_inputs(df_b, df_a, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_invalid_precision():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    with pytest.raises(ValueError, match="Precision"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 999)
+
+
+def test_validate_diff_inputs_pk_in_ignore_fields():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    with pytest.raises(ValueError, match="cannot be used as a primary key"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], ["pk"], 0.01)
+
+
+def test_validate_diff_inputs_pk_missing():
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf().rename(columns={"pk": "fid"})
+    with pytest.raises(ValueError, match="must be present in both datasets"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_fields_not_common():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    with pytest.raises(ValueError, match="not common to both datasets"):
+        _validate_and_prepare_diff_inputs(
+            df_a, df_b, "pk", ["nonexistent_field"], [], 0.01
+        )
+
+
+def test_validate_diff_inputs_dtype_mismatch():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_b["col1"] = df_b["col1"].astype("string")
+    assert df_a["col1"].dtype != df_b["col1"].dtype
+    with pytest.raises(ValueError, match="Field types do not match"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_geometry_type_mismatch():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_b.loc[0, "geometry"] = Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])
+    with pytest.raises(ValueError, match="not equivalent"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_crs_mismatch():
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf().to_crs("EPSG:4326")
+    with pytest.raises(ValueError, match="Coordinate reference systems"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_duplicate_primary_key():
+    df_a = _spatial_gdf()
+    df_a.loc[1, "pk"] = 1  # now duplicates row 0's pk
+    df_b = _spatial_gdf()
+    with pytest.raises(ValueError, match="Duplicate values exist"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_validate_diff_inputs_prepares_outputs():
+    """Happy-path: check the actual returned values, not just that no error
+    was raised - esri area/length fields dropped, geometry column renamed to
+    "geometry", fields defaulted to common columns, and *_src copies retain
+    the full, unfiltered original schema.
+    """
+    data = {
+        "pk": [1, 2],
+        "col1": ["a", "b"],
+        "SHAPE_Area": [10.0, 20.0],
+        "geom": [Point(0, 0), Point(1, 1)],
+    }
+    df_a = GeoDataFrame(data, crs="EPSG:3005", geometry="geom")
+    df_b = GeoDataFrame(data, crs="EPSG:3005", geometry="geom")
+
+    out_a, _, src_a, src_b, fields, spatial = _validate_and_prepare_diff_inputs(
+        df_a, df_b, "pk", None, None, 0.01
+    )
+    assert spatial is True
+    assert sorted(fields) == ["col1", "geometry", "pk"]
+    assert "SHAPE_Area" not in out_a.columns
+    assert out_a.geometry.name == "geometry"
+    # source copies retain the full, unfiltered original schema
+    assert list(src_a.columns) == ["pk", "col1", "SHAPE_Area", "geom"]
+    assert list(src_b.columns) == ["pk", "col1", "SHAPE_Area", "geom"]
+
+
+def test_validate_diff_inputs_non_spatial_ok():
+    df_a = pandas.DataFrame({"pk": [1, 2], "col1": ["a", "b"]})
+    df_b = pandas.DataFrame({"pk": [1, 2], "col1": ["a", "b"]})
+    _, _, _, _, fields, spatial = _validate_and_prepare_diff_inputs(
+        df_a, df_b, "pk", None, None, 0.01
+    )
+    assert spatial is False
+    assert sorted(fields) == ["col1", "pk"]
 
 
 def test_unsupported_geometry_type_rejected(tmp_path):

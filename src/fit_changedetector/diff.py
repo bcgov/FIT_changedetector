@@ -249,36 +249,23 @@ def add_hash_key(
     return df
 
 
-def gdf_diff(
-    df_a: geopandas.GeoDataFrame,
-    df_b: geopandas.GeoDataFrame,
-    primary_key: str,
-    fields=None,
-    ignore_fields=None,
-    precision=0.01,
-    suffix_a="a",
-    suffix_b="b",
-    return_type="gdf",
+def _validate_and_prepare_diff_inputs(
+    df_a, df_b, primary_key, fields, ignore_fields, precision
 ):
-    """
-    Compare two geodataframes and generate a diff.
+    """Validate df_a/df_b are comparable and prepare them for gdf_diff.
 
-    Sources MUST:
-    - have valid, compatible primary keys
-    - have at least one equivalent column (ok if this is just the primary key)
-    - equivalent column names must be of equivalent types
-    - have equivalent geometry types and coordinate reference systems
+    Checks: valid precision, primary key present/unique in both datasets and not
+    also an ignore_field, fields provided (if any) common to both datasets,
+    equivalent field dtypes, and (for spatial sources) equivalent geometry types
+    and CRS - raising ValueError/TypeError on the first violation found.
 
-    Output diff is represented by five dataframes:
-    - additions (with same schema as dataset b)
-    - deletions (with same schema as dataset a)
-    - modifications - geometry only (with same schema as dataset b)
-    - modifications - attribute only (modified schema)
-    - modifications - geometry and attribute (modified schema)
+    Also resolves *fields* to its final list (common fields when none given,
+    always including the primary key and geometry), standardizes the geometry
+    column name, and drops esri-generated area/length fields.
 
-    The attribute change dataframes include columns common to both sources, and
-    for columns where changes have occurred, values from both sources (a column
-    for each source).
+    Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial), where df_a/df_b
+    are filtered to the resolved fields and df_a_src/df_b_src are unfiltered
+    copies retained by gdf_diff for rebuilding full-schema outputs later.
     """
     if fields is None:
         fields = []
@@ -415,6 +402,44 @@ def gdf_diff(
             f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using "
             "another primary key or pre-processing to remove duplicates"
         )
+
+    return df_a, df_b, df_a_src, df_b_src, fields, spatial
+
+
+def gdf_diff(
+    df_a: geopandas.GeoDataFrame,
+    df_b: geopandas.GeoDataFrame,
+    primary_key: str,
+    fields=None,
+    ignore_fields=None,
+    precision=0.01,
+    suffix_a="a",
+    suffix_b="b",
+    return_type="gdf",
+):
+    """
+    Compare two geodataframes and generate a diff.
+
+    Sources MUST:
+    - have valid, compatible primary keys
+    - have at least one equivalent column (ok if this is just the primary key)
+    - equivalent column names must be of equivalent types
+    - have equivalent geometry types and coordinate reference systems
+
+    Output diff is represented by five dataframes:
+    - additions (with same schema as dataset b)
+    - deletions (with same schema as dataset a)
+    - modifications - geometry only (with same schema as dataset b)
+    - modifications - attribute only (modified schema)
+    - modifications - geometry and attribute (modified schema)
+
+    The attribute change dataframes include columns common to both sources, and
+    for columns where changes have occurred, values from both sources (a column
+    for each source).
+    """
+    df_a, df_b, df_a_src, df_b_src, fields, spatial = _validate_and_prepare_diff_inputs(
+        df_a, df_b, primary_key, fields, ignore_fields, precision
+    )
 
     # set pandas dataframe index to primary key
     df_a = df_a.set_index(primary_key)
