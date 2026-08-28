@@ -185,6 +185,8 @@ A *partitioned* parquet dataset (a directory of many `.parquet` files) is not su
     $ ogr2ogr -f GeoJSON /vsistdout/ dataset_a.gpkg -spat 1150000 470000 1200000 500000 | \
         changedetector compare -v - dataset_b.gpkg -pk id
 
+Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `compare` and results involving curved input should not be relied on.
+
 
 #### ArcGIS
 
