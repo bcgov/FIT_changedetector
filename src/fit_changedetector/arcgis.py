@@ -45,10 +45,11 @@ def build_cli_args(param, out_file):
         args.append("--drop-null-geometry")
     if param["dump_inputs"]:
         args.append("--dump-inputs")
-    args.append("-v")           # always INFO level, matches current default
+    args.append("-v")  # always INFO level, matches current default
     if param["debug"]:
-        args.append("-v")       # second -v -> DEBUG (cligj count option)
+        args.append("-v")  # second -v -> DEBUG (cligj count option)
     return args
+
 
 class ArcpyHandler(logging.Handler):
     """
@@ -56,7 +57,9 @@ class ArcpyHandler(logging.Handler):
     Taken from https://github.com/knu2xs/arcpy-logging
     """
 
-    terminator = ""  # no newline character needed, everything goes through arcpy.AddMessage
+    terminator = (
+        ""  # no newline character needed, everything goes through arcpy.AddMessage
+    )
 
     def emit(self, record: logging.LogRecord) -> None:
         """
@@ -156,7 +159,6 @@ def compare():
             param[src + "_layer"] = Path(param[f"{src}_fc"]).stem
         else:
             arcpy.AddError("Only .gdb and .shp are supported")
-
 
     cli_args = build_cli_args(param, out_file)
 

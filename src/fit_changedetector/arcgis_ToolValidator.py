@@ -49,12 +49,19 @@ class ToolValidator:
         # if coordinate precision is not supplied, set default based on spatial reference
         if self.params[8].value is None:
             sr = arcpy.Describe(self.params[0].value).spatialReference
-            if sr.type.lower() == "geographic" and sr.angularUnitName.lower() == "degree":
+            if (
+                sr.type.lower() == "geographic"
+                and sr.angularUnitName.lower() == "degree"
+            ):
                 self.params[8].value = 0.00001
-            elif sr.type.lower() == "projected" and sr.linearUnitName.lower() == "meter":
+            elif (
+                sr.type.lower() == "projected" and sr.linearUnitName.lower() == "meter"
+            ):
                 self.params[8].value = 1
             else:
-                arcpy.AddError("Incompatible spatial reference units, must be degree or meter")
+                arcpy.AddError(
+                    "Incompatible spatial reference units, must be degree or meter"
+                )
 
         # populate possible field names to pk/include/exclude/hash field parameters,
         # including fields common to both sources and not in the ignore list
