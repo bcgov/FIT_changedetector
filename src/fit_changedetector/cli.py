@@ -205,7 +205,7 @@ def add_hash_key(
 )
 @verbose_opt
 @quiet_opt
-def compare(
+def diff2gdb(
     in_file_a,
     in_file_b,
     layer_a,
@@ -225,7 +225,7 @@ def compare(
     verbose,
     quiet,
 ):
-    """Compare two datasets
+    """Compare two datasets, writing results to .gdb
 
     IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
     """
@@ -237,7 +237,7 @@ def compare(
     primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
-    fcd.compare(
+    fcd.diff_to_gdb(
         in_file_a,
         in_file_b,
         layer_a,
@@ -324,7 +324,7 @@ def compare(
 )
 @verbose_opt
 @quiet_opt
-def summary(
+def diff(
     in_file_a,
     in_file_b,
     layer_a,
@@ -344,7 +344,7 @@ def summary(
 ):
     """Compare two datasets, printing a JSON summary of record counts to stdout
 
-    Same comparison as `compare`, but for when spatial output isn't needed -
+    Same comparison as `diff2gdb`, but for when spatial output isn't needed -
     prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
     instead of writing a .gdb.
 
@@ -358,7 +358,7 @@ def summary(
     primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
-    fcd.summarize(
+    fcd.diff(
         in_file_a,
         in_file_b,
         layer_a,

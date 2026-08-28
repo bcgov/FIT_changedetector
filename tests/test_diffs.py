@@ -496,7 +496,7 @@ def test_unsupported_geometry_type_rejected(tmp_path):
     gdf.to_file(path, driver="GeoJSON")
 
     with pytest.raises(ValueError, match="GeometryCollection"):
-        fcd.compare(
+        fcd.diff_to_gdb(
             str(path),
             "tests/data/parks_b.geojson",
             None,
@@ -520,7 +520,7 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
     df_a.to_file(path_a, driver="GeoJSON")
     df_b.to_file(path_b, driver="GeoJSON")
 
-    fcd.compare(
+    fcd.diff_to_gdb(
         str(path_a),
         str(path_b),
         None,

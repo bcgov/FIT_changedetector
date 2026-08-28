@@ -105,7 +105,7 @@ def _normalize_string_dtypes(df):
 
 
 def _read_source(path, layer, label):
-    """Read a compare() source, casting dtypes as per _cast_dtypes.
+    """Read a diff_to_gdb()/diff() source, casting dtypes as per _cast_dtypes.
 
     A path of "-" reads GeoJSON from stdin instead of a file (no layer support,
     since a stream has no concept of multiple layers). A .parquet/.geoparquet path
@@ -660,16 +660,16 @@ def _read_and_diff(
     hash_fields,
     precision,
 ):
-    """Read both compare() sources, resolve/hash the primary key, and run gdf_diff.
+    """Read both diff_to_gdb()/diff() sources, resolve/hash the primary key, and run gdf_diff.
 
-    Shared by compare() (writes results to .gdb) and summarize() (prints a JSON
+    Shared by diff_to_gdb() (writes results to .gdb) and diff() (prints a JSON
     summary) - everything up to producing the diff dict is identical between them;
     only what they do with the result differs.
 
     Returns (diff, df_a, df_b, primary_key, hashed) - df_a/df_b are the loaded,
     hash-keyed (if applicable) sources; primary_key is always a single-item list
     on return (a generated hash_key if none was supplied); hashed indicates
-    whether a hash key was generated (compare() uses this to force dump_inputs).
+    whether a hash key was generated (diff_to_gdb() uses this to force dump_inputs).
     """
     if primary_key is None:
         primary_key = []
@@ -806,7 +806,7 @@ def _read_and_diff(
     return diff, df_a, df_b, primary_key, hashed
 
 
-def summarize(
+def diff(
     file_a,
     file_b,
     layer_a,
@@ -823,11 +823,12 @@ def summarize(
     precision=0.01,
 ):
     """
-    Compare two datasets as per compare(), but instead of writing spatial output,
-    print a minimal JSON summary (record counts per category) to stdout - for the
-    common case of just wanting to know what changed, not a .gdb of the changes.
+    Compare two datasets as per diff_to_gdb(), but instead of writing spatial
+    output, print a minimal JSON summary (record counts per category) to
+    stdout - for the common case of just wanting to know what changed, not a
+    .gdb of the changes.
     """
-    diff, _, _, _, _ = _read_and_diff(
+    result, _, _, _, _ = _read_and_diff(
         file_a,
         file_b,
         layer_a,
@@ -843,11 +844,11 @@ def summarize(
         hash_fields,
         precision,
     )
-    counts = {key: len(df) for key, df in diff.items()}
+    counts = {key: len(df) for key, df in result.items()}
     print(json.dumps(counts))
 
 
-def compare(
+def diff_to_gdb(
     file_a,
     file_b,
     layer_a,

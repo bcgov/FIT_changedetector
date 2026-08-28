@@ -165,7 +165,7 @@ def compare():
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "compare"] + cli_args,
+        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

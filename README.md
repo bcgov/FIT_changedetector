@@ -83,8 +83,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
 
     Commands:
       add-hash-key  Read input data, compute hash, write to new file
-      compare       Compare two datasets
-      summary       Compare two datasets, printing a JSON summary of record...
+      diff          Compare two datasets, printing a JSON summary of record...
+      diff2gdb      Compare two datasets, writing results to .gdb
 
     $ changedetector add-hash-key --help
     Usage: changedetector add-hash-key [OPTIONS] IN_FILE OUT_FILE
@@ -106,10 +106,47 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -q, --quiet               Decrease verbosity.
       --help                    Show this message and exit.
 
-    $ changedetector compare --help
-    Usage: changedetector compare [OPTIONS] IN_FILE_A IN_FILE_B
+    $ changedetector diff --help
+    Usage: changedetector diff [OPTIONS] IN_FILE_A IN_FILE_B
 
-      Compare two datasets
+      Compare two datasets, printing a JSON summary of record counts to stdout
+
+      Same comparison as `diff2gdb`, but for when spatial output isn't needed -
+      prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
+      instead of writing a .gdb.
+
+      IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+
+    Options:
+      --layer-a TEXT             Name of layer to use within in_file_a (not valid if
+                                 reading from stdin/parquet)
+      --layer-b TEXT             Name of layer to use within in_file_b (not valid if
+                                 reading from parquet)
+      -f, --fields TEXT          Comma separated list of fields to compare (do not
+                                 include primary key)
+      -if, --ignore-fields TEXT  Comma separated list of fields to ignore
+      -pk, --primary-key TEXT    Comma separated list of primary key column(s),
+                                 common to both datasets
+      -hk, --hash-key TEXT       Name of new column to add as hash key
+      -hf, --hash-fields TEXT    Comma separated list of fields to include in the
+                                 hash (in addition to geometry)
+      -p, --precision FLOAT      Coordinate precision for geometry hash and
+                                 comparison. Default=0.01
+      -a, --suffix-a TEXT        Suffix to append to column names from data source A
+                                 when comparing attributes
+      -b, --suffix-b TEXT        Suffix to append to column names from data source B
+                                 when comparing attributes
+      -d, --drop-null-geometry   Drop records with null geometry
+      --crs TEXT                 Coordinate reference system to use when hashing
+                                 geometries (eg EPSG:3005)
+      -v, --verbose              Increase verbosity.
+      -q, --quiet                Decrease verbosity.
+      --help                     Show this message and exit.
+
+    $ changedetector diff2gdb --help
+    Usage: changedetector diff2gdb [OPTIONS] IN_FILE_A IN_FILE_B
+
+      Compare two datasets, writing results to .gdb
 
       IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
 
@@ -142,57 +179,20 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
-
-    $ changedetector summary --help
-    Usage: changedetector summary [OPTIONS] IN_FILE_A IN_FILE_B
-
-      Compare two datasets, printing a JSON summary of record counts to stdout
-
-      Same comparison as `compare`, but for when spatial output isn't needed -
-      prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
-      instead of writing a .gdb.
-
-      IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
-
-    Options:
-      --layer-a TEXT             Name of layer to use within in_file_a (not valid if
-                                 reading from stdin/parquet)
-      --layer-b TEXT             Name of layer to use within in_file_b (not valid if
-                                 reading from parquet)
-      -f, --fields TEXT          Comma separated list of fields to compare (do not
-                                 include primary key)
-      -if, --ignore-fields TEXT  Comma separated list of fields to ignore
-      -pk, --primary-key TEXT    Comma separated list of primary key column(s),
-                                 common to both datasets
-      -hk, --hash-key TEXT       Name of new column to add as hash key
-      -hf, --hash-fields TEXT    Comma separated list of fields to include in the
-                                 hash (in addition to geometry)
-      -p, --precision FLOAT      Coordinate precision for geometry hash and
-                                 comparison. Default=0.01
-      -a, --suffix-a TEXT        Suffix to append to column names from data source A
-                                 when comparing attributes
-      -b, --suffix-b TEXT        Suffix to append to column names from data source B
-                                 when comparing attributes
-      -d, --drop-null-geometry   Drop records with null geometry
-      --crs TEXT                 Coordinate reference system to use when hashing
-                                 geometries (eg EPSG:3005)
-      -v, --verbose              Increase verbosity.
-      -q, --quiet                Decrease verbosity.
-      --help                     Show this message and exit.
 <!-- END CLI HELP -->
 
 ##### Examples
 
 Compare the test datasets using their known primary key:
 
-    $ changedetector compare -v \
+    $ changedetector diff2gdb -v \
         tests/data/parks_a.geojson \
         tests/data/parks_b.geojson \
         -pk id
 
 Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, written to `new_hash_column`:
 
-    $ changedetector compare -v \
+    $ changedetector diff2gdb -v \
         tests/data/parks_a.geojson \
         tests/data/parks_b.geojson \
         -hf park_name \
@@ -201,29 +201,29 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
 `IN_FILE_A` may be `-` to read GeoJSON from stdin instead of a file, e.g. to compare a database export against a file on disk without writing the export to disk first:
 
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
-        changedetector compare -v - tests/data/parks_b.geojson -pk id
+        changedetector diff2gdb -v - tests/data/parks_b.geojson -pk id
 
 ##### Usage notes
 
 Layer options are not valid for stdin and parquet sources - streams and parquet files have no concept of multiple layers.
 
-A *partitioned* parquet dataset (a directory of many `.parquet` files) is not supported as a single source - `compare()` loads an entire source into memory regardless of format, so there's no benefit to teaching it to read a partition directory as one dataset. Instead, run `compare` once per file, e.g. for two partitioned datasets with matching partition filenames:
+A *partitioned* parquet dataset (a directory of many `.parquet` files) is not supported as a single source - `diff`/`diff2gdb` load an entire source into memory regardless of format, so there's no benefit to teaching them to read a partition directory as one dataset. Instead, run the command once per file, e.g. for two partitioned datasets with matching partition filenames:
 
     $ for part in dataset_a/*.parquet; do
         name=$(basename "$part" .parquet)
-        changedetector compare -v \
+        changedetector diff2gdb -v \
             "$part" \
             "dataset_b/${name}.parquet" \
             -pk id \
             -o "output_${name}.gdb"
       done
 
-`compare` has no bounding box / spatial filtering option, and won't - applying a bbox filter independently to each source risks reporting spurious `NEW`/`DELETED` records for anything that moved across the boundary between the two snapshots being compared, rather than genuinely appearing/disappearing from the source. Filter with another tool first, e.g.:
+Neither `diff` nor `diff2gdb` have a bounding box / spatial filtering option, and won't - applying a bbox filter independently to each source risks reporting spurious `NEW`/`DELETED` records for anything that moved across the boundary between the two snapshots being compared, rather than genuinely appearing/disappearing from the source. Filter with another tool first, e.g.:
 
     $ ogr2ogr -f GeoJSON /vsistdout/ dataset_a.gpkg -spat 1150000 470000 1200000 500000 | \
-        changedetector compare -v - dataset_b.gpkg -pk id
+        changedetector diff2gdb -v - dataset_b.gpkg -pk id
 
-Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `compare` and results involving curved input should not be relied on.
+Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `diff`/`diff2gdb` and results involving curved input should not be relied on.
 
 
 #### ArcGIS
