@@ -11,7 +11,8 @@ import subprocess
 
 import arcpy
 
-VENV_PYTHON = r"\\spatialfiles.bcgov\WORK\ilmb\dss\dss_workarea\_contractors\sinorris\FIT_changedetector\.venv\Scripts\python.exe"
+# place path to your virtualenv here
+VENV_PYTHON = r"\\REPLACE\WITH\YOUR\PATH\.venv\Scripts\python.exe"
 
 
 # do not name the logger, we want to add the handler to the root logger

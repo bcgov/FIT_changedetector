@@ -2,17 +2,24 @@
 
 [![Lifecycle:Experimental](https://img.shields.io/badge/Lifecycle-Experimental-339999)](https://github.com/bcgov/repomountie/blob/master/doc/lifecycle-badges.md)
 
-GeoBC Foundational Information and Technology (FIT) Section tool for reporting on chages to geodata over time.
+Compare two sets of geo-data and report on the differences.
 
 ## Installation
 
-GDAL and Geopandas are required. If gdal and geopandas are already installed to your environment, install with pip:
+Install with pip:
 
-    git clone git@github.com:bcgov/FIT_changedetector.git
-    cd FIT_changedetector
-    pip install .
+    pip install fit_changedetector
 
-For systems where gdal/geopandas are not already available, installing geopanadas with `conda` as per the [guide](https://geopandas.org/en/stable/getting_started/install.html#creating-a-new-environment) is likely the best option.
+An ArcGIS Pro script tool is also provided (`arcgis.py`).
+Because an ArcGIS mananaged conda environment is unlikley to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
+
+In a Windows Command Prompt (with no active conda environment):
+
+    python -m venv .venv
+    .venv\Scripts\activate.bat
+    pip install fit_changedetector
+
+Edit the `VENV_PYTHON` value in `arcgis.py` to point the script to `Python.exe` in your virtual environment, then drop the script into your ArcGIS toolbox. To avoid conflict with the system Python, the script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
 
 
 ## Usage
@@ -53,7 +60,8 @@ Dictionary keys:
 | `MODIFIED_GEOM` | records where geometries have changed but attribute columns have not |
 
 Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data.
-Schemas for records contained in the `MODIFIED` keys include only columns where a change has occured. For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
+Schemas for records contained in the `MODIFIED` keys include only columns where a change has occured.
+For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
 
     >>> diff["MODIFIED_ATTR"]
       id       park_name_a                park_name_b parkclasscode_a parkclasscode_b
@@ -136,8 +144,7 @@ Compare the test datasets using their known primary key:
         tests/data/parks_b.geojson \
         -pk fcd_load_id 
 
-Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, 
-written to `new_hash_column`:
+Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, written to `new_hash_column`:
 
     $ changedetector compare -v \
         tests/data/parks_a.geojson \
@@ -146,90 +153,13 @@ written to `new_hash_column`:
         -hk new_hash_column
 
 
-#### GUI
+#### ArcGIS
 
-A tkinter-based graphical interface is available for users who prefer not to use the command line. It wraps the `compare` and `add-hash-key` commands.
+The script tool calls the above documented CLI. Documentation of the parameters is also provided within the ArcGIS interface.
 
-**Launching the GUI**
-
-With the package installed and the environment active:
-
-    python src/fit_changedetector/gui.py
-
-On GTS, double-click `changedetector.vbs` in the repo root to launch without a console window.
-
-**Compare tab**
-
-| Field | Description |
-|-------|-------------|
-| Original file | Path to the baseline dataset |
-| └ Layer | Layer within the original file (auto-populated) |
-| New file | Path to the updated dataset |
-| └ Layer | Layer within the new file (auto-populated) |
-| Output folder | Folder to write the output `.gdb` (filename generated automatically) |
-| Primary key field(s) | Field(s) uniquely identifying records across both datasets |
-| Fields to INCLUDE in comparison | Limit comparison to these fields (leave blank to compare all) |
-| Fields to EXCLUDE from comparison | Fields to skip during comparison |
-| Hash field name | Column to create as a synthetic hash key (optional) |
-| Hash fields | Fields to include in the hash, in addition to geometry (optional) |
-| Suffix A / Suffix B | Suffixes appended to column names in `MODIFIED_*` output layers (defaults: `original` / `new`) |
-| Drop null geometry | Exclude records with null geometry before comparing |
-| Save input datasets to output .gdb | Write the hashed input layers to the output file |
-
-**Add Hash Key tab**
-
-| Field | Description |
-|-------|-------------|
-| Input file | Path to the source dataset |
-| └ Layer | Layer within the input file (auto-populated) |
-| Output file | Path to write the output file |
-| Output layer | Name for the output layer (optional) |
-| Output hash field name | Name of the new hash column (default: `fcd_hash_id`) |
-| Hash fields | Fields to include in the hash, in addition to geometry (optional) |
-| Drop null geometry | Exclude records with null geometry |
-
-Command output is streamed to the panel at the bottom of the window. A log file with the same name as the output `.gdb` is written alongside it.
-
-##### GTS
-
-Note that the CLI is not currently available in the BC GTS Esri Python/conda environments.  
-To use the CLI on GTS, open a "Python Command Prompt", initialize conda (if you have not already done so), deactivate the 
-default environment, and activate the pre-built `changedetector_env` environment:
-
-    > conda init cmd.exe  # if required
-
-    <restart the Python Command Prompt>
-    
-    > conda deactivate
-    > conda activate Q:\dss_workarea\_contractors\sinorris\conda_environments\changedetector_env
-    (changedetector_env)> changedetector --help
-    
-## Windows installer
-
-A self-extracting Windows installer can be built using [conda constructor](https://github.com/conda/constructor). The installer bundles Python, all geospatial dependencies, the CLI, and a desktop shortcut that launches the GUI.
-
-**Prerequisites** (on the build machine):
-
-    conda install constructor build
-
-**Build steps:**
-
-    # 1. Build the wheel
-    python -m build --wheel
-
-    # 2. Copy the wheel into the installer directory
-    copy dist\fit_changedetector-*.whl installer\
-
-    # 3. Build the installer
-    constructor installer\
-
-This produces a `FIT_ChangeDetector-<version>-Windows-x86_64.exe` installer. Running it on a Windows machine installs the environment and places a `FIT ChangeDetector.vbs` shortcut on the desktop.
-
-**Updating the version** — edit `version` in `installer/construct.yaml` and the wheel filename in `extra_files` to match `src/fit_changedetector/__init__.py`.
 
 ## Development and testing
 
-Presuming that GDAL is already installed to your system:
 
     $ git clone git@github.com:bcgov/FIT_changedetector.git
     $ cd FIT_changedetector
