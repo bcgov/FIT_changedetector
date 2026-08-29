@@ -528,3 +528,46 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
         str(tmp_path / "out.gdb"),
         primary_key=["id"],
     )
+
+
+def test_file_diff_single_vs_multipart_same_feature_unchanged(tmp_path, capsys):
+    """A feature that is single-part in one source and the equivalent
+    multi-part in the other must be treated as unchanged, not rejected
+    (geometry type mismatch) or spuriously flagged as modified.
+
+    file_diff() shares the same promote_to_multi step as diff_to_gdb() (via
+    _read_and_diff()) - it's not only about satisfying the .gdb driver on
+    write, gdf_diff() itself requires equivalent geometry types between
+    sources and would otherwise raise or misreport this case, even though
+    file_diff() never writes any spatial output at all.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(5, 5)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[MultiPoint([(0, 0)]), Point(5, 5)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "mixed_a.geojson"
+    path_b = tmp_path / "mixed_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    fcd.file_diff(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        primary_key=["id"],
+        counts_only=True,
+    )
+    counts = json.loads(capsys.readouterr().out)
+    assert counts == {
+        "NEW": 0,
+        "DELETED": 0,
+        "UNCHANGED": 2,
+        "MODIFIED_BOTH": 0,
+        "MODIFIED_ATTR": 0,
+        "MODIFIED_GEOM": 0,
+    }

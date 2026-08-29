@@ -688,7 +688,11 @@ def _read_and_diff(
     df_b, src_b = _read_source(file_b, layer_b, "b")
 
     # promote mixed single/multipart features to multipart
-    # (shapefiles can have mixed types, but the .gdb driver does not accept this)
+    # (shapefiles can have mixed types; the .gdb driver does not accept this on
+    # write, but more fundamentally, gdf_diff() requires equivalent geometry
+    # types between sources and would otherwise raise, or - for a feature that's
+    # single-part in one source and the equivalent multi-part in the other -
+    # spuriously report it as MODIFIED_GEOM rather than unchanged)
     types_a = sorted(
         [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()],
         key=len,
