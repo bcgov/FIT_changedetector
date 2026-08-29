@@ -262,7 +262,10 @@ def _validate_and_prepare_diff_inputs(
 
     Also resolves *fields* to its final list (common fields when none given,
     always including the primary key and geometry), standardizes the geometry
-    column name, and drops esri-generated area/length fields.
+    column name, drops esri-generated area/length fields, and (for spatial
+    sources) promotes mixed single/multipart geometries to multipart - see
+    the promotion's inline comment for why this needs to happen before the
+    geometry type equivalence check, not just before writing to .gdb.
 
     Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial), where df_a/df_b
     are filtered to the resolved fields and df_a_src/df_b_src are unfiltered
@@ -366,22 +369,38 @@ def _validate_and_prepare_diff_inputs(
 
     # some spatial data checks for typical issues
     if spatial:
-        # ensure geometry types are equivalent
-        types_a = sorted(
-            [
-                t.upper()
-                for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()
-            ],
-            key=len,
-        )
-        types_b = sorted(
-            [
-                t.upper()
-                for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()
-            ],
-            key=len,
-        )
 
+        def _geom_types(df):
+            return sorted(
+                [
+                    t.upper()
+                    for t in df.geometry.geom_type.dropna(axis=0, how="all").unique()
+                ],
+                key=len,
+            )
+
+        types_a = _geom_types(df_a)
+        types_b = _geom_types(df_b)
+
+        # promote mixed single/multipart features to multipart within each
+        # source (shapefiles can have mixed types; the .gdb driver does not
+        # accept this on write, but more fundamentally, without this a
+        # feature that's single-part in one source and multi-part in the
+        # other would otherwise fail the geometry type equivalence check
+        # below, or be spuriously reported as MODIFIED_GEOM rather than
+        # unchanged)
+        if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
+            len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
+        ):
+            LOG.info(
+                "Mixed singlepart/multipart geometries found, promoting all to multipart"
+            )
+            df_a = promote_to_multi(df_a)
+            df_b = promote_to_multi(df_b)
+            types_a = _geom_types(df_a)
+            types_b = _geom_types(df_b)
+
+        # ensure geometry types are equivalent
         if types_a != types_b:
             raise ValueError(
                 f"Geometry types {','.join(list(types_a))} and {','.join(list(types_b))} "
@@ -686,28 +705,6 @@ def _read_and_diff(
     # load source data (src_a/src_b are shortcuts to source layer paths for logging)
     df_a, src_a = _read_source(file_a, layer_a, "a")
     df_b, src_b = _read_source(file_b, layer_b, "b")
-
-    # promote mixed single/multipart features to multipart
-    # (shapefiles can have mixed types, but the .gdb driver does not accept this)
-    types_a = sorted(
-        [t.upper() for t in df_a.geometry.geom_type.dropna(axis=0, how="all").unique()],
-        key=len,
-    )
-    types_b = sorted(
-        [t.upper() for t in df_b.geometry.geom_type.dropna(axis=0, how="all").unique()],
-        key=len,
-    )
-
-    # if more than one type of geometry present in one of the sources, promote both sources
-    # to multipart
-    if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
-        len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
-    ):
-        LOG.info(
-            "Mixed singlepart/multipart geometries found, promoting all to multipart"
-        )
-        df_a = promote_to_multi(df_a)
-        df_b = promote_to_multi(df_b)
 
     # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
