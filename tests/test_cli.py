@@ -37,7 +37,8 @@ def test_diff2gdb_pk(tmp_path):
 
 def test_diff_pk(tmp_path, monkeypatch):
     """diff produces the same counts as diff2gdb(), as JSON to stdout, and
-    writes no output file at all."""
+    writes no output file at all. By default, also includes a "keys" section
+    listing the primary key value(s) present in each category."""
     repo_root = os.getcwd()
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -53,6 +54,38 @@ def test_diff_pk(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0
     assert os.listdir(tmp_path) == []
+    output = json.loads(result.output)
+    counts = {k: v for k, v in output.items() if k != "keys"}
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
+    assert set(output["keys"].keys()) == set(counts.keys())
+    for key, count in counts.items():
+        assert len(output["keys"][key]) == count
+
+
+def test_diff_pk_count(tmp_path, monkeypatch):
+    """--count omits the "keys" section, printing just the record counts."""
+    repo_root = os.getcwd()
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            os.path.join(repo_root, "tests/data/parks_a.geojson"),
+            os.path.join(repo_root, "tests/data/parks_b.geojson"),
+            "-pk",
+            "id",
+            "--count",
+        ],
+    )
+    assert result.exit_code == 0
     counts = json.loads(result.output)
     assert counts == {
         "NEW": 1,
@@ -62,6 +95,7 @@ def test_diff_pk(tmp_path, monkeypatch):
         "MODIFIED_ATTR": 4,
         "MODIFIED_GEOM": 1,
     }
+    assert "keys" not in counts
 
 
 def test_diff2gdb_stdin(tmp_path):

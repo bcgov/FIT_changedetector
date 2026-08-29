@@ -83,7 +83,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
 
     Commands:
       add-hash-key  Read input data, compute hash, write to new file
-      diff          Compare two datasets, printing a JSON summary of record...
+      diff          Compare two datasets, printing a JSON summary to stdout
       diff2gdb      Compare two datasets, writing results to .gdb
 
     $ changedetector add-hash-key --help
@@ -109,11 +109,13 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
     $ changedetector diff --help
     Usage: changedetector diff [OPTIONS] IN_FILE_A IN_FILE_B
 
-      Compare two datasets, printing a JSON summary of record counts to stdout
+      Compare two datasets, printing a JSON summary to stdout
 
       Same comparison as `diff2gdb`, but for when spatial output isn't needed -
-      prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
-      instead of writing a .gdb.
+      prints a JSON summary instead of writing a .gdb: record counts per
+      NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
+      present in each category (use --count to omit the key lists and print just the
+      counts).
 
       IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
 
@@ -139,6 +141,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -d, --drop-null-geometry   Drop records with null geometry
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
+      -c, --count                Print only record counts, omitting the primary key
+                                 values in each category
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
@@ -202,6 +206,14 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
 
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
         changedetector diff2gdb -v - tests/data/parks_b.geojson -pk id
+
+`diff` prints record counts per category plus the primary key value(s) present in each by default; add `--count`/`-c` to print just the counts:
+
+    $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id
+    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1, "keys": {"NEW": ["8"], "DELETED": ["2"], "UNCHANGED": ["1"], "MODIFIED_BOTH": ["5"], "MODIFIED_ATTR": ["3", "6", "7", "9"], "MODIFIED_GEOM": ["4"]}}
+
+    $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id --count
+    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1}
 
 ##### Usage notes
 

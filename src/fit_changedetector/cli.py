@@ -322,6 +322,12 @@ def diff2gdb(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
 )
+@click.option(
+    "--count",
+    "-c",
+    is_flag=True,
+    help="Print only record counts, omitting the primary key values in each category",
+)
 @verbose_opt
 @quiet_opt
 def diff(
@@ -339,14 +345,17 @@ def diff(
     suffix_b,
     drop_null_geometry,
     crs,
+    count,
     verbose,
     quiet,
 ):
-    """Compare two datasets, printing a JSON summary of record counts to stdout
+    """Compare two datasets, printing a JSON summary to stdout
 
     Same comparison as `diff2gdb`, but for when spatial output isn't needed -
-    prints record counts per NEW/DELETED/UNCHANGED/MODIFIED_* category as JSON
-    instead of writing a .gdb.
+    prints a JSON summary instead of writing a .gdb: record counts per
+    NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
+    present in each category (use --count to omit the key lists and print
+    just the counts).
 
     IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
     """
@@ -373,6 +382,7 @@ def diff(
         hash_key=hash_key,
         hash_fields=hash_fields,
         precision=precision,
+        counts_only=count,
     )
 
 

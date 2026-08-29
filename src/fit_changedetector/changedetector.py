@@ -821,14 +821,16 @@ def file_diff(
     hash_key=None,
     hash_fields=None,
     precision=0.01,
+    counts_only=False,
 ):
     """
-    Compare two datasets as per diff_to_gdb(), but instead of writing spatial
-    output, print a minimal JSON summary (record counts per category) to
-    stdout - for the common case of just wanting to know what changed, not a
-    .gdb of the changes.
+    Compare two datasets, print a JSON summary to stdout.
+
+    By default, includes record counts per category plus a "keys" section
+    listing the primary key value(s) present in each category. If
+    counts_only, print just the counts.
     """
-    result, _, _, _, _ = _read_and_diff(
+    result, _, _, resolved_primary_key, _ = _read_and_diff(
         file_a,
         file_b,
         layer_a,
@@ -844,8 +846,11 @@ def file_diff(
         hash_fields,
         precision,
     )
-    counts = {key: len(df) for key, df in result.items()}
-    print(json.dumps(counts))
+    summary = {key: len(df) for key, df in result.items()}
+    if not counts_only:
+        pk_name = resolved_primary_key[0]
+        summary["keys"] = {key: df[pk_name].tolist() for key, df in result.items()}
+    print(json.dumps(summary))
 
 
 def diff_to_gdb(
