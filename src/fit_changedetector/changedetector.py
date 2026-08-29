@@ -824,9 +824,7 @@ def file_diff(
     counts_only=False,
 ):
     """
-    Compare two datasets as per diff_to_gdb(), but instead of writing spatial
-    output, print a JSON summary to stdout - for the common case of just
-    wanting to know what changed, not a .gdb of the changes.
+    Compare two datasets, print a JSON summary to stdout.
 
     By default, includes record counts per category plus a "keys" section
     listing the primary key value(s) present in each category. If
