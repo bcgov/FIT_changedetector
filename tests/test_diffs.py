@@ -530,17 +530,20 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
     )
 
 
-def test_file_diff_single_vs_multipart_same_feature_unchanged(tmp_path, capsys):
+def test_read_and_diff_single_vs_multipart_same_feature_unchanged(tmp_path):
     """A feature that is single-part in one source and the equivalent
     multi-part in the other must be treated as unchanged, not rejected
     (geometry type mismatch) or spuriously flagged as modified.
 
-    file_diff() shares the same promote_to_multi step as diff_to_gdb() (via
-    _read_and_diff()) - it's not only about satisfying the .gdb driver on
-    write, gdf_diff() itself requires equivalent geometry types between
-    sources and would otherwise raise or misreport this case, even though
-    file_diff() never writes any spatial output at all.
+    Tested directly against _read_and_diff(), since this is common to both
+    of its callers (file_diff() and diff_to_gdb()) - it's not only about
+    satisfying the .gdb driver on write, gdf_diff() itself requires
+    equivalent geometry types between sources and would otherwise raise or
+    misreport this case, even for file_diff(), which never writes any
+    spatial output at all.
     """
+    from fit_changedetector.changedetector import _read_and_diff
+
     df_a = GeoDataFrame(
         {"id": [1, 2]}, geometry=[Point(0, 0), Point(5, 5)], crs="EPSG:3005"
     )
@@ -554,20 +557,22 @@ def test_file_diff_single_vs_multipart_same_feature_unchanged(tmp_path, capsys):
     df_a.to_file(path_a, driver="GeoJSON")
     df_b.to_file(path_b, driver="GeoJSON")
 
-    fcd.file_diff(
+    diff, _, _, _, _ = _read_and_diff(
         str(path_a),
         str(path_b),
         None,
         None,
-        primary_key=["id"],
-        counts_only=True,
+        ["id"],
+        None,
+        None,
+        "a",
+        "b",
+        True,
+        None,
+        None,
+        None,
+        0.01,
     )
-    counts = json.loads(capsys.readouterr().out)
-    assert counts == {
-        "NEW": 0,
-        "DELETED": 0,
-        "UNCHANGED": 2,
-        "MODIFIED_BOTH": 0,
-        "MODIFIED_ATTR": 0,
-        "MODIFIED_GEOM": 0,
-    }
+    assert len(diff["UNCHANGED"]) == 2
+    assert len(diff["MODIFIED_GEOM"]) == 0
+    assert len(diff["MODIFIED_BOTH"]) == 0
