@@ -235,12 +235,24 @@ Neither `diff` nor `diff2gdb` have a bounding box / spatial filtering option, an
     $ ogr2ogr -f GeoJSON /vsistdout/ dataset_a.gpkg -spat 1150000 470000 1200000 500000 | \
         changedetector diff2gdb -v - dataset_b.gpkg -pk id
 
-Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `diff`/`diff2gdb` and results involving curved input should not be relied on.
-
 
 #### ArcGIS
 
 The script tool calls the above documented CLI. Documentation of the parameters is also provided within the ArcGIS interface.
+
+## Subtleties to geometry change detection
+
+Prior to comparing geometries, the tool will:
+
+- normalize geometries (vertex order/starting point or ring winding direction)
+- promote mixed single/multipart types to multipart (when a source contains both variants — a uniformly single-part source compared against a uniformly multi-part source will still raise a type mismatch)
+- apply coordinate precision tolerance (`-p`/`--precision`, default 0.01)
+
+On the other hand, a new vertex in an otherwise unchanged geometry will be considered as MODIFIED_GEOM.
+See geopandas [geom_equals_exact](https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoSeries.geom_equals_exact.html) for details.
+
+Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `diff`/`diff2gdb` and results involving curved input should not be relied on.
+
 
 
 ## Development and testing
