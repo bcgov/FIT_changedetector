@@ -530,20 +530,16 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
     )
 
 
-def test_read_and_diff_single_vs_multipart_same_feature_unchanged(tmp_path):
+def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
     """A feature that is single-part in one source and the equivalent
     multi-part in the other must be treated as unchanged, not rejected
     (geometry type mismatch) or spuriously flagged as modified.
 
-    Tested directly against _read_and_diff(), since this is common to both
-    of its callers (file_diff() and diff_to_gdb()) - it's not only about
-    satisfying the .gdb driver on write, gdf_diff() itself requires
-    equivalent geometry types between sources and would otherwise raise or
-    misreport this case, even for file_diff(), which never writes any
-    spatial output at all.
+    The promotion making this work lives in _validate_and_prepare_diff_inputs(),
+    so it applies to every gdf_diff() caller uniformly - not just the
+    file-reading path (file_diff()/diff_to_gdb() via _read_and_diff()), but
+    also direct Python API usage as documented in the README.
     """
-    from fit_changedetector.changedetector import _read_and_diff
-
     df_a = GeoDataFrame(
         {"id": [1, 2]}, geometry=[Point(0, 0), Point(5, 5)], crs="EPSG:3005"
     )
@@ -552,27 +548,7 @@ def test_read_and_diff_single_vs_multipart_same_feature_unchanged(tmp_path):
         geometry=[MultiPoint([(0, 0)]), Point(5, 5)],
         crs="EPSG:3005",
     )
-    path_a = tmp_path / "mixed_a.geojson"
-    path_b = tmp_path / "mixed_b.geojson"
-    df_a.to_file(path_a, driver="GeoJSON")
-    df_b.to_file(path_b, driver="GeoJSON")
-
-    diff, _, _, _, _ = _read_and_diff(
-        str(path_a),
-        str(path_b),
-        None,
-        None,
-        ["id"],
-        None,
-        None,
-        "a",
-        "b",
-        True,
-        None,
-        None,
-        None,
-        0.01,
-    )
-    assert len(diff["UNCHANGED"]) == 2
-    assert len(diff["MODIFIED_GEOM"]) == 0
-    assert len(diff["MODIFIED_BOTH"]) == 0
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id")
+    assert len(d["UNCHANGED"]) == 2
+    assert len(d["MODIFIED_GEOM"]) == 0
+    assert len(d["MODIFIED_BOTH"]) == 0
