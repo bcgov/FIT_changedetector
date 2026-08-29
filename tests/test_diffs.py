@@ -534,11 +534,6 @@ def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
     """A feature that is single-part in one source and the equivalent
     multi-part in the other must be treated as unchanged, not rejected
     (geometry type mismatch) or spuriously flagged as modified.
-
-    The promotion making this work lives in _validate_and_prepare_diff_inputs(),
-    so it applies to every gdf_diff() caller uniformly - not just the
-    file-reading path (file_diff()/diff_to_gdb() via _read_and_diff()), but
-    also direct Python API usage as documented in the README.
     """
     df_a = GeoDataFrame(
         {"id": [1, 2]}, geometry=[Point(0, 0), Point(5, 5)], crs="EPSG:3005"

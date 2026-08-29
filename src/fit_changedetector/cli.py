@@ -367,7 +367,7 @@ def diff(
     primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
-    fcd.file_diff(
+    fcd.diff_to_json(
         in_file_a,
         in_file_b,
         layer_a,
