@@ -152,6 +152,43 @@ def promote_to_multi(df):
     return df
 
 
+def _geom_types(df):
+    """Sorted, upper-cased, deduplicated geometry type names present in df.
+
+    Sorted by name length, so a base type (e.g. "LINESTRING") always sorts
+    before its "MULTI*" equivalent - see _has_mixed_single_multipart.
+    """
+    return sorted(
+        [t.upper() for t in df.geometry.geom_type.dropna(axis=0, how="all").unique()],
+        key=len,
+    )
+
+
+def _has_mixed_single_multipart(types):
+    """True if types (from _geom_types) contains both a base type and its
+    MULTI* equivalent, e.g. ["LINESTRING", "MULTILINESTRING"].
+    """
+    return len(types) > 1 and types[1] == "MULTI" + types[0]
+
+
+def _promote_if_mixed(df_a, df_b):
+    """If df_a or df_b mixes single/multipart geometries of the same base type
+    (e.g. Point + MultiPoint present in one source), promote all geometries in
+    both df_a and df_b to multipart, so every downstream comparison/output
+    sees a single, uniform geometry type. No-op (returns df_a/df_b unchanged)
+    if no mix is present.
+    """
+    types_a = _geom_types(df_a)
+    types_b = _geom_types(df_b)
+    if _has_mixed_single_multipart(types_a) or _has_mixed_single_multipart(types_b):
+        LOG.info(
+            "Mixed singlepart/multipart geometries found, promoting all to multipart"
+        )
+        df_a = promote_to_multi(df_a)
+        df_b = promote_to_multi(df_b)
+    return df_a, df_b
+
+
 def add_hash_key(
     df,
     new_field,
@@ -369,36 +406,32 @@ def _validate_and_prepare_diff_inputs(
 
     # some spatial data checks for typical issues
     if spatial:
-
-        def _geom_types(df):
-            return sorted(
-                [
-                    t.upper()
-                    for t in df.geometry.geom_type.dropna(axis=0, how="all").unique()
-                ],
-                key=len,
-            )
-
-        types_a = _geom_types(df_a)
-        types_b = _geom_types(df_b)
-
         # promote mixed single/multipart features to multipart within each
         # source (shapefiles can have mixed types; the .gdb driver does not
         # accept this on write, but more fundamentally, without this a
         # feature that's single-part in one source and multi-part in the
         # other would otherwise fail the geometry type equivalence check
         # below, or be spuriously reported as MODIFIED_GEOM rather than
-        # unchanged)
-        if (len(types_a) > 1 and types_a[1] == "MULTI" + types_a[0]) or (
-            len(types_b) > 1 and types_b[1] == "MULTI" + types_b[0]
+        # unchanged).
+        # Also promote df_a_src/df_b_src (the unfiltered copies gdf_diff uses
+        # to rebuild full-schema NEW/DELETED/MODIFIED_GEOM/dumped-source
+        # outputs) - otherwise those outputs retain the original mixed types
+        # and writing them to .gdb fails with "Unsupported geometry type".
+        # (_read_and_diff already promotes df_a/df_b before this point, so
+        # for diff_to_gdb/diff_to_json this is a no-op; it still matters for
+        # gdf_diff() called directly with mixed-type input.)
+        if _has_mixed_single_multipart(_geom_types(df_a)) or _has_mixed_single_multipart(
+            _geom_types(df_b)
         ):
             LOG.info(
                 "Mixed singlepart/multipart geometries found, promoting all to multipart"
             )
             df_a = promote_to_multi(df_a)
             df_b = promote_to_multi(df_b)
-            types_a = _geom_types(df_a)
-            types_b = _geom_types(df_b)
+            df_a_src = promote_to_multi(df_a_src)
+            df_b_src = promote_to_multi(df_b_src)
+        types_a = _geom_types(df_a)
+        types_b = _geom_types(df_b)
 
         # ensure geometry types are equivalent
         if types_a != types_b:
@@ -706,6 +739,19 @@ def _read_and_diff(
     df_a, src_a = _read_source(file_a, layer_a, "a")
     df_b, src_b = _read_source(file_b, layer_b, "b")
 
+    # promote mixed single/multipart geometries to multipart in both sources
+    # before anything else: gdf_diff/_validate_and_prepare_diff_inputs does
+    # this too, but only on its own internal copies, too late to help here -
+    # a mixed source hashed on raw (unpromoted) geometry below would hash a
+    # feature stored single-part in one source and multi-part in the other
+    # to different values (spurious NEW+DELETED instead of UNCHANGED), and
+    # writing the dump_inputs source_a/source_b layers with mixed types
+    # fails outright ("Unsupported geometry type")
+    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
+        df_b, geopandas.GeoDataFrame
+    ):
+        df_a, df_b = _promote_if_mixed(df_a, df_b)
+
     # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
         hash_geometry = False
@@ -815,7 +861,7 @@ def diff_to_json(
     suffix_b="b",
     drop_null_geometry=True,
     crs=None,
-    hash_key=None,
+    hash_key="fcd_hash_id",
     hash_fields=None,
     precision=0.01,
     counts_only=False,
@@ -863,7 +909,7 @@ def diff_to_gdb(
     suffix_b="b",
     drop_null_geometry=True,
     crs=None,
-    hash_key=None,
+    hash_key="fcd_hash_id",
     hash_fields=None,
     precision=0.01,
     dump_inputs=False,

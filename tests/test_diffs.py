@@ -2,9 +2,17 @@ import json
 
 import geopandas
 import pandas
+import pyogrio
 import pytest
 from geopandas import GeoDataFrame
-from shapely.geometry import GeometryCollection, MultiPoint, Point, Polygon
+from shapely.geometry import (
+    GeometryCollection,
+    LineString,
+    MultiLineString,
+    MultiPoint,
+    Point,
+    Polygon,
+)
 
 import fit_changedetector as fcd
 from fit_changedetector.changedetector import _validate_and_prepare_diff_inputs
@@ -528,6 +536,170 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
         str(tmp_path / "out.gdb"),
         primary_key=["id"],
     )
+
+
+def test_diff_to_gdb_mixed_multipart_no_primary_key_writes_ok(tmp_path):
+    """Regression test for a real-world crash: a source mixing single/multipart
+    geometries of the same base type (e.g. a shapefile with mostly LineString
+    plus a few MultiLineString features) must not crash diff_to_gdb when no
+    primary key is given.
+
+    With no primary key, diff_to_gdb hashes on geometry, which forces
+    dump_inputs - writing the (previously unpromoted) source_a/source_b
+    layers to .gdb. promote_to_multi was only applied to the internal
+    comparison copies inside _validate_and_prepare_diff_inputs, not to these
+    dumped layers (nor, for the same reason, to NEW/DELETED/MODIFIED_GEOM,
+    which are rebuilt from equally unpromoted df_a_src/df_b_src) - so a real
+    mixed-type source hit pyogrio's OpenFileGDB writer with a genuine mix of
+    types and failed with "Unsupported geometry type".
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[
+            LineString([(0, 0), (1, 1)]),
+            LineString([(2, 2), (3, 3)]),
+            MultiLineString([[(4, 4), (5, 5)]]),
+        ],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[
+            LineString([(0, 0), (1, 1)]),  # unchanged
+            LineString([(2, 2), (3, 3), (3, 4)]),  # modified -> new hash
+            MultiLineString([[(6, 6), (7, 7)]]),  # modified -> new hash
+        ],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "mixed_a.geojson"
+    path_b = tmp_path / "mixed_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+
+    # every layer written must be uniformly promoted to multipart - a real
+    # mix of single/multipart types in any written layer is exactly what
+    # OpenFileGDB rejects
+    for layer in pyogrio.list_layers(out_file)[:, 0]:
+        gdf = geopandas.read_file(out_file, layer=layer)
+        assert set(gdf.geom_type) <= {"MultiLineString"}
+
+
+def test_diff_to_gdb_uniform_singlepart_not_promoted(tmp_path):
+    """Confirms promotion is opt-in per the mixed-type check: a source with no
+    multipart features at all (uniformly single-part in both sources) must
+    not be promoted - output geometries stay Point, not MultiPoint.
+
+    (Point/MultiPoint is used rather than LineString/Polygon here because
+    OpenFileGDB's Polyline/Polygon feature classes are inherently multipart -
+    a uniformly single-part LineString source round-trips as MultiLineString
+    through OpenFileGDB regardless of promote_to_multi, so that round trip
+    can't distinguish "promoted" from "not promoted". Point vs Multipoint are
+    distinct ESRI feature classes, so the round trip is meaningful here.)
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[Point(0, 0), Point(2, 2)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[
+            Point(0, 0),  # unchanged
+            Point(3, 3),  # modified -> new hash
+        ],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "single_a.geojson"
+    path_b = tmp_path / "single_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+
+    written_layers = pyogrio.list_layers(out_file)[:, 0]
+    assert len(written_layers) > 0
+    for layer in written_layers:
+        gdf = geopandas.read_file(out_file, layer=layer)
+        assert set(gdf.geom_type) <= {"Point"}
+
+
+def test_diff_to_gdb_no_primary_key_null_geometry(tmp_path):
+    """When no primary key is supplied, diff_to_gdb hashes on geometry to link
+    records - a null geometry cannot be hashed, so with the default
+    drop_null_geometry=True it must be dropped (with a warning) rather than
+    raising, and simply excluded from the diff entirely (not reported under
+    any category, in either source).
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2, 3], "name": ["a1", "a2", "a3"]},
+        geometry=[Point(0, 0), Point(1, 1), None],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2, 3], "name": ["a1", "a2", "b3"]},
+        geometry=[Point(0, 0), None, Point(3, 3)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "null_geom_a.geojson"
+    path_b = tmp_path / "null_geom_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        out_file,
+    )
+    # df_a's id=2 (Point(1,1)) has no geometry match in df_b -> deleted
+    deleted = geopandas.read_file(out_file, layer="DELETED")
+    assert list(deleted["id"]) == [2]
+    # df_b's id=3 (Point(3,3)) has no geometry match in df_a -> new
+    new = geopandas.read_file(out_file, layer="NEW")
+    assert list(new["id"]) == [3]
+    # id=1 (Point(0,0), unchanged in both) is the only record with a
+    # comparable geometry in both sources - diff_to_gdb does not write an
+    # UNCHANGED layer at all, and (since id=1 is unchanged) no MODIFIED_*
+    # layers either; df_a's id=3 and df_b's id=2 (both null geometry) are
+    # dropped entirely rather than appearing anywhere, including the dumped
+    # source_a/source_b layers (always written when no primary key is given)
+    written_layers = set(pyogrio.list_layers(out_file)[:, 0])
+    assert written_layers == {"NEW", "DELETED", "source_a", "source_b"}
+    assert sorted(geopandas.read_file(out_file, layer="source_a")["id"]) == [1, 2]
+    assert sorted(geopandas.read_file(out_file, layer="source_b")["id"]) == [1, 3]
+
+
+def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
+    """With drop_null_geometry=False, a null geometry in either source cannot
+    be hashed and must raise rather than being silently dropped or crashing
+    on a downstream operation.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    path_a = tmp_path / "null_geom_a.geojson"
+    path_b = tmp_path / "null_geom_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    with pytest.raises(ValueError, match="Cannot reliably hash null geometries"):
+        fcd.diff_to_gdb(
+            str(path_a),
+            str(path_b),
+            None,
+            None,
+            str(tmp_path / "out.gdb"),
+            drop_null_geometry=False,
+        )
 
 
 def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
