@@ -474,9 +474,9 @@ def test_validate_diff_inputs_duplicate_primary_key_allow_duplicates():
         out_a,
         out_b,
         src_a,
-        src_b,
-        fields,
-        spatial,
+        _src_b,
+        _fields,
+        _spatial,
         duplicates_a,
         duplicates_b,
     ) = _validate_and_prepare_diff_inputs(
