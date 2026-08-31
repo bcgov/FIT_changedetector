@@ -872,6 +872,39 @@ def test_diff_to_gdb_allow_duplicates_writes_duplicates_layer(tmp_path):
     assert duplicates["_fcd_source_"].iloc[0] == "a"
 
 
+def test_diff_to_gdb_allow_duplicates_hash_generated_primary_key(tmp_path):
+    """allow_duplicates must also cover a hash-generated primary key, not just
+    a caller-supplied one: with no primary key given, diff_to_gdb hashes on
+    geometry via add_hash_key - which has its own, earlier duplicate-hash
+    check (a hash collision, e.g. two records with identical geometry in one
+    source) that must also respect allow_duplicates, rather than always
+    raising regardless of the flag.
+    """
+    df_a = GeoDataFrame(
+        {"name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"name": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "hash_dupes_a.geojson"
+    path_b = tmp_path / "hash_dupes_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        str(path_a), str(path_b), None, None, out_file, allow_duplicates=True
+    )
+    duplicates = geopandas.read_file(out_file, layer="DUPLICATES")
+    assert len(duplicates) == 1
+    assert duplicates["name"].iloc[0] == "a1"
+    assert duplicates["_fcd_source_"].iloc[0] == "a"
+
+
 def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
     """A feature that is single-part in one source and the equivalent
     multi-part in the other must be treated as unchanged, not rejected

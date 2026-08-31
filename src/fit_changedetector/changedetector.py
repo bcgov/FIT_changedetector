@@ -905,6 +905,9 @@ def _read_and_diff(
     # add hashed key
     # - hash multi column primary keys (without geom) for simplicity
     # - hash with geometry if no primary key specified
+    # allow_duplicates is passed through so a hash collision (two records
+    # hashing identically within one source) is deferred to gdf_diff's own
+    # duplicate-primary-key handling below, rather than raising here
     hashed = False
     if hash_geometry or len(primary_key) > 1:
         LOG.info(f"Adding hashed key to source_{suffix_a} as {hash_key}")
@@ -915,6 +918,7 @@ def _read_and_diff(
             hash_geometry=hash_geometry,
             precision=precision,
             drop_null_geometry=drop_null_geometry,
+            allow_duplicates=allow_duplicates,
         )
         LOG.info(f"Adding hashed key to source_{suffix_b} as {hash_key}")
         df_b = fcd.add_hash_key(
@@ -924,6 +928,7 @@ def _read_and_diff(
             hash_geometry=hash_geometry,
             precision=precision,
             drop_null_geometry=drop_null_geometry,
+            allow_duplicates=allow_duplicates,
         )
         primary_key = [hash_key]
         hashed = True
