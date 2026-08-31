@@ -4,6 +4,9 @@
 # paste this into the Validation tab of the script tool properties
 # filename matches the ArcGIS ToolValidator class convention, not a PEP 8 module name
 
+# this runs inside ArcGIS Pro's own Python, not the tool's venv, so it can't
+# import fit_changedetector.id_fields/area_length_fields - keep the OBJECTID/
+# OID_/FID/SHAPE*/GEOMETRY* entries below in sync with those by hand
 IGNORE_FIELDS = [
     "OBJECTID",
     "OID_",  # ArcPro adds this to csv files

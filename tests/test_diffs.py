@@ -15,7 +15,10 @@ from shapely.geometry import (
 )
 
 import fit_changedetector as fcd
-from fit_changedetector.changedetector import _validate_and_prepare_diff_inputs
+from fit_changedetector.changedetector import (
+    _read_and_diff,
+    _validate_and_prepare_diff_inputs,
+)
 
 
 @pytest.fixture
@@ -627,6 +630,91 @@ def test_diff_to_gdb_uniform_singlepart_not_promoted(tmp_path):
         assert set(gdf.geom_type) <= {"Point"}
 
 
+def test_diff_to_gdb_duplicate_objectid_dropped(tmp_path):
+    """Regression test for a real-world crash: a source with a field literally
+    named "objectid" containing duplicate values (a common case - it's often
+    just the source's row order, not a stable identifier) must not crash
+    diff_to_gdb when no primary key is given.
+
+    GDAL's OpenFileGDB writer auto-maps a field named OBJECTID/FID/OID_
+    (case-insensitive) to the layer's actual feature id rather than
+    generating its own, so writing any output that retains such a field with
+    duplicate values fails with "Cannot create feature of ID <n> because one
+    already exists". fcd.id_fields must be dropped everywhere (comparison
+    copies, *_src copies, and the dump_inputs source_a/source_b layers), not
+    just from the attribute-comparison step.
+    """
+    df_a = GeoDataFrame(
+        {"objectid": [1, 2, 2], "name": ["a1", "a2", "a3"]},
+        geometry=[Point(0, 0), Point(1, 1), Point(2, 2)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"objectid": [1, 2, 2], "name": ["a1", "a2", "b3"]},
+        geometry=[Point(0, 0), Point(1, 1), Point(3, 3)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "dup_objectid_a.geojson"
+    path_b = tmp_path / "dup_objectid_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+
+    for layer in pyogrio.list_layers(out_file)[:, 0]:
+        gdf = geopandas.read_file(out_file, layer=layer)
+        assert "objectid" not in [c.lower() for c in gdf.columns]
+
+
+def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
+    """A field named OBJECTID/FID/OID_ is only auto-dropped when the caller
+    hasn't asked for it - if explicitly used as the primary key (a reasonable
+    choice when it happens to be unique in both sources), it must be kept for
+    diffing.
+
+    Checked against the in-memory diff (via _read_and_diff directly) rather
+    than a written .gdb: ESRI file geodatabases always treat a column named
+    OBJECTID as the layer's own row id, never as regular attribute data - so
+    even correctly-preserved-for-diffing "objectid" values wouldn't survive a
+    write/read round trip as a data column, regardless of this drop/keep
+    logic (a driver-level ESRI convention, not something to work around).
+    """
+    df_a = GeoDataFrame(
+        {"objectid": [1, 2], "name": ["a1", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"objectid": [1, 2], "name": ["a1", "b2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "pk_objectid_a.geojson"
+    path_b = tmp_path / "pk_objectid_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    diff, _, _, primary_key, _ = _read_and_diff(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        ["objectid"],
+        None,
+        None,
+        "a",
+        "b",
+        True,
+        None,
+        "fcd_hash_id",
+        None,
+        0.01,
+    )
+    assert primary_key == ["objectid"]
+    assert list(diff["MODIFIED_ATTR"]["objectid"]) == [2]
+
+
 def test_diff_to_gdb_no_primary_key_null_geometry(tmp_path):
     """When no primary key is supplied, diff_to_gdb hashes on geometry to link
     records - a null geometry cannot be hashed, so with the default
@@ -680,9 +768,7 @@ def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
     be hashed and must raise rather than being silently dropped or crashing
     on a downstream operation.
     """
-    df_a = GeoDataFrame(
-        {"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005"
-    )
+    df_a = GeoDataFrame({"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005")
     df_b = GeoDataFrame(
         {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
     )

@@ -189,6 +189,39 @@ def _promote_if_mixed(df_a, df_b):
     return df_a, df_b
 
 
+def _prepare_sources(df_a, df_b, keep_fields, label_a="a", label_b="b"):
+    """Promote mixed single/multipart geometries (see _promote_if_mixed), and
+    drop ESRI-reserved id fields (OBJECTID/OID_/FID, see fcd.id_fields) not in
+    keep_fields, from both df_a and df_b.
+
+    Shared by _read_and_diff() (whose own df_a/df_b are what dump_inputs
+    writes directly to .gdb) and _validate_and_prepare_diff_inputs() (called
+    both via _read_and_diff, and directly by a gdf_diff() caller) - keeping
+    this in one place means it can't land in one of those copies but not
+    another, which is exactly what caused past bugs here (mixed types/a
+    duplicated OBJECTID crashing a .gdb write that only one of the two
+    "identical-looking" code paths had been fixed to avoid).
+
+    keep_fields is a set of upper-cased field names to exclude from the
+    id-field drop even if they match fcd.id_fields - e.g. a caller-chosen
+    primary key or comparison field.
+    """
+    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
+        df_b, geopandas.GeoDataFrame
+    ):
+        df_a, df_b = _promote_if_mixed(df_a, df_b)
+
+    for f in list(df_a.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            LOG.info(f"Dropping reserved id field {f} from source_{label_a}")
+            df_a = df_a.drop(columns=[f])
+    for f in list(df_b.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            LOG.info(f"Dropping reserved id field {f} from source_{label_b}")
+            df_b = df_b.drop(columns=[f])
+    return df_a, df_b
+
+
 def add_hash_key(
     df,
     new_field,
@@ -299,10 +332,9 @@ def _validate_and_prepare_diff_inputs(
 
     Also resolves *fields* to its final list (common fields when none given,
     always including the primary key and geometry), standardizes the geometry
-    column name, drops esri-generated area/length fields, and (for spatial
-    sources) promotes mixed single/multipart geometries to multipart - see
-    the promotion's inline comment for why this needs to happen before the
-    geometry type equivalence check, not just before writing to .gdb.
+    column name, drops esri-generated area/length and reserved id fields (see
+    fcd.area_length_fields/fcd.id_fields), and (for spatial sources) promotes
+    mixed single/multipart geometries to multipart (see _prepare_sources).
 
     Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial), where df_a/df_b
     are filtered to the resolved fields and df_a_src/df_b_src are unfiltered
@@ -341,6 +373,16 @@ def _validate_and_prepare_diff_inputs(
             f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
         )
 
+    # promote mixed single/multipart geometries and drop ESRI-reserved id
+    # fields - see _prepare_sources. Must happen before the df_a_src/df_b_src
+    # copy below, since those (used to rebuild full-schema NEW/DELETED/
+    # MODIFIED_GEOM outputs) need the same fix, not just the comparison-only
+    # df_a/df_b. (When called via _read_and_diff, its own df_a/df_b already
+    # went through this, so it's a no-op here; it still matters for gdf_diff()
+    # called directly with raw/mixed-type input.)
+    keep_fields = {primary_key.upper()} | {f.upper() for f in fields}
+    df_a, df_b = _prepare_sources(df_a, df_b, keep_fields)
+
     # retain a full copy of both sources for writing unchanged source schemas (apart from above
     # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
     # change detection)
@@ -353,7 +395,9 @@ def _validate_and_prepare_diff_inputs(
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
-    # drop esri generated area/length fields
+    # drop esri generated area/length fields (comparison copies only - unlike
+    # id_fields above, these are harmless to retain in the *_src copies used
+    # to rebuild full-schema outputs, so are left there)
     for f in df_a.columns:
         if f.upper() in fcd.area_length_fields:
             df_a = df_a.drop(columns=[f])
@@ -406,30 +450,12 @@ def _validate_and_prepare_diff_inputs(
 
     # some spatial data checks for typical issues
     if spatial:
-        # promote mixed single/multipart features to multipart within each
-        # source (shapefiles can have mixed types; the .gdb driver does not
-        # accept this on write, but more fundamentally, without this a
-        # feature that's single-part in one source and multi-part in the
-        # other would otherwise fail the geometry type equivalence check
-        # below, or be spuriously reported as MODIFIED_GEOM rather than
-        # unchanged).
-        # Also promote df_a_src/df_b_src (the unfiltered copies gdf_diff uses
-        # to rebuild full-schema NEW/DELETED/MODIFIED_GEOM/dumped-source
-        # outputs) - otherwise those outputs retain the original mixed types
-        # and writing them to .gdb fails with "Unsupported geometry type".
-        # (_read_and_diff already promotes df_a/df_b before this point, so
-        # for diff_to_gdb/diff_to_json this is a no-op; it still matters for
-        # gdf_diff() called directly with mixed-type input.)
-        if _has_mixed_single_multipart(_geom_types(df_a)) or _has_mixed_single_multipart(
-            _geom_types(df_b)
-        ):
-            LOG.info(
-                "Mixed singlepart/multipart geometries found, promoting all to multipart"
-            )
-            df_a = promote_to_multi(df_a)
-            df_b = promote_to_multi(df_b)
-            df_a_src = promote_to_multi(df_a_src)
-            df_b_src = promote_to_multi(df_b_src)
+        # mixed single/multipart geometries were already promoted to
+        # multipart above (via _prepare_sources, before df_a_src/df_b_src
+        # were copied) - a feature that's single-part in one source and
+        # multi-part in the other would otherwise fail this equivalence
+        # check, or be spuriously reported as MODIFIED_GEOM rather than
+        # unchanged
         types_a = _geom_types(df_a)
         types_b = _geom_types(df_b)
 
@@ -739,18 +765,15 @@ def _read_and_diff(
     df_a, src_a = _read_source(file_a, layer_a, "a")
     df_b, src_b = _read_source(file_b, layer_b, "b")
 
-    # promote mixed single/multipart geometries to multipart in both sources
-    # before anything else: gdf_diff/_validate_and_prepare_diff_inputs does
-    # this too, but only on its own internal copies, too late to help here -
-    # a mixed source hashed on raw (unpromoted) geometry below would hash a
-    # feature stored single-part in one source and multi-part in the other
-    # to different values (spurious NEW+DELETED instead of UNCHANGED), and
-    # writing the dump_inputs source_a/source_b layers with mixed types
-    # fails outright ("Unsupported geometry type")
-    if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
-        df_b, geopandas.GeoDataFrame
-    ):
-        df_a, df_b = _promote_if_mixed(df_a, df_b)
+    # promote mixed single/multipart geometries and drop ESRI-reserved id
+    # fields (see _prepare_sources) before anything else: this df_a/df_b pair
+    # is what dump_inputs writes directly to .gdb, and (for the geometry
+    # promotion) also what gets hashed below - a mixed source hashed on raw
+    # (unpromoted) geometry would hash a feature stored single-part in one
+    # source and multi-part in the other to different values, spuriously
+    # reporting it as NEW+DELETED instead of UNCHANGED.
+    keep_fields = {f.upper() for f in primary_key + fields + hash_fields}
+    df_a, df_b = _prepare_sources(df_a, df_b, keep_fields, suffix_a, suffix_b)
 
     # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
