@@ -231,7 +231,12 @@ def add_hash_key(
     allow_duplicates=False,
     precision=0.01,
 ):
-    """Add new column to input dataframe, containing hash of input columns and/or geometry"""
+    """Add new column to input dataframe, containing hash of input columns and/or geometry.
+
+    allow_duplicates does not apply to a geometry-only hash (hash_geometry=True
+    and fields empty) - a duplicate hash always raises there, since two
+    records sharing a location aren't necessarily duplicates.
+    """
     if fields is None:
         fields = []
     pandas.options.mode.chained_assignment = None
@@ -305,12 +310,24 @@ def add_hash_key(
     if hash_geometry:
         df = df.drop(columns=["_geometry_normalized_"])
 
-    # fail if hashes are not unique (and not instructed otherwise)
-    if len(df) != len(df[new_field].drop_duplicates()) and not allow_duplicates:
-        if fields == ["_geometry_normalized_"]:
+    # fail if hashes are not unique. A pure geometry hash (no other fields
+    # contributing) always fails here regardless of allow_duplicates: two
+    # records sharing a location aren't necessarily duplicates - they could
+    # be genuinely distinct features that happen to be at the same place,
+    # and treating them as a duplicate would silently discard one's
+    # attributes. allow_duplicates only applies once at least one non-geometry
+    # field also contributes to the hash (or is used directly as
+    # primary_key), since a match there is a much more solid basis for
+    # treating the records as duplicates.
+    hash_is_geometry_only = fields == ["_geometry_normalized_"]
+    if len(df) != len(df[new_field].drop_duplicates()) and (
+        not allow_duplicates or hash_is_geometry_only
+    ):
+        if hash_is_geometry_only:
             raise ValueError(
                 "Duplicate geometries are present in source, consider adding more columns to hash "
-                "or editing data"
+                "or editing data - allow_duplicates does not apply to a geometry-only hash, since "
+                "records sharing a location are not necessarily duplicates"
             )
         else:
             raise ValueError(
