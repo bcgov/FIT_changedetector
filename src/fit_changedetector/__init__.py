@@ -13,6 +13,22 @@ area_length_fields = [
     "GEOMETRY_AREA",
 ]
 
+# ESRI-reserved id fields: unlike area_length_fields (dropped only from the
+# attribute-comparison copies), these are dropped everywhere a matching field
+# is found, including from copies written to output - a field literally named
+# OBJECTID/FID is auto-mapped by GDAL's OpenFileGDB writer to the layer's
+# actual feature id, so if the source's own values for it aren't unique
+# (common - it's often just row order, not a stable identifier), writing any
+# output that retains it fails outright ("Cannot create feature of ID <n>
+# because one already exists"). Kept in sync by hand with IGNORE_FIELDS in
+# arcgis_ToolValidator.py, which can't import this package (it runs inside
+# ArcGIS Pro's own Python, not the tool's venv).
+id_fields = [
+    "OBJECTID",
+    "OID_",  # ArcPro adds this to csv files
+    "FID",
+]
+
 valid_precisions = [
     1,
     0.1,

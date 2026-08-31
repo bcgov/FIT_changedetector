@@ -299,10 +299,11 @@ def _validate_and_prepare_diff_inputs(
 
     Also resolves *fields* to its final list (common fields when none given,
     always including the primary key and geometry), standardizes the geometry
-    column name, drops esri-generated area/length fields, and (for spatial
-    sources) promotes mixed single/multipart geometries to multipart - see
-    the promotion's inline comment for why this needs to happen before the
-    geometry type equivalence check, not just before writing to .gdb.
+    column name, drops esri-generated area/length and reserved id fields (see
+    fcd.area_length_fields/fcd.id_fields), and (for spatial sources) promotes
+    mixed single/multipart geometries to multipart - see the promotion's
+    inline comment for why this needs to happen before the geometry type
+    equivalence check, not just before writing to .gdb.
 
     Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial), where df_a/df_b
     are filtered to the resolved fields and df_a_src/df_b_src are unfiltered
@@ -341,6 +342,20 @@ def _validate_and_prepare_diff_inputs(
             f"Precision {precision} is not supported, use one of {fcd.valid_precisions}"
         )
 
+    # drop ESRI-reserved id fields (OBJECTID/OID_/FID) - see fcd.id_fields for
+    # why this must happen everywhere a matching field is found, including
+    # the *_src copies (unlike area_length_fields below). Skip a field the
+    # caller explicitly asked to use as the primary key or a comparison
+    # field - e.g. OBJECTID is a perfectly reasonable primary key choice when
+    # it happens to be unique in both sources.
+    keep_fields = {primary_key.upper()} | {f.upper() for f in fields}
+    for f in list(df_a.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            df_a = df_a.drop(columns=[f])
+    for f in list(df_b.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            df_b = df_b.drop(columns=[f])
+
     # retain a full copy of both sources for writing unchanged source schemas (apart from above
     # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
     # change detection)
@@ -353,7 +368,9 @@ def _validate_and_prepare_diff_inputs(
     if spatial and df_b.geometry.name != "geometry":
         df_b = df_b.rename_geometry("geometry")
 
-    # drop esri generated area/length fields
+    # drop esri generated area/length fields (comparison copies only - unlike
+    # id_fields above, these are harmless to retain in the *_src copies used
+    # to rebuild full-schema outputs, so are left there)
     for f in df_a.columns:
         if f.upper() in fcd.area_length_fields:
             df_a = df_a.drop(columns=[f])
@@ -751,6 +768,23 @@ def _read_and_diff(
         df_b, geopandas.GeoDataFrame
     ):
         df_a, df_b = _promote_if_mixed(df_a, df_b)
+
+    # drop ESRI-reserved id fields (OBJECTID/OID_/FID) - see fcd.id_fields for
+    # why. gdf_diff (via _validate_and_prepare_diff_inputs) does this too,
+    # but only on its own internal copies - too late for this df_a/df_b pair,
+    # which is what dump_inputs writes directly to .gdb. Skip a field the
+    # caller explicitly asked to use as the primary key or a comparison/hash
+    # field - e.g. OBJECTID is a perfectly reasonable primary key choice when
+    # it happens to be unique in both sources.
+    keep_fields = {f.upper() for f in primary_key + fields + hash_fields}
+    for f in list(df_a.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            LOG.info(f"Dropping reserved id field {f} from source_{suffix_a}")
+            df_a = df_a.drop(columns=[f])
+    for f in list(df_b.columns):
+        if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
+            LOG.info(f"Dropping reserved id field {f} from source_{suffix_b}")
+            df_b = df_b.drop(columns=[f])
 
     # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
