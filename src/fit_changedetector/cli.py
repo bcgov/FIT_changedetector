@@ -203,6 +203,15 @@ def add_hash_key(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
 )
+@click.option(
+    "--allow-duplicates",
+    is_flag=True,
+    help=(
+        "Do not fail on a duplicated primary key - instead, drop all but the first "
+        "occurrence of each duplicated key from the source it was found in, and write "
+        "the dropped records to a DUPLICATES layer"
+    ),
+)
 @verbose_opt
 @quiet_opt
 def diff2gdb(
@@ -222,6 +231,7 @@ def diff2gdb(
     drop_null_geometry,
     crs,
     dump_inputs,
+    allow_duplicates,
     verbose,
     quiet,
 ):
@@ -254,6 +264,7 @@ def diff2gdb(
         hash_fields=hash_fields,
         precision=precision,
         dump_inputs=dump_inputs,
+        allow_duplicates=allow_duplicates,
     )
 
 

@@ -320,15 +320,36 @@ def add_hash_key(
     return df
 
 
+def _describe_duplicates(df, primary_key):
+    """Build a "value: keeping index X, dropping index [Y, Z]" summary for
+    every duplicated primary_key value in df, for logging.
+    """
+    dupes = df[df[primary_key].duplicated(keep=False)]
+    parts = []
+    for pk_value, group in dupes.groupby(primary_key, sort=False):
+        indexes = list(group.index)
+        dropped = ", ".join(repr(i) for i in indexes[1:])
+        parts.append(
+            f"{pk_value!r}: keeping index {indexes[0]!r}, dropping index(es) {dropped}"
+        )
+    return "; ".join(parts)
+
+
 def _validate_and_prepare_diff_inputs(
-    df_a, df_b, primary_key, fields, ignore_fields, precision
+    df_a, df_b, primary_key, fields, ignore_fields, precision, allow_duplicates=False
 ):
     """Validate df_a/df_b are comparable and prepare them for gdf_diff.
 
-    Checks: valid precision, primary key present/unique in both datasets and not
-    also an ignore_field, fields provided (if any) common to both datasets,
-    equivalent field dtypes, and (for spatial sources) equivalent geometry types
-    and CRS - raising ValueError/TypeError on the first violation found.
+    Checks: valid precision, primary key present/unique (unless allow_duplicates)
+    in both datasets and not also an ignore_field, fields provided (if any) common
+    to both datasets, equivalent field dtypes, and (for spatial sources) equivalent
+    geometry types and CRS - raising ValueError/TypeError on the first violation
+    found.
+
+    If allow_duplicates, rather than raising on a duplicated primary key, drop
+    all but the first occurrence of each duplicated key (independently in each
+    dataset) before comparison - the dropped records (full, unfiltered schema)
+    are returned separately so callers can report/write them out as duplicates.
 
     Also resolves *fields* to its final list (common fields when none given,
     always including the primary key and geometry), standardizes the geometry
@@ -336,9 +357,12 @@ def _validate_and_prepare_diff_inputs(
     fcd.area_length_fields/fcd.id_fields), and (for spatial sources) promotes
     mixed single/multipart geometries to multipart (see _prepare_sources).
 
-    Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial), where df_a/df_b
-    are filtered to the resolved fields and df_a_src/df_b_src are unfiltered
-    copies retained by gdf_diff for rebuilding full-schema outputs later.
+    Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial, duplicates_a,
+    duplicates_b), where df_a/df_b are filtered to the resolved fields,
+    df_a_src/df_b_src are unfiltered copies retained by gdf_diff for
+    rebuilding full-schema outputs later, and duplicates_a/duplicates_b are
+    the (unfiltered schema) records dropped from df_a_src/df_b_src due to a
+    duplicated primary key (empty if allow_duplicates was not needed).
     """
     if fields is None:
         fields = []
@@ -470,19 +494,42 @@ def _validate_and_prepare_diff_inputs(
         if df_a.crs != df_b.crs:
             raise ValueError("Coordinate reference systems are not equivalent")
 
-    # is primary key unique in both datasets?
+    # is primary key unique in both datasets? if allow_duplicates, retain the records
+    # to be dropped (full, unfiltered schema) so callers can report/write them out
+    duplicates_a = df_a_src.iloc[0:0]
+    duplicates_b = df_b_src.iloc[0:0]
     if len(df_a) != len(df_a[[primary_key]].drop_duplicates()):
-        raise ValueError(
-            f"Duplicate values exist for primary_key {primary_key}, in dataframe a, consider using "
-            "another primary key or pre-processing to remove duplicates"
+        if not allow_duplicates:
+            raise ValueError(
+                f"Duplicate values exist for primary_key {primary_key}, in dataframe a, consider using "
+                "another primary key or pre-processing to remove duplicates"
+            )
+        LOG.warning(
+            f"Duplicate values exist for primary_key {primary_key} in dataframe a, keeping "
+            f"first occurrence of each and dropping the rest: {_describe_duplicates(df_a, primary_key)}"
         )
+        duplicates_a = df_a_src[
+            df_a_src.duplicated(subset=[primary_key], keep="first")
+        ].copy()
+        df_a = df_a.drop_duplicates(subset=[primary_key], keep="first")
+        df_a_src = df_a_src.drop_duplicates(subset=[primary_key], keep="first")
     if len(df_b) != len(df_b[[primary_key]].drop_duplicates()):
-        raise ValueError(
-            f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using "
-            "another primary key or pre-processing to remove duplicates"
+        if not allow_duplicates:
+            raise ValueError(
+                f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using "
+                "another primary key or pre-processing to remove duplicates"
+            )
+        LOG.warning(
+            f"Duplicate values exist for primary_key {primary_key} in dataframe b, keeping "
+            f"first occurrence of each and dropping the rest: {_describe_duplicates(df_b, primary_key)}"
         )
+        duplicates_b = df_b_src[
+            df_b_src.duplicated(subset=[primary_key], keep="first")
+        ].copy()
+        df_b = df_b.drop_duplicates(subset=[primary_key], keep="first")
+        df_b_src = df_b_src.drop_duplicates(subset=[primary_key], keep="first")
 
-    return df_a, df_b, df_a_src, df_b_src, fields, spatial
+    return df_a, df_b, df_a_src, df_b_src, fields, spatial, duplicates_a, duplicates_b
 
 
 def gdf_diff(
@@ -495,30 +542,54 @@ def gdf_diff(
     suffix_a="a",
     suffix_b="b",
     return_type="gdf",
+    allow_duplicates=False,
 ):
     """
     Compare two geodataframes and generate a diff.
 
     Sources MUST:
-    - have valid, compatible primary keys
+    - have valid, compatible primary keys (unique, unless allow_duplicates - see
+      below)
     - have at least one equivalent column (ok if this is just the primary key)
     - equivalent column names must be of equivalent types
     - have equivalent geometry types and coordinate reference systems
 
-    Output diff is represented by five dataframes:
+    If allow_duplicates, a duplicated primary key does not raise - instead, all
+    but the first occurrence of each duplicated key are dropped (independently
+    in each source) before diffing, and returned separately as "DUPLICATES"
+    (full source schema, plus a "_fcd_source_" column set to suffix_a/suffix_b
+    identifying which source each record was dropped from).
+
+    Output diff is represented by six dataframes:
     - additions (with same schema as dataset b)
     - deletions (with same schema as dataset a)
     - modifications - geometry only (with same schema as dataset b)
     - modifications - attribute only (modified schema)
     - modifications - geometry and attribute (modified schema)
+    - duplicates - records dropped due to a duplicated primary key (only
+      non-empty if allow_duplicates)
 
     The attribute change dataframes include columns common to both sources, and
     for columns where changes have occurred, values from both sources (a column
     for each source).
     """
-    df_a, df_b, df_a_src, df_b_src, fields, spatial = _validate_and_prepare_diff_inputs(
-        df_a, df_b, primary_key, fields, ignore_fields, precision
+    (
+        df_a,
+        df_b,
+        df_a_src,
+        df_b_src,
+        fields,
+        spatial,
+        duplicates_a,
+        duplicates_b,
+    ) = _validate_and_prepare_diff_inputs(
+        df_a, df_b, primary_key, fields, ignore_fields, precision, allow_duplicates
     )
+    duplicates_a["_fcd_source_"] = suffix_a
+    duplicates_b["_fcd_source_"] = suffix_b
+    duplicates = pandas.concat([duplicates_a, duplicates_b], ignore_index=True)
+    if spatial and not isinstance(duplicates, geopandas.GeoDataFrame):
+        duplicates = geopandas.GeoDataFrame(duplicates, geometry="geometry")
 
     # set pandas dataframe index to primary key
     df_a = df_a.set_index(primary_key)
@@ -719,6 +790,7 @@ def gdf_diff(
             "MODIFIED_BOTH": m_attributes_geometries,
             "MODIFIED_ATTR": m_attributes,
             "MODIFIED_GEOM": m_geometries,
+            "DUPLICATES": duplicates,
         }
 
 
@@ -737,6 +809,7 @@ def _read_and_diff(
     hash_key,
     hash_fields,
     precision,
+    allow_duplicates=False,
 ):
     """Read both diff_to_gdb()/diff_to_json() sources, resolve/hash the primary key, and run gdf_diff.
 
@@ -867,6 +940,7 @@ def _read_and_diff(
         precision=precision,
         suffix_a=suffix_a,
         suffix_b=suffix_b,
+        allow_duplicates=allow_duplicates,
     )
 
     return diff, df_a, df_b, primary_key, hashed
@@ -936,6 +1010,7 @@ def diff_to_gdb(
     hash_fields=None,
     precision=0.01,
     dump_inputs=False,
+    allow_duplicates=False,
 ):
     """
     Compare two datasets:
@@ -948,6 +1023,8 @@ def diff_to_gdb(
          + MODIFIED_BOTH
          + MODIFIED_ATTR
          + MODIFED_GEOM
+         + DUPLICATES (only if allow_duplicates - records dropped due to a
+           duplicated primary key)
       - write results to .gdb
     """
     diff, df_a, df_b, primary_key, hashed = _read_and_diff(
@@ -965,6 +1042,7 @@ def diff_to_gdb(
         hash_key,
         hash_fields,
         precision,
+        allow_duplicates,
     )
     if hashed:
         dump_inputs = True
@@ -984,7 +1062,14 @@ def diff_to_gdb(
     # squelch pyogrio INFO logs
     logging.getLogger("pyogrio._io").setLevel(logging.WARNING)
 
-    for key in ["NEW", "DELETED", "MODIFIED_BOTH", "MODIFIED_ATTR", "MODIFIED_GEOM"]:
+    for key in [
+        "NEW",
+        "DELETED",
+        "MODIFIED_BOTH",
+        "MODIFIED_ATTR",
+        "MODIFIED_GEOM",
+        "DUPLICATES",
+    ]:
         LOG.info(f"{key}: {len(diff[key])} records")
         if len(diff[key]) > 0:
             # add empty geometry column for writing non-spatial data to .gpkg

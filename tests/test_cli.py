@@ -63,6 +63,7 @@ def test_diff_pk(tmp_path, monkeypatch):
         "MODIFIED_BOTH": 1,
         "MODIFIED_ATTR": 4,
         "MODIFIED_GEOM": 1,
+        "DUPLICATES": 0,
     }
     assert set(output["keys"].keys()) == set(counts.keys())
     for key, count in counts.items():
@@ -94,6 +95,7 @@ def test_diff_pk_count(tmp_path, monkeypatch):
         "MODIFIED_BOTH": 1,
         "MODIFIED_ATTR": 4,
         "MODIFIED_GEOM": 1,
+        "DUPLICATES": 0,
     }
     assert "keys" not in counts
 
