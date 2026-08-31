@@ -9,8 +9,9 @@ import subprocess
 
 import arcpy
 
-# place path to your virtualenv here
-VENV_PYTHON = r"\\REPLACE\WITH\YOUR\PATH\.venv\Scripts\python.exe"
+# path to the virtualenv's python.exe, set as a system/user environment
+# variable so this file doesn't need editing after every install/update
+VENV_PYTHON_ENV_VAR = "FIT_CHANGEDETECTOR_VENV_PYTHON"
 
 
 # do not name the logger, we want to add the handler to the root logger
@@ -117,6 +118,15 @@ def setup_logging(logfile, debug=False):
 
 
 def changedetector():
+    venv_python = os.environ.get(VENV_PYTHON_ENV_VAR)
+    if not venv_python:
+        arcpy.AddError(
+            f"Environment variable {VENV_PYTHON_ENV_VAR} is not set. "
+            "Set it to the path of python.exe within the virtualenv where "
+            "fit_changedetector is installed."
+        )
+        raise arcpy.ExecuteError
+
     param = {
         "original_fc": arcpy.GetParameterAsText(0),
         "new_fc": arcpy.GetParameterAsText(1),
@@ -168,7 +178,7 @@ def changedetector():
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [VENV_PYTHON, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
+        [venv_python, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
