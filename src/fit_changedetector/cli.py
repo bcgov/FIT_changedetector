@@ -339,6 +339,15 @@ def diff2gdb(
     is_flag=True,
     help="Print only record counts, omitting the primary key values in each category",
 )
+@click.option(
+    "--allow-duplicates",
+    is_flag=True,
+    help=(
+        "Do not fail on a duplicated primary key - instead, drop all but the first "
+        "occurrence of each duplicated key from the source it was found in, and "
+        "include a DUPLICATES category in the output"
+    ),
+)
 @verbose_opt
 @quiet_opt
 def diff(
@@ -357,6 +366,7 @@ def diff(
     drop_null_geometry,
     crs,
     count,
+    allow_duplicates,
     verbose,
     quiet,
 ):
@@ -394,6 +404,7 @@ def diff(
         hash_fields=hash_fields,
         precision=precision,
         counts_only=count,
+        allow_duplicates=allow_duplicates,
     )
 
 

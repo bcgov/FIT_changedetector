@@ -144,6 +144,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  geometries (eg EPSG:3005)
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
+      --allow-duplicates         Do not fail on a duplicated primary key - instead,
+                                 drop all but the first occurrence of each
+                                 duplicated key from the source it was found in, and
+                                 include a DUPLICATES category in the output
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.

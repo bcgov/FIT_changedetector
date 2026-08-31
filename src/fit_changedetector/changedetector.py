@@ -962,6 +962,7 @@ def diff_to_json(
     hash_fields=None,
     precision=0.01,
     counts_only=False,
+    allow_duplicates=False,
 ):
     """
     Compare two datasets, print a JSON summary to stdout.
@@ -969,6 +970,10 @@ def diff_to_json(
     By default, includes record counts per category plus a "keys" section
     listing the primary key value(s) present in each category. If
     counts_only, print just the counts.
+
+    The "DUPLICATES" category (see allow_duplicates) is only included when
+    allow_duplicates is True - otherwise it's always empty (a duplicated
+    primary key raises instead), so including it would just be clutter.
     """
     result, _, _, resolved_primary_key, _ = _read_and_diff(
         file_a,
@@ -985,7 +990,10 @@ def diff_to_json(
         hash_key,
         hash_fields,
         precision,
+        allow_duplicates,
     )
+    if not allow_duplicates:
+        del result["DUPLICATES"]
     summary = {key: len(df) for key, df in result.items()}
     if not counts_only:
         pk_name = resolved_primary_key[0]
