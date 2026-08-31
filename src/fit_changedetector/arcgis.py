@@ -117,12 +117,24 @@ def setup_logging(logfile, debug=False):
     LOG.addHandler(fh)
 
 
-def changedetector():
+def get_venv_python():
     venv_python = os.environ.get(VENV_PYTHON_ENV_VAR)
+    if venv_python:
+        return venv_python
+    config_file = Path(__file__).parent / "venv_python.txt"
+    if config_file.exists():
+        return config_file.read_text().strip()
+    return None
+
+
+def changedetector():
+    venv_python = get_venv_python()
     if not venv_python:
         arcpy.AddError(
-            f"Environment variable {VENV_PYTHON_ENV_VAR} is not set. "
-            "Set it to the path of python.exe within the virtualenv where "
+            f"Environment variable {VENV_PYTHON_ENV_VAR} is not set, and no "
+            f"{Path(__file__).parent / 'venv_python.txt'} file was found. "
+            "Set the environment variable (preferred) or create that file "
+            "containing the path to python.exe within the virtualenv where "
             "fit_changedetector is installed."
         )
         raise arcpy.ExecuteError

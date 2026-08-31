@@ -19,7 +19,7 @@ In a Windows Command Prompt (with no active conda environment):
     .venv\Scripts\activate.bat
     pip install fit_changedetector
 
-Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis.py` into your ArcGIS toolbox. To avoid conflict with the system Python, the script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
+Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis.py` into your ArcGIS toolbox. If you don't have permission to set an environment variable, instead create a `venv_python.txt` file next to `arcgis.py` in the toolbox folder, containing just the path to `python.exe`. To avoid conflict with the system Python, the script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
 
 
 ## Usage
