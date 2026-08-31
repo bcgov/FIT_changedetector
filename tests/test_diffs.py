@@ -768,9 +768,7 @@ def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
     be hashed and must raise rather than being silently dropped or crashing
     on a downstream operation.
     """
-    df_a = GeoDataFrame(
-        {"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005"
-    )
+    df_a = GeoDataFrame({"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005")
     df_b = GeoDataFrame(
         {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
     )
