@@ -116,6 +116,22 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
+def test_diff_allow_duplicates_reports_duplicates(gdf):
+    """With allow_duplicates, gdf_diff drops all but the first occurrence of a
+    duplicated primary key (per source) and returns the dropped records under
+    "DUPLICATES", tagged by which source (suffix_a/suffix_b) they came from.
+    """
+    df_a = gdf.copy()
+    df_a.loc[1, "pk"] = df_a.loc[0, "pk"]  # duplicate pk in source a only
+    df_b = gdf.copy()
+    d = fcd.gdf_diff(
+        df_a, df_b, primary_key="pk", return_type="gdf", allow_duplicates=True
+    )
+    assert len(d["DUPLICATES"]) == 1
+    assert d["DUPLICATES"]["pk"].iloc[0] == df_a.loc[0, "pk"]
+    assert d["DUPLICATES"]["_fcd_source_"].iloc[0] == "a"
+
+
 # for modified attr output, retain only columns with changes
 def test_diff_modified_columns(gdf):
     df_a = gdf.copy()
@@ -450,6 +466,38 @@ def test_validate_diff_inputs_duplicate_primary_key():
         _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
 
 
+def test_validate_diff_inputs_duplicate_primary_key_allow_duplicates():
+    df_a = _spatial_gdf()
+    df_a.loc[1, "pk"] = 1  # now duplicates row 0's pk (col1 still "b")
+    df_b = _spatial_gdf()
+    (
+        out_a,
+        out_b,
+        src_a,
+        _src_b,
+        _fields,
+        _spatial,
+        duplicates_a,
+        duplicates_b,
+    ) = _validate_and_prepare_diff_inputs(
+        df_a, df_b, "pk", [], [], 0.01, allow_duplicates=True
+    )
+    # first occurrence of the duplicated pk (row 0, col1="a") is kept, the
+    # second (row 1, col1="b") is dropped, from both the filtered and *_src
+    # copies
+    assert sorted(out_a["pk"]) == [1, 3]
+    assert out_a[out_a["pk"] == 1]["col1"].iloc[0] == "a"
+    assert sorted(src_a["pk"]) == [1, 3]
+    assert src_a[src_a["pk"] == 1]["col1"].iloc[0] == "a"
+    # df_b is untouched
+    assert sorted(out_b["pk"]) == [1, 2, 3]
+    # the dropped record (row 1, col1="b") is returned separately
+    assert len(duplicates_a) == 1
+    assert duplicates_a["pk"].iloc[0] == 1
+    assert duplicates_a["col1"].iloc[0] == "b"
+    assert len(duplicates_b) == 0
+
+
 def test_validate_diff_inputs_prepares_outputs():
     """Happy-path: check the actual returned values, not just that no error
     was raised - esri area/length fields dropped, geometry column renamed to
@@ -465,7 +513,7 @@ def test_validate_diff_inputs_prepares_outputs():
     df_a = GeoDataFrame(data, crs="EPSG:3005", geometry="geom")
     df_b = GeoDataFrame(data, crs="EPSG:3005", geometry="geom")
 
-    out_a, _, src_a, src_b, fields, spatial = _validate_and_prepare_diff_inputs(
+    out_a, _, src_a, src_b, fields, spatial, _, _ = _validate_and_prepare_diff_inputs(
         df_a, df_b, "pk", None, None, 0.01
     )
     assert spatial is True
@@ -480,7 +528,7 @@ def test_validate_diff_inputs_prepares_outputs():
 def test_validate_diff_inputs_non_spatial_ok():
     df_a = pandas.DataFrame({"pk": [1, 2], "col1": ["a", "b"]})
     df_b = pandas.DataFrame({"pk": [1, 2], "col1": ["a", "b"]})
-    _, _, _, _, fields, spatial = _validate_and_prepare_diff_inputs(
+    _, _, _, _, fields, spatial, _, _ = _validate_and_prepare_diff_inputs(
         df_a, df_b, "pk", None, None, 0.01
     )
     assert spatial is False
@@ -786,6 +834,113 @@ def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
             str(tmp_path / "out.gdb"),
             drop_null_geometry=False,
         )
+
+
+def test_diff_to_gdb_allow_duplicates_writes_duplicates_layer(tmp_path):
+    """diff_to_gdb(allow_duplicates=True) writes dropped duplicate-primary-key
+    records to a DUPLICATES layer in the output .gdb.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 1, 2], "name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "dupes_a.geojson"
+    path_b = tmp_path / "dupes_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        out_file,
+        primary_key=["id"],
+        allow_duplicates=True,
+    )
+    duplicates = geopandas.read_file(out_file, layer="DUPLICATES")
+    assert len(duplicates) == 1
+    assert duplicates["id"].iloc[0] == 1
+    assert duplicates["name"].iloc[0] == "a1"
+    assert duplicates["_fcd_source_"].iloc[0] == "a"
+
+
+def test_diff_to_gdb_allow_duplicates_not_applied_to_geometry_only_hash(tmp_path):
+    """allow_duplicates does not apply to a pure geometry hash (no primary key,
+    no hash_fields): two records sharing a location aren't necessarily
+    duplicates - they could be genuinely distinct features that happen to be
+    at the same place - so a hash collision here must still raise even with
+    allow_duplicates=True, rather than silently discarding one record's
+    attributes.
+    """
+    df_a = GeoDataFrame(
+        {"name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"name": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "hash_dupes_a.geojson"
+    path_b = tmp_path / "hash_dupes_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    with pytest.raises(ValueError, match="Duplicate geometries are present"):
+        fcd.diff_to_gdb(
+            str(path_a),
+            str(path_b),
+            None,
+            None,
+            str(tmp_path / "out.gdb"),
+            allow_duplicates=True,
+        )
+
+
+def test_diff_to_gdb_allow_duplicates_hash_with_fields(tmp_path):
+    """allow_duplicates does apply to a hash-generated primary key once at
+    least one non-geometry field also contributes to the hash (via
+    hash_fields) - a match on geometry AND an attribute is a much stronger
+    duplicate signal than geometry alone.
+    """
+    df_a = GeoDataFrame(
+        {"cat": ["x", "x", "y"], "name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"cat": ["x", "y"], "name": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "hash_dupes_fields_a.geojson"
+    path_b = tmp_path / "hash_dupes_fields_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        out_file,
+        hash_fields=["cat"],
+        allow_duplicates=True,
+    )
+    duplicates = geopandas.read_file(out_file, layer="DUPLICATES")
+    assert len(duplicates) == 1
+    assert duplicates["name"].iloc[0] == "a1"
+    assert duplicates["_fcd_source_"].iloc[0] == "a"
 
 
 def test_gdf_diff_single_vs_multipart_same_feature_unchanged():

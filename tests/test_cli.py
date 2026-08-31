@@ -4,6 +4,8 @@ import os
 
 import geopandas
 from click.testing import CliRunner
+from geopandas import GeoDataFrame
+from shapely.geometry import Point
 
 from fit_changedetector.cli import cli
 
@@ -96,6 +98,57 @@ def test_diff_pk_count(tmp_path, monkeypatch):
         "MODIFIED_GEOM": 1,
     }
     assert "keys" not in counts
+
+
+def test_diff_duplicate_primary_key_raises(tmp_path):
+    """By default (no --allow-duplicates), a duplicated primary key raises -
+    and the output has no DUPLICATES category at all (not even a "0" one),
+    since it's dead weight when the feature isn't in use.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 1]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame({"id": [1]}, geometry=[Point(0, 0)], crs="EPSG:3005")
+    path_a = tmp_path / "dupes_a.geojson"
+    path_b = tmp_path / "dupes_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    runner = CliRunner()
+    result = runner.invoke(cli, ["diff", str(path_a), str(path_b), "-pk", "id"])
+    assert result.exit_code != 0
+    assert "Duplicate values exist" in str(result.exception)
+
+
+def test_diff_allow_duplicates(tmp_path):
+    """--allow-duplicates drops all but the first occurrence of a duplicated
+    primary key instead of raising, and the JSON output gains a DUPLICATES
+    category listing the dropped record(s).
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 1, 2], "name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2], "name": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "dupes_a.geojson"
+    path_b = tmp_path / "dupes_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        ["diff", str(path_a), str(path_b), "-pk", "id", "--allow-duplicates"],
+    )
+    assert result.exit_code == 0
+    output = json.loads(result.output)
+    assert output["DUPLICATES"] == 1
+    assert output["keys"]["DUPLICATES"] == [1]
 
 
 def test_diff2gdb_stdin(tmp_path):

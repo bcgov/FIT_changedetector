@@ -43,6 +43,8 @@ def build_cli_args(param, out_file):
         args.append("--drop-null-geometry")
     if param["dump_inputs"]:
         args.append("--dump-inputs")
+    if param["allow_duplicates"]:
+        args.append("--allow-duplicates")
     args.append("-v")  # always INFO level, matches current default
     if param["debug"]:
         args.append("-v")  # second -v -> DEBUG (cligj count option)
@@ -129,7 +131,8 @@ def changedetector():
         "suffix_b": arcpy.GetParameter(10),
         "drop_null_geometry": arcpy.GetParameter(11),
         "dump_inputs": arcpy.GetParameter(12),
-        "debug": arcpy.GetParameter(13),
+        "allow_duplicates": arcpy.GetParameter(13),
+        "debug": arcpy.GetParameter(14),
     }
 
     # generate output filenames with timestamp (local time, human readable)

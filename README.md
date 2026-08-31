@@ -58,8 +58,9 @@ Dictionary keys:
 | `MODIFIED_BOTH` | records where attribute columns and geometries have changed |
 | `MODIFIED_ATTR` | records where attribute columns have changed but geometries have not changed |
 | `MODIFIED_GEOM` | records where geometries have changed but attribute columns have not |
+| `DUPLICATES` | records dropped due to a duplicated primary key (only populated if `allow_duplicates=True`) |
 
-Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data.
+Schemas for records contained in `NEW`, `DELETED`, `UNCHANGED` are as per the source data. `DUPLICATES` records retain their source schema too, plus a `_fcd_source_` column (`suffix_a`/`suffix_b`) identifying which source each record was dropped from.
 Schemas for records contained in the `MODIFIED` keys include only columns where a change has occurred.
 For example, these are some "modified attributes" records, with "_a" suffix for values from the primary dataset, and "_b" suffix for values from the secondary dataset:
 
@@ -143,6 +144,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  geometries (eg EPSG:3005)
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
+      --allow-duplicates         Do not fail on a duplicated primary key - instead,
+                                 drop all but the first occurrence of each
+                                 duplicated key from the source it was found in, and
+                                 include a DUPLICATES category in the output
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
@@ -180,6 +185,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  .gdb
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
+      --allow-duplicates         Do not fail on a duplicated primary key - instead,
+                                 drop all but the first occurrence of each
+                                 duplicated key from the source it was found in, and
+                                 write the dropped records to a DUPLICATES layer
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
