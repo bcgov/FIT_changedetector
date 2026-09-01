@@ -42,10 +42,10 @@ def build_cli_args(param, out_file):
         args += ["--suffix-b", param["suffix_b"]]
     if param["drop_null_geometry"]:
         args.append("--drop-null-geometry")
-    if param["dump_inputs"]:
-        args.append("--dump-inputs")
     if param["allow_duplicates"]:
         args.append("--allow-duplicates")
+    if param["dump_inputs"]:
+        args.append("--dump-inputs")
     args.append("-v")  # always INFO level, matches current default
     if param["debug"]:
         args.append("-v")  # second -v -> DEBUG (cligj count option)
@@ -152,8 +152,8 @@ def changedetector():
         "suffix_a": arcpy.GetParameter(9),
         "suffix_b": arcpy.GetParameter(10),
         "drop_null_geometry": arcpy.GetParameter(11),
-        "dump_inputs": arcpy.GetParameter(12),
-        "allow_duplicates": arcpy.GetParameter(13),
+        "allow_duplicates": arcpy.GetParameter(12),
+        "dump_inputs": arcpy.GetParameter(13),
         "debug": arcpy.GetParameter(14),
     }
 
