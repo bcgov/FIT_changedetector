@@ -98,7 +98,7 @@ jobs:
     - name: Sign the dists with Sigstore
       id: sign
       continue-on-error: true
-      uses: sigstore/gh-action-sigstore-python@v3.0.0
+      uses: sigstore/gh-action-sigstore-python@v3.5.0
       with:
         inputs: >-
           ./dist/*.tar.gz
