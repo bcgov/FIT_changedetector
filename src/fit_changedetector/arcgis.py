@@ -14,8 +14,11 @@ import arcpy
 VENV_PYTHON_ENV_VAR = "FIT_CHANGEDETECTOR_VENV_PYTHON"
 
 
-# do not name the logger, we want to add the handler to the root logger
-LOG = logging.getLogger()
+# use a logger scoped to this module (not the root logger) so our handlers
+# don't intercept log records from unrelated code sharing this ArcGIS Pro
+# session (eg other script tools/toolboxes using the root logger)
+LOG = logging.getLogger(__name__)
+LOG.propagate = False
 
 
 def build_cli_args(param, out_file):
@@ -88,9 +91,8 @@ def setup_logging(logfile, debug=False):
     Log to arcpy api and to file
 
     Note
-    - handlers are added to the root logger (for auto-handling of messages from modules)
-    - because handlers are added to the root logger, they must be cleared to avoid duplication
-      when the tool is run multiple times in the same arcgis session
+    - handlers must be cleared to avoid duplication when the tool is run
+      multiple times in the same arcgis session
 
     """
     # debug and info are the only levels supported
@@ -165,48 +167,55 @@ def changedetector():
     # setup logging to arcgis and file
     setup_logging(logfile, param["debug"])
 
-    # note all parameters supplied to tool
-    LOG.info(f"Script tool parameters: {pprint.pformat(param)}")
-    # note target file
-    LOG.info(f"Output file: {out_file}")
+    try:
+        # note all parameters supplied to tool
+        LOG.info(f"Script tool parameters: {pprint.pformat(param)}")
+        # note target file
+        LOG.info(f"Output file: {out_file}")
 
-    # extract path/layer from source feature class
-    # There is probably an arcpy method for determining the source type,
-    # but just looking at the extension is simple and seems safe
-    for src in ["original", "new"]:
-        if Path(param[f"{src}_fc"]).parent.suffix == ".gdb":
-            param[src + "_file"] = Path(param[f"{src}_fc"]).parent
-            param[src + "_layer"] = Path(param[f"{src}_fc"]).name
-        elif Path(param[f"{src}_fc"]).suffix == ".shp":
-            param[src + "_file"] = param[f"{src}_fc"]
-            param[src + "_layer"] = Path(param[f"{src}_fc"]).stem
-        else:
-            arcpy.AddError("Only .gdb and .shp are supported")
+        # extract path/layer from source feature class
+        # There is probably an arcpy method for determining the source type,
+        # but just looking at the extension is simple and seems safe
+        for src in ["original", "new"]:
+            if Path(param[f"{src}_fc"]).parent.suffix == ".gdb":
+                param[src + "_file"] = Path(param[f"{src}_fc"]).parent
+                param[src + "_layer"] = Path(param[f"{src}_fc"]).name
+            elif Path(param[f"{src}_fc"]).suffix == ".shp":
+                param[src + "_file"] = param[f"{src}_fc"]
+                param[src + "_layer"] = Path(param[f"{src}_fc"]).stem
+            else:
+                arcpy.AddError("Only .gdb and .shp are supported")
 
-    cli_args = build_cli_args(param, out_file)
+        cli_args = build_cli_args(param, out_file)
 
-    env = os.environ.copy()
-    env.pop("PYTHONHOME", None)
-    env.pop("PYTHONPATH", None)
+        env = os.environ.copy()
+        env.pop("PYTHONHOME", None)
+        env.pop("PYTHONPATH", None)
 
-    proc = subprocess.Popen(
-        [venv_python, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        bufsize=1,
-        env=env,
-    )
-
-    for line in proc.stdout:
-        LOG.info(line.rstrip())
-    proc.wait()
-
-    if proc.returncode != 0:
-        arcpy.AddError(
-            "External changedetector diff2gdb script failed — see messages above."
+        proc = subprocess.Popen(
+            [venv_python, "-u", "-m", "fit_changedetector.cli", "diff2gdb"] + cli_args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            env=env,
         )
-        raise arcpy.ExecuteError
+
+        for line in proc.stdout:
+            LOG.info(line.rstrip())
+        proc.wait()
+
+        if proc.returncode != 0:
+            arcpy.AddError(
+                "External changedetector diff2gdb script failed — see messages above."
+            )
+            raise arcpy.ExecuteError
+    finally:
+        # release handlers (and the file handle) so they don't linger on
+        # this logger for the rest of the ArcGIS Pro session
+        for handler in LOG.handlers[:]:
+            LOG.removeHandler(handler)
+            handler.close()
 
 
 if __name__ == "__main__":
