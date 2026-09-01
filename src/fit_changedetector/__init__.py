@@ -3,7 +3,7 @@ from .changedetector import diff_to_gdb as diff_to_gdb
 from .changedetector import diff_to_json as diff_to_json
 from .changedetector import gdf_diff as gdf_diff
 
-__version__ = "0.0.1a2"
+__version__ = "0.1.0a1"
 
 area_length_fields = [
     "SHAPE_LENGTH",
