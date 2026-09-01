@@ -79,6 +79,15 @@ jobs:
         inputs: >-
           ./dist/*.tar.gz
           ./dist/*.whl
+    - name: Determine prerelease flag
+      id: prerelease
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        if echo "$VERSION" | grep -Eq '(a|b|rc)[0-9]+$'; then
+          echo "flag=--prerelease" >> "$GITHUB_OUTPUT"
+        else
+          echo "flag=" >> "$GITHUB_OUTPUT"
+        fi
     - name: Create GitHub Release
       env:
         GITHUB_TOKEN: ${{ github.token }}
@@ -87,6 +96,7 @@ jobs:
         '${{ github.ref_name }}'
         --repo '${{ github.repository }}'
         --generate-notes
+        ${{ steps.prerelease.outputs.flag }}
     - name: Upload artifact signatures to GitHub Release
       env:
         GITHUB_TOKEN: ${{ github.token }}
