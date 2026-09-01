@@ -57,8 +57,8 @@ jobs:
 
   github-release:
     name: >-
-      Sign the Python 🐍 distribution 📦 with Sigstore
-      and upload them to GitHub Release
+      Create GitHub Release and sign the Python 🐍
+      distribution 📦 with Sigstore
     needs:
     - publish-to-pypi
     runs-on: ubuntu-latest
@@ -73,12 +73,6 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
-    - name: Sign the dists with Sigstore
-      uses: sigstore/gh-action-sigstore-python@v3.0.0
-      with:
-        inputs: >-
-          ./dist/*.tar.gz
-          ./dist/*.whl
     - name: Determine prerelease flag
       id: prerelease
       run: |
@@ -97,7 +91,20 @@ jobs:
         --repo '${{ github.repository }}'
         --generate-notes
         ${{ steps.prerelease.outputs.flag }}
+    # Signing is best-effort: it depends on Sigstore's public TUF trust-root
+    # infrastructure, which can fail for reasons unrelated to this release
+    # (eg tuf.api.exceptions.UnsignedMetadataError). Don't let that block
+    # the release itself.
+    - name: Sign the dists with Sigstore
+      id: sign
+      continue-on-error: true
+      uses: sigstore/gh-action-sigstore-python@v3.0.0
+      with:
+        inputs: >-
+          ./dist/*.tar.gz
+          ./dist/*.whl
     - name: Upload artifact signatures to GitHub Release
+      if: steps.sign.outcome == 'success'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       # Upload to GitHub Release using the `gh` CLI.
