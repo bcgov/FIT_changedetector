@@ -146,7 +146,11 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
                                  include the dropped records in a DUPLICATES
-                                 category/layer of the output
+                                 category/layer of the output. Not applied when no
+                                 primary key or hash fields are given (a pure
+                                 geometry hash) - a duplicate there always fails,
+                                 since records sharing only a location aren't
+                                 necessarily duplicates
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
       -v, --verbose              Increase verbosity.
@@ -186,7 +190,11 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
                                  include the dropped records in a DUPLICATES
-                                 category/layer of the output
+                                 category/layer of the output. Not applied when no
+                                 primary key or hash fields are given (a pure
+                                 geometry hash) - a duplicate there always fails,
+                                 since records sharing only a location aren't
+                                 necessarily duplicates
       -o, --out-file PATH        Path to output file, defaults to
                                  ./changedetector_YYYYMMDD_HHMM.gdb
       -i, --dump-inputs          Dump input layers (with new hash key) to output

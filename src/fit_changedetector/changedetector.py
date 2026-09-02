@@ -325,14 +325,14 @@ def add_hash_key(
     ):
         if hash_is_geometry_only:
             raise ValueError(
-                "Duplicate geometries are present in source, consider adding more columns to hash "
-                "or editing data - allow_duplicates does not apply to a geometry-only hash, since "
-                "records sharing a location are not necessarily duplicates"
+                "Duplicate geometries are present in source, consider including more fields in the hash "
+                "or editing the data. Option allow_duplicates does not apply to a geometry-only hash, since "
+                "records sharing only a location are not necessarily duplicates"
             )
         else:
             raise ValueError(
-                "Duplicate values for output hash are present, consider adding more columns to hash "
-                "or editing data"
+                "Duplicate values for output hash are present, consider including more fields in the hash "
+                "or editing the data"
             )
     return df
 

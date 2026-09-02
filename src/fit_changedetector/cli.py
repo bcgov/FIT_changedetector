@@ -97,7 +97,10 @@ def common_diff_options(f):
             help=(
                 "Do not fail on a duplicated primary key - instead, drop all but the first "
                 "occurrence of each duplicated key from the source it was found in, and "
-                "include the dropped records in a DUPLICATES category/layer of the output"
+                "include the dropped records in a DUPLICATES category/layer of the output. "
+                "Not applied when no primary key or hash fields are given (a pure geometry "
+                "hash) - a duplicate there always fails, since records sharing only a "
+                "location aren't necessarily duplicates"
             ),
         ),
     ]
