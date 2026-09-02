@@ -142,12 +142,13 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -d, --drop-null-geometry   Drop records with null geometry
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
-      -c, --count                Print only record counts, omitting the primary key
-                                 values in each category
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
-                                 include a DUPLICATES category in the output
+                                 include the dropped records in a DUPLICATES
+                                 category/layer of the output
+      -c, --count                Print only record counts, omitting the primary key
+                                 values in each category
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
@@ -167,8 +168,6 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -f, --fields TEXT          Comma separated list of fields to compare (do not
                                  include primary key)
       -if, --ignore-fields TEXT  Comma separated list of fields to ignore
-      -o, --out-file PATH        Path to output file, defaults to
-                                 ./changedetector_YYYYMMDD_HHMM.gdb
       -pk, --primary-key TEXT    Comma separated list of primary key column(s),
                                  common to both datasets
       -hk, --hash-key TEXT       Name of new column to add as hash key
@@ -181,14 +180,17 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
       -d, --drop-null-geometry   Drop records with null geometry
-      -i, --dump-inputs          Dump input layers (with new hash key) to output
-                                 .gdb
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
-                                 write the dropped records to a DUPLICATES layer
+                                 include the dropped records in a DUPLICATES
+                                 category/layer of the output
+      -o, --out-file PATH        Path to output file, defaults to
+                                 ./changedetector_YYYYMMDD_HHMM.gdb
+      -i, --dump-inputs          Dump input layers (with new hash key) to output
+                                 .gdb
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.

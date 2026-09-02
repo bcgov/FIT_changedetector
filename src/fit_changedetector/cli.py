@@ -1,3 +1,4 @@
+import functools
 import logging
 import os
 import sys
@@ -16,6 +17,91 @@ def split_string(input_string):
         return input_string.split(",")
     else:
         return []
+
+
+def common_diff_options(f):
+    """Shared IN_FILE_A/IN_FILE_B arguments and options for `diff`/`diff2gdb`.
+
+    Everything the two commands have in common - only output-specific options
+    (diff2gdb's --out-file/--dump-inputs, diff's --count) are declared separately
+    on each command.
+    """
+    options = [
+        click.argument("in_file_a", type=click.Path(exists=True, allow_dash=True)),
+        click.argument("in_file_b", type=click.Path(exists=True)),
+        click.option(
+            "--layer-a",
+            help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
+        ),
+        click.option(
+            "--layer-b",
+            help="Name of layer to use within in_file_b (not valid if reading from parquet)",
+        ),
+        click.option(
+            "--fields",
+            "-f",
+            help="Comma separated list of fields to compare (do not include primary key)",
+        ),
+        click.option(
+            "--ignore-fields",
+            "-if",
+            help="Comma separated list of fields to ignore",
+        ),
+        click.option(
+            "--primary-key",
+            "-pk",
+            help="Comma separated list of primary key column(s), common to both datasets",
+        ),
+        click.option(
+            "--hash-key",
+            "-hk",
+            default="fcd_hash_id",
+            help="Name of new column to add as hash key",
+        ),
+        click.option(
+            "--hash-fields",
+            "-hf",
+            help="Comma separated list of fields to include in the hash (in addition to geometry)",
+        ),
+        click.option(
+            "--precision",
+            "-p",
+            default=0.01,
+            help="Coordinate precision for geometry hash and comparison. Default=0.01",
+        ),
+        click.option(
+            "--suffix-a",
+            "-a",
+            default="original",
+            help="Suffix to append to column names from data source A when comparing attributes",
+        ),
+        click.option(
+            "--suffix-b",
+            "-b",
+            default="new",
+            help="Suffix to append to column names from data source B when comparing attributes",
+        ),
+        click.option(
+            "--drop-null-geometry",
+            "-d",
+            is_flag=True,
+            help="Drop records with null geometry",
+        ),
+        click.option(
+            "--crs",
+            help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
+        ),
+        click.option(
+            "--allow-duplicates",
+            is_flag=True,
+            help=(
+                "Do not fail on a duplicated primary key - instead, drop all but the first "
+                "occurrence of each duplicated key from the source it was found in, and "
+                "include the dropped records in a DUPLICATES category/layer of the output"
+            ),
+        ),
+    ]
+    return functools.reduce(lambda g, opt: opt(g), reversed(options), f)
 
 
 def configure_logging(verbosity):
@@ -127,26 +213,7 @@ def add_hash_key(
 
 
 @cli.command()
-@click.argument("in_file_a", type=click.Path(exists=True, allow_dash=True))
-@click.argument("in_file_b", type=click.Path(exists=True))
-@click.option(
-    "--layer-a",
-    help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
-)
-@click.option(
-    "--layer-b",
-    help="Name of layer to use within in_file_b (not valid if reading from parquet)",
-)
-@click.option(
-    "--fields",
-    "-f",
-    help="Comma separated list of fields to compare (do not include primary key)",
-)
-@click.option(
-    "--ignore-fields",
-    "-if",
-    help="Comma separated list of fields to ignore",
-)
+@common_diff_options
 @click.option(
     "--out-file",
     "-o",
@@ -154,63 +221,10 @@ def add_hash_key(
     help="Path to output file, defaults to ./changedetector_YYYYMMDD_HHMM.gdb",
 )
 @click.option(
-    "--primary-key",
-    "-pk",
-    help="Comma separated list of primary key column(s), common to both datasets",
-)
-@click.option(
-    "--hash-key",
-    "-hk",
-    default="fcd_hash_id",
-    help="Name of new column to add as hash key",
-)
-@click.option(
-    "--hash-fields",
-    "-hf",
-    help="Comma separated list of fields to include in the hash (in addition to geometry)",
-)
-@click.option(
-    "--precision",
-    "-p",
-    default=0.01,
-    help="Coordinate precision for geometry hash and comparison. Default=0.01",
-)
-@click.option(
-    "--suffix-a",
-    "-a",
-    default="original",
-    help="Suffix to append to column names from data source A when comparing attributes",
-)
-@click.option(
-    "--suffix-b",
-    "-b",
-    default="new",
-    help="Suffix to append to column names from data source B when comparing attributes",
-)
-@click.option(
-    "--drop-null-geometry",
-    "-d",
-    is_flag=True,
-    help="Drop records with null geometry",
-)
-@click.option(
     "--dump-inputs",
     "-i",
     is_flag=True,
     help="Dump input layers (with new hash key) to output .gdb",
-)
-@click.option(
-    "--crs",
-    help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
-)
-@click.option(
-    "--allow-duplicates",
-    is_flag=True,
-    help=(
-        "Do not fail on a duplicated primary key - instead, drop all but the first "
-        "occurrence of each duplicated key from the source it was found in, and write "
-        "the dropped records to a DUPLICATES layer"
-    ),
 )
 @verbose_opt
 @quiet_opt
@@ -269,84 +283,12 @@ def diff2gdb(
 
 
 @cli.command()
-@click.argument("in_file_a", type=click.Path(exists=True, allow_dash=True))
-@click.argument("in_file_b", type=click.Path(exists=True))
-@click.option(
-    "--layer-a",
-    help="Name of layer to use within in_file_a (not valid if reading from stdin/parquet)",
-)
-@click.option(
-    "--layer-b",
-    help="Name of layer to use within in_file_b (not valid if reading from parquet)",
-)
-@click.option(
-    "--fields",
-    "-f",
-    help="Comma separated list of fields to compare (do not include primary key)",
-)
-@click.option(
-    "--ignore-fields",
-    "-if",
-    help="Comma separated list of fields to ignore",
-)
-@click.option(
-    "--primary-key",
-    "-pk",
-    help="Comma separated list of primary key column(s), common to both datasets",
-)
-@click.option(
-    "--hash-key",
-    "-hk",
-    default="fcd_hash_id",
-    help="Name of new column to add as hash key",
-)
-@click.option(
-    "--hash-fields",
-    "-hf",
-    help="Comma separated list of fields to include in the hash (in addition to geometry)",
-)
-@click.option(
-    "--precision",
-    "-p",
-    default=0.01,
-    help="Coordinate precision for geometry hash and comparison. Default=0.01",
-)
-@click.option(
-    "--suffix-a",
-    "-a",
-    default="original",
-    help="Suffix to append to column names from data source A when comparing attributes",
-)
-@click.option(
-    "--suffix-b",
-    "-b",
-    default="new",
-    help="Suffix to append to column names from data source B when comparing attributes",
-)
-@click.option(
-    "--drop-null-geometry",
-    "-d",
-    is_flag=True,
-    help="Drop records with null geometry",
-)
-@click.option(
-    "--crs",
-    help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
-)
+@common_diff_options
 @click.option(
     "--count",
     "-c",
     is_flag=True,
     help="Print only record counts, omitting the primary key values in each category",
-)
-@click.option(
-    "--allow-duplicates",
-    is_flag=True,
-    help=(
-        "Do not fail on a duplicated primary key - instead, drop all but the first "
-        "occurrence of each duplicated key from the source it was found in, and "
-        "include a DUPLICATES category in the output"
-    ),
 )
 @verbose_opt
 @quiet_opt
