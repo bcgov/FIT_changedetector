@@ -234,8 +234,9 @@ def add_hash_key(
     """Add new column to input dataframe, containing hash of input columns and/or geometry.
 
     allow_duplicates does not apply to a geometry-only hash (hash_geometry=True
-    and fields empty) - a duplicate hash always raises there, since two
-    records sharing a location aren't necessarily duplicates.
+    and fields empty) - a duplicate hash always raises there, since geometry
+    alone can't reliably pair records between datasets when more than one
+    shares a location.
     """
     if fields is None:
         fields = []
@@ -311,14 +312,14 @@ def add_hash_key(
         df = df.drop(columns=["_geometry_normalized_"])
 
     # fail if hashes are not unique. A pure geometry hash (no other fields
-    # contributing) always fails here regardless of allow_duplicates: two
-    # records sharing a location aren't necessarily duplicates - they could
-    # be genuinely distinct features that happen to be at the same place,
-    # and treating them as a duplicate would silently discard one's
-    # attributes. allow_duplicates only applies once at least one non-geometry
+    # contributing) always fails here regardless of allow_duplicates: with
+    # no other attributes to go on, geometry alone can't reliably pair a
+    # record in one dataset with its counterpart in the other once more than
+    # one record shares a location, so the comparison itself becomes
+    # unreliable. allow_duplicates only applies once at least one non-geometry
     # field also contributes to the hash (or is used directly as
-    # primary_key), since a match there is a much more solid basis for
-    # treating the records as duplicates.
+    # primary_key), since that gives gdf_diff a much more solid basis for
+    # pairing records across datasets.
     hash_is_geometry_only = fields == ["_geometry_normalized_"]
     if len(df) != len(df[new_field].drop_duplicates()) and (
         not allow_duplicates or hash_is_geometry_only
@@ -327,7 +328,8 @@ def add_hash_key(
             raise ValueError(
                 "Duplicate geometries are present in source, consider including more fields in the hash "
                 "or editing the data. Option allow_duplicates does not apply to a geometry-only hash, since "
-                "records sharing only a location are not necessarily duplicates"
+                "geometry alone can't reliably pair records between datasets when more than one shares "
+                "a location"
             )
         else:
             raise ValueError(

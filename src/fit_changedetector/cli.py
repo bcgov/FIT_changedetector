@@ -99,8 +99,8 @@ def common_diff_options(f):
                 "occurrence of each duplicated key from the source it was found in, and "
                 "include the dropped records in a DUPLICATES category/layer of the output. "
                 "Not applied when no primary key or hash fields are given (a pure geometry "
-                "hash) - a duplicate there always fails, since records sharing only a "
-                "location aren't necessarily duplicates"
+                "hash) - a duplicate there always fails, since geometry alone can't reliably "
+                "pair records between datasets when more than one shares a location"
             ),
         ),
     ]
