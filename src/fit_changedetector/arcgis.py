@@ -201,13 +201,23 @@ def changedetector():
             env=env,
         )
 
+        lines = []
         for line in proc.stdout:
-            LOG.info(line.rstrip())
+            line = line.rstrip()
+            lines.append(line)
+            LOG.info(line)
         proc.wait()
 
         if proc.returncode != 0:
+            # surface the actual failure as the AddError, not just a generic
+            # message - everything captured above was logged via
+            # LOG.info/AddMessage regardless of severity, so without this the
+            # real reason (the last line of subprocess output - the exception
+            # message for an unhandled traceback, or click's own "Error: ..."
+            # line for a usage error) is easy to miss among progress messages
+            error_detail = lines[-1] if lines else "(no output captured)"
             arcpy.AddError(
-                "External changedetector diff2gdb script failed — see messages above."
+                f"External changedetector diff2gdb script failed: {error_detail}"
             )
             raise arcpy.ExecuteError
     finally:
