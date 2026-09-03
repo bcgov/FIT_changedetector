@@ -11,6 +11,7 @@ import logging
 import os
 import pprint
 import subprocess
+from datetime import datetime
 from pathlib import Path
 
 import arcpy
@@ -122,6 +123,18 @@ def resolve_sources(param):
         else:
             arcpy.AddError("Only .gdb and .shp are supported")
     return param
+
+
+def build_output_stem(out_name, default_prefix):
+    """Base filename (no extension) for a script tool's output + log files.
+
+    Uses out_name as-is if supplied; otherwise falls back to
+    "<default_prefix>_<timestamp>" (local time, human readable).
+    """
+    if out_name:
+        return out_name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
+    return f"{default_prefix}_{timestamp}"
 
 
 def build_common_diff_args(param):

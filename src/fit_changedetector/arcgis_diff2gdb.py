@@ -1,7 +1,6 @@
 # ruff: noqa: I001
 
 import os
-from datetime import datetime
 
 import arcpy
 
@@ -33,20 +32,22 @@ def changedetector():
         "drop_null_geometry": arcpy.GetParameter(11),
         "allow_duplicates": arcpy.GetParameter(12),
         "dump_inputs": arcpy.GetParameter(13),
-        "debug": arcpy.GetParameter(14),
+        "out_name": arcpy.GetParameterAsText(14),
+        "debug": arcpy.GetParameter(15),
     }
 
-    # generate output filenames with timestamp (local time, human readable)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
-    out_file = os.path.join(param["out_folder"], f"changedetector_{timestamp}.gdb")
-    logfile = os.path.join(param["out_folder"], f"changedetector_{timestamp}.txt")
+    # out_name (if supplied) names both the output file and its log; otherwise
+    # both fall back to a timestamped default
+    stem = arcgis_common.build_output_stem(param["out_name"], "changedetector")
+    out_file = os.path.join(param["out_folder"], f"{stem}.gdb")
+    logfile = os.path.join(param["out_folder"], f"{stem}.txt")
 
     arcgis_common.resolve_sources(param)
     cli_args = build_cli_args(param, out_file)
     arcgis_common.run_tool("diff2gdb", param, logfile, cli_args, out_file=out_file)
 
     # publish the .gdb path as this tool's derived output parameter
-    arcpy.SetParameterAsText(15, str(out_file))
+    arcpy.SetParameterAsText(16, str(out_file))
 
 
 if __name__ == "__main__":
