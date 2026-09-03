@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=64", "setuptools_scm>=8"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -41,8 +41,8 @@ changedetector = "fit_changedetector.cli:cli"
 Homepage = "https://github.com/bcgov/fit_changedetector"
 Issues = "https://github.com/bcgov/fit_changedetector"
 
-[tool.setuptools.dynamic]
-version = {attr = "fit_changedetector.__version__"}
+[tool.setuptools_scm]
+write_to = "src/fit_changedetector/_version.py"
 
 [tool.ruff]
 line-length = 88
