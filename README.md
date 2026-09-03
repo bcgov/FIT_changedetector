@@ -10,7 +10,7 @@ Install with pip:
 
     pip install fit_changedetector
 
-An ArcGIS Pro script tool is also provided (`arcgis.py`).
+ArcGIS Pro script tools are also provided: `arcgis_diff2gdb.py` (writes results to a .gdb, wraps the `diff2gdb` CLI command) and `arcgis_diff.py` (prints a JSON summary, wraps the `diff` CLI command). Both require `arcgis_common.py`, which holds their shared logic.
 Because an ArcGIS managed conda environment is unlikely to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
 
 In a Windows Command Prompt (with no active conda environment):
@@ -19,7 +19,7 @@ In a Windows Command Prompt (with no active conda environment):
     .venv\Scripts\activate.bat
     pip install fit_changedetector
 
-Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis.py` into your ArcGIS toolbox. If you don't have permission to set an environment variable, instead create a `venv_python.txt` file next to `arcgis.py` in the toolbox folder, containing just the path to `python.exe`. To avoid conflict with the system Python, the script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
+Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis_common.py` and whichever of `arcgis_diff2gdb.py`/`arcgis_diff.py` you need into your ArcGIS toolbox. If you don't have permission to set an environment variable, instead create a `venv_python.txt` file next to `arcgis_common.py` in the toolbox folder, containing just the path to `python.exe`. To avoid conflict with the system Python, each script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
 
 
 ## Usage
@@ -116,7 +116,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       prints a JSON summary instead of writing a .gdb: record counts per
       NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
       present in each category (use --count to omit the key lists and print just the
-      counts).
+      counts). Use --out-file to write the JSON to a file instead of stdout.
 
       IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
 
@@ -154,6 +154,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  location
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
+      -o, --out-file PATH        Path to write JSON summary to, instead of printing
+                                 to stdout
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
@@ -259,7 +261,7 @@ Neither `diff` nor `diff2gdb` have a bounding box / spatial filtering option, an
 
 #### ArcGIS
 
-The script tool calls the above documented CLI. Documentation of the parameters is also provided within the ArcGIS interface.
+The script tools call the above documented CLI. Documentation of the parameters is also provided within the ArcGIS interface.
 
 ## Subtleties to geometry change detection
 

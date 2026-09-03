@@ -293,6 +293,12 @@ def diff2gdb(
     is_flag=True,
     help="Print only record counts, omitting the primary key values in each category",
 )
+@click.option(
+    "--out-file",
+    "-o",
+    type=click.Path(),
+    help="Path to write JSON summary to, instead of printing to stdout",
+)
 @verbose_opt
 @quiet_opt
 def diff(
@@ -311,6 +317,7 @@ def diff(
     drop_null_geometry,
     crs,
     count,
+    out_file,
     allow_duplicates,
     verbose,
     quiet,
@@ -321,7 +328,8 @@ def diff(
     prints a JSON summary instead of writing a .gdb: record counts per
     NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
     present in each category (use --count to omit the key lists and print
-    just the counts).
+    just the counts). Use --out-file to write the JSON to a file instead of
+    stdout.
 
     IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
     """
@@ -349,6 +357,7 @@ def diff(
         hash_fields=hash_fields,
         precision=precision,
         counts_only=count,
+        out_file=out_file,
         allow_duplicates=allow_duplicates,
     )
 
