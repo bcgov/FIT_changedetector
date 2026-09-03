@@ -2,3 +2,4 @@
 .venv
 src/fit_changedetector/_version.py
 *.egg-info/
+build/
