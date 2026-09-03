@@ -10,8 +10,6 @@ import arcgis_common
 
 def build_cli_args(param):
     args = arcgis_common.build_common_diff_args(param)
-    if param["count"]:
-        args.append("--count")
     args += arcgis_common.build_verbosity_args(param["debug"])
     return args
 
@@ -31,8 +29,7 @@ def changedetector():
         "suffix_b": arcpy.GetParameter(10),
         "drop_null_geometry": arcpy.GetParameter(11),
         "allow_duplicates": arcpy.GetParameter(12),
-        "count": arcpy.GetParameter(13),
-        "debug": arcpy.GetParameter(14),
+        "debug": arcpy.GetParameter(13),
     }
 
     # diff has no spatial output, just a JSON summary (streamed to the
