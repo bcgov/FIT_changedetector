@@ -1,9 +1,8 @@
+from ._version import __version__ as __version__
 from .changedetector import add_hash_key as add_hash_key
 from .changedetector import diff_to_gdb as diff_to_gdb
 from .changedetector import diff_to_json as diff_to_json
 from .changedetector import gdf_diff as gdf_diff
-
-__version__ = "0.1.0a1"
 
 area_length_fields = [
     "SHAPE_LENGTH",

@@ -15,16 +15,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v7
+      with:
+        fetch-depth: 0  # setuptools_scm needs full history/tags to derive the version
     - name: Install uv
       uses: astral-sh/setup-uv@v7
-    - name: Verify tag matches package version
-      run: |
-        TAG_VERSION="${GITHUB_REF_NAME#v}"
-        PKG_VERSION=$(grep -Po '(?<=__version__ = ")[^"]+' src/fit_changedetector/__init__.py)
-        if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-          echo "Tag $GITHUB_REF_NAME does not match fit_changedetector.__version__ ($PKG_VERSION)"
-          exit 1
-        fi
     - name: Build a binary wheel and a source tarball
       run: uv build
     - name: Store the distribution packages
