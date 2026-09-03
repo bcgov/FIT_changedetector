@@ -871,12 +871,14 @@ def _read_and_diff(
     if primary_key:
         hash_geometry = False
 
-        # and ignore any supplied hash fields
+        # hash_fields only has meaning when hashing (no primary key, or a
+        # multi-column primary key) - reject the combination outright rather
+        # than silently ignoring it
         if hash_fields:
-            LOG.warning(
-                f"Using supplied primary key {primary_key} and ignoring supplied hash_fields {hash_fields}"
+            raise ValueError(
+                f"hash_fields {hash_fields} has no effect when a primary_key is supplied - "
+                "remove one or the other"
             )
-            hash_fields = []
 
     # if no primary key provided, link the two datasets by presuming geometries are the same
     # (hash on geometry)
