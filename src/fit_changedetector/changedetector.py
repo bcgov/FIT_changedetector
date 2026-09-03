@@ -339,21 +339,6 @@ def add_hash_key(
     return df
 
 
-def _describe_duplicates(df, primary_key):
-    """Build a "value: keeping index X, dropping index [Y, Z]" summary for
-    every duplicated primary_key value in df, for logging.
-    """
-    dupes = df[df[primary_key].duplicated(keep=False)]
-    parts = []
-    for pk_value, group in dupes.groupby(primary_key, sort=False):
-        indexes = list(group.index)
-        dropped = ", ".join(repr(i) for i in indexes[1:])
-        parts.append(
-            f"{pk_value!r}: keeping index {indexes[0]!r}, dropping index(es) {dropped}"
-        )
-    return "; ".join(parts)
-
-
 def _validate_and_prepare_diff_inputs(
     df_a, df_b, primary_key, fields, ignore_fields, precision, allow_duplicates=False
 ):
@@ -523,13 +508,14 @@ def _validate_and_prepare_diff_inputs(
                 f"Duplicate values exist for primary_key {primary_key}, in dataframe a, consider using "
                 "another primary key or pre-processing to remove duplicates"
             )
-        LOG.warning(
-            f"Duplicate values exist for primary_key {primary_key} in dataframe a, keeping "
-            f"first occurrence of each and dropping the rest: {_describe_duplicates(df_a, primary_key)}"
-        )
         duplicates_a = df_a_src[
             df_a_src.duplicated(subset=[primary_key], keep="first")
         ].copy()
+        LOG.warning(
+            f"{duplicates_a[primary_key].nunique()} duplicate value(s) exist for primary_key "
+            f"{primary_key} in dataframe a ({len(duplicates_a)} record(s) dropped) - keeping "
+            "first occurrence of each; see the DUPLICATES output for details"
+        )
         df_a = df_a.drop_duplicates(subset=[primary_key], keep="first")
         df_a_src = df_a_src.drop_duplicates(subset=[primary_key], keep="first")
     if len(df_b) != len(df_b[[primary_key]].drop_duplicates()):
@@ -538,13 +524,14 @@ def _validate_and_prepare_diff_inputs(
                 f"Duplicate values exist for primary_key {primary_key}, in dataframe b, consider using "
                 "another primary key or pre-processing to remove duplicates"
             )
-        LOG.warning(
-            f"Duplicate values exist for primary_key {primary_key} in dataframe b, keeping "
-            f"first occurrence of each and dropping the rest: {_describe_duplicates(df_b, primary_key)}"
-        )
         duplicates_b = df_b_src[
             df_b_src.duplicated(subset=[primary_key], keep="first")
         ].copy()
+        LOG.warning(
+            f"{duplicates_b[primary_key].nunique()} duplicate value(s) exist for primary_key "
+            f"{primary_key} in dataframe b ({len(duplicates_b)} record(s) dropped) - keeping "
+            "first occurrence of each; see the DUPLICATES output for details"
+        )
         df_b = df_b.drop_duplicates(subset=[primary_key], keep="first")
         df_b_src = df_b_src.drop_duplicates(subset=[primary_key], keep="first")
 
