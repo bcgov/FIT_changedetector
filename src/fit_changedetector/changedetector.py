@@ -986,10 +986,12 @@ def diff_to_json(
     hash_fields=None,
     precision=0.01,
     counts_only=False,
+    out_file=None,
     allow_duplicates=False,
 ):
     """
-    Compare two datasets, print a JSON summary to stdout.
+    Compare two datasets, print a JSON summary to stdout (or write it to
+    out_file, if provided).
 
     By default, includes record counts per category plus a "keys" section
     listing the primary key value(s) present in each category. If
@@ -1022,7 +1024,12 @@ def diff_to_json(
     if not counts_only:
         pk_name = resolved_primary_key[0]
         summary["keys"] = {key: df[pk_name].tolist() for key, df in result.items()}
-    print(json.dumps(summary))
+    if out_file:
+        LOG.info(f"Writing JSON summary to {out_file}")
+        with open(out_file, "w") as f:
+            json.dump(summary, f)
+    else:
+        print(json.dumps(summary))
 
 
 def diff_to_gdb(

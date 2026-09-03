@@ -71,6 +71,37 @@ def test_diff_pk(tmp_path, monkeypatch):
         assert len(output["keys"][key]) == count
 
 
+def test_diff_pk_out_file(tmp_path):
+    """--out-file writes the JSON summary to a file instead of stdout."""
+    out_file = os.path.join(tmp_path, "summary.json")
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "-o",
+            out_file,
+        ],
+    )
+    assert result.exit_code == 0
+    assert result.output == ""
+    with open(out_file) as f:
+        output = json.load(f)
+    counts = {k: v for k, v in output.items() if k != "keys"}
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
+
+
 def test_diff_pk_count(tmp_path, monkeypatch):
     """--count omits the "keys" section, printing just the record counts."""
     repo_root = os.getcwd()

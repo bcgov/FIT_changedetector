@@ -116,7 +116,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       prints a JSON summary instead of writing a .gdb: record counts per
       NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
       present in each category (use --count to omit the key lists and print just the
-      counts).
+      counts). Use --out-file to write the JSON to a file instead of stdout.
 
       IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
 
@@ -154,6 +154,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  location
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
+      -o, --out-file PATH        Path to write JSON summary to, instead of printing
+                                 to stdout
       -v, --verbose              Increase verbosity.
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.

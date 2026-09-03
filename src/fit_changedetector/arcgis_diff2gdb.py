@@ -45,6 +45,9 @@ def changedetector():
     cli_args = build_cli_args(param, out_file)
     arcgis_common.run_tool("diff2gdb", param, logfile, cli_args, out_file=out_file)
 
+    # publish the .gdb path as this tool's derived output parameter
+    arcpy.SetParameterAsText(15, str(out_file))
+
 
 if __name__ == "__main__":
     changedetector()
