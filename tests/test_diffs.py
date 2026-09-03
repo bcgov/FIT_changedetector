@@ -116,6 +116,22 @@ def test_diff():
     assert len(d["MODIFIED_GEOM"] == 1)
 
 
+def test_diff_primary_key_and_hash_fields_raises():
+    """hash_fields has no effect once a primary_key is supplied - the
+    combination is rejected rather than silently ignored."""
+    with pytest.raises(
+        ValueError, match="has no effect when a primary_key is supplied"
+    ):
+        fcd.diff_to_json(
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            None,
+            None,
+            primary_key=["id"],
+            hash_fields=["name"],
+        )
+
+
 def test_diff_allow_duplicates_reports_duplicates(gdf):
     """With allow_duplicates, gdf_diff drops all but the first occurrence of a
     duplicated primary key (per source) and returns the dropped records under
