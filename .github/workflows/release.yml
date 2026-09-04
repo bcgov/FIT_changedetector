@@ -27,6 +27,24 @@ jobs:
         name: python-package-distributions
         path: dist/
 
+    # a version-pinned copy of arcgis/ - kept out of dist/ so
+    # pypa/gh-action-pypi-publish (which uploads whatever it finds in dist/
+    # to PyPI) never sees it
+    - name: Build a version-pinned ArcGIS tools archive
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        cp -r arcgis arcgis-dist
+        rm -rf arcgis-dist/__pycache__
+        sed -i "s/^FIT_CHANGEDETECTOR_SPEC = .*/FIT_CHANGEDETECTOR_SPEC = \"fit_changedetector==${VERSION}\"/" arcgis-dist/changedetector_common.py
+        grep -q "fit_changedetector==${VERSION}\"\$" arcgis-dist/changedetector_common.py \
+          || { echo "FIT_CHANGEDETECTOR_SPEC substitution failed"; exit 1; }
+        (cd arcgis-dist && zip -r "../fit_changedetector-arcgis-tools-${GITHUB_REF_NAME}.zip" .)
+    - name: Store the ArcGIS tools archive
+      uses: actions/upload-artifact@v7
+      with:
+        name: arcgis-tools
+        path: fit_changedetector-arcgis-tools-*.zip
+
   publish-to-pypi:
     name: >-
       Publish Python 🐍 distribution 📦 to PyPI
@@ -67,6 +85,10 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
+    - name: Download the ArcGIS tools archive
+      uses: actions/download-artifact@v8
+      with:
+        name: arcgis-tools
     - name: Determine prerelease flag
       id: prerelease
       run: |
@@ -85,6 +107,13 @@ jobs:
         --repo '${{ github.repository }}'
         --generate-notes
         ${{ steps.prerelease.outputs.flag }}
+    - name: Upload the ArcGIS tools archive to the release
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: >-
+        gh release upload
+        '${{ github.ref_name }}' fit_changedetector-arcgis-tools-*.zip
+        --repo '${{ github.repository }}'
     # Signing is best-effort: it depends on Sigstore's public TUF trust-root
     # infrastructure, which can fail for reasons unrelated to this release
     # (eg tuf.api.exceptions.UnsignedMetadataError). Don't let that block

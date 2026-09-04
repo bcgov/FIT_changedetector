@@ -1,10 +1,14 @@
-"""Shared logic for the ArcGIS Pro script tools (arcgis_diff2gdb.py, arcgis_diff.py).
+"""Shared logic for the ArcGIS Pro script tools (changedetector_diff2gdb.py,
+changedetector_diff.py).
 
 Runs under ArcGIS Pro's own Python (which has arcpy but not fit_changedetector
 or its dependencies), so this module is stdlib + arcpy only. It's imported by
 the entry-point scripts as a plain sibling module - ArcGIS Pro adds a script
 tool's own directory to sys.path, so no packaging/installation is needed;
 just keep this file alongside the entry-point script(s) in the toolbox folder.
+
+Requires `uv` - script runs the CLI via `uvx` (https://docs.astral.sh/uv/).
+uv resolves/caches an isolated environment for the pinned version on demand.
 """
 
 import logging
@@ -16,9 +20,13 @@ from pathlib import Path
 
 import arcpy
 
-# path to the virtualenv's python.exe, set as a system/user environment
-# variable so this file doesn't need editing after every install/update
-VENV_PYTHON_ENV_VAR = "FIT_CHANGEDETECTOR_VENV_PYTHON"
+# the uvx --from spec for the fit_changedetector version to run. Pinned to a
+# released version so a run always uses a known, tested version rather than
+# silently picking up whatever's newest on PyPI - bump this with each
+# release. For testing changes not yet on PyPI, temporarily point this at a
+# git ref (e.g. "git+https://github.com/bcgov/FIT_changedetector.git@main")
+# or a local wheel/checkout path instead, then revert before merging.
+FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a1"
 
 
 # use a logger scoped to fit_changedetector.arcgis (not the root logger) so
@@ -95,16 +103,6 @@ def setup_logging(logfile, debug=False):
     LOG.addHandler(fh)
 
 
-def get_venv_python():
-    venv_python = os.environ.get(VENV_PYTHON_ENV_VAR)
-    if venv_python:
-        return venv_python
-    config_file = Path(__file__).parent / "venv_python.txt"
-    if config_file.exists():
-        return config_file.read_text().strip()
-    return None
-
-
 def resolve_sources(param):
     """Add file/layer keys to param, derived from its original_fc/new_fc keys.
 
@@ -177,8 +175,8 @@ def build_verbosity_args(debug):
     return args
 
 
-def run_cli(command, cli_args, venv_python):
-    """Run `venv_python -m fit_changedetector.cli <command> <cli_args>`.
+def run_cli(command, cli_args):
+    """Run `uvx --from FIT_CHANGEDETECTOR_SPEC changedetector <command> <cli_args>`.
 
     Streams subprocess output through LOG (arcpy messages + file log) and
     raises arcpy.ExecuteError with the real failure detail on a non-zero exit.
@@ -188,7 +186,8 @@ def run_cli(command, cli_args, venv_python):
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [venv_python, "-u", "-m", "fit_changedetector.cli", command] + cli_args,
+        ["uvx", "--from", FIT_CHANGEDETECTOR_SPEC, "changedetector", command]
+        + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -204,12 +203,7 @@ def run_cli(command, cli_args, venv_python):
     proc.wait()
 
     if proc.returncode != 0:
-        # surface the actual failure as the AddError, not just a generic
-        # message - everything captured above was logged via
-        # LOG.info/AddMessage regardless of severity, so without this the
-        # real reason (the last line of subprocess output - the exception
-        # message for an unhandled traceback, or click's own "Error: ..."
-        # line for a usage error) is easy to miss among progress messages
+        # surface the actual failure as an AddError to make it prominent
         error_detail = lines[-1] if lines else "(no output captured)"
         arcpy.AddError(
             f"External changedetector {command} script failed: {error_detail}"
@@ -219,27 +213,16 @@ def run_cli(command, cli_args, venv_python):
 
 
 def run_tool(command, param, logfile, cli_args, out_file=None):
-    """Shared entry-point body for the script tools: resolve the venv
-    python, set up logging, log the run, invoke the CLI, and clean up
-    handlers afterwards - regardless of which command is being run.
+    """Shared entry-point body for the script tools: set up logging, log
+    the run, invoke the CLI (via uvx), and clean up handlers afterwards -
+    regardless of which command is being run.
     """
-    venv_python = get_venv_python()
-    if not venv_python:
-        arcpy.AddError(
-            f"Environment variable {VENV_PYTHON_ENV_VAR} is not set, and no "
-            f"{Path(__file__).parent / 'venv_python.txt'} file was found. "
-            "Set the environment variable (preferred) or create that file "
-            "containing the path to python.exe within the virtualenv where "
-            "fit_changedetector is installed."
-        )
-        raise arcpy.ExecuteError
-
     setup_logging(logfile, param.get("debug", False))
     try:
         LOG.info(f"Script tool parameters: {pprint.pformat(param)}")
         if out_file:
             LOG.info(f"Output file: {out_file}")
-        run_cli(command, cli_args, venv_python)
+        run_cli(command, cli_args)
     finally:
         # release handlers (and the file handle) so they don't linger on
         # this logger for the rest of the ArcGIS Pro session

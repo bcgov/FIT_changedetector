@@ -10,16 +10,8 @@ Install with pip:
 
     pip install fit_changedetector
 
-ArcGIS Pro script tools are also provided: `arcgis_diff2gdb.py` (writes results to a .gdb, wraps the `diff2gdb` CLI command) and `arcgis_diff.py` (prints a JSON summary, wraps the `diff` CLI command). Both require `arcgis_common.py`, which holds their shared logic.
-Because an ArcGIS managed conda environment is unlikely to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
-
-In a Windows Command Prompt (with no active conda environment):
-
-    python -m venv .venv
-    .venv\Scripts\activate.bat
-    pip install fit_changedetector
-
-Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis_common.py` and whichever of `arcgis_diff2gdb.py`/`arcgis_diff.py` you need into your ArcGIS toolbox. If you don't have permission to set an environment variable, instead create a `venv_python.txt` file next to `arcgis_common.py` in the toolbox folder, containing just the path to `python.exe`. To avoid conflict with the system Python, each script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
+To use the scripts on ArcGIS Pro systems, installation is not required but `uv` must be available at the Windows command prompt.
+See the [`arcgis/`](arcgis/) folder, and its [README](arcgis/README.md), for the scripts and setup instructions.
 
 
 ## Usage
@@ -259,10 +251,6 @@ Neither `diff` nor `diff2gdb` have a bounding box / spatial filtering option, an
         changedetector diff2gdb -v - dataset_b.gpkg -pk id
 
 
-#### ArcGIS
-
-The script tools call the above documented CLI. Documentation of the parameters is also provided within the ArcGIS interface.
-
 ## Subtleties to geometry change detection
 
 Prior to comparing geometries, the tool will:
@@ -286,3 +274,10 @@ Uses [uv](https://docs.astral.sh/uv/) for dependency management:
     $ cd FIT_changedetector
     $ uv sync --extra test
     $ uv run pytest
+
+
+## Releases
+
+The package version is derived from git tags via [setuptools_scm](https://setuptools-scm.readthedocs.io/) - there's no hardcoded version to bump in source. Between tags, the version is a dev version derived from the most recent tag plus commit count/hash (e.g. `0.1.0a2.dev5+g1234abc`).
+
+To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, creates a GitHub Release, and builds/attaches a version-pinned copy of the ArcGIS tools - see [arcgis/README.md](arcgis/README.md#releases--versioning).

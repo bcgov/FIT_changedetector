@@ -1,16 +1,16 @@
 # ruff: noqa: I001
-
+# an arcgis script tool wrapping `changedetector diff` CLI
 import os
 
 import arcpy
 
-import arcgis_common
+import changedetector_common
 
 
 def build_cli_args(param, out_file):
-    args = arcgis_common.build_common_diff_args(param)
+    args = changedetector_common.build_common_diff_args(param)
     args += ["--out-file", str(out_file)]
-    args += arcgis_common.build_verbosity_args(param["debug"])
+    args += changedetector_common.build_verbosity_args(param["debug"])
     return args
 
 
@@ -35,13 +35,15 @@ def changedetector():
 
     # out_name (if supplied) names both the output file and its log; otherwise
     # both fall back to a timestamped default
-    stem = arcgis_common.build_output_stem(param["out_name"], "changedetector_diff")
+    stem = changedetector_common.build_output_stem(
+        param["out_name"], "changedetector_diff"
+    )
     out_file = os.path.join(param["out_folder"], f"{stem}.json")
     logfile = os.path.join(param["out_folder"], f"{stem}.txt")
 
-    arcgis_common.resolve_sources(param)
+    changedetector_common.resolve_sources(param)
     cli_args = build_cli_args(param, out_file)
-    arcgis_common.run_tool("diff", param, logfile, cli_args, out_file=out_file)
+    changedetector_common.run_tool("diff", param, logfile, cli_args, out_file=out_file)
 
     # publish the JSON summary path as this tool's derived output parameter
     arcpy.SetParameterAsText(15, str(out_file))
