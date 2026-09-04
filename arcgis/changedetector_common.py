@@ -16,6 +16,7 @@ import os
 import pprint
 import subprocess
 from datetime import datetime
+from pathlib import Path
 
 import arcpy
 
@@ -134,7 +135,15 @@ def resolve_sources(param):
     for src in ["original", "new"]:
         desc = arcpy.Describe(param[f"{src}_fc"])
         if desc.dataType == "FeatureClass":
-            param[src + "_file"] = desc.path
+            # desc.path is the fc's immediate parent workspace - if the fc
+            # sits inside a feature dataset, that's the feature dataset's own
+            # path, not the .gdb itself, and a feature dataset isn't a real
+            # openable filesystem path on its own. Walk up until we reach
+            # the actual .gdb workspace.
+            workspace = desc.path
+            while arcpy.Describe(workspace).dataType == "FeatureDataset":
+                workspace = arcpy.Describe(workspace).path
+            param[src + "_file"] = workspace
             param[src + "_layer"] = desc.name
         elif desc.dataType == "ShapeFile":
             param[src + "_file"] = desc.catalogPath
