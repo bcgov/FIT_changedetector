@@ -21,10 +21,13 @@ from pathlib import Path
 
 import arcpy
 
-# pinned so a run always uses a known, tested version of fit_changedetector
-# rather than silently picking up whatever's newest on PyPI - bump this with
-# each release
-FIT_CHANGEDETECTOR_VERSION = "0.1.0a1"
+# the uvx --from spec for the fit_changedetector version to run. Pinned to a
+# released version so a run always uses a known, tested version rather than
+# silently picking up whatever's newest on PyPI - bump this with each
+# release. For testing changes not yet on PyPI, temporarily point this at a
+# git ref (e.g. "git+https://github.com/bcgov/FIT_changedetector.git@main")
+# or a local wheel/checkout path instead, then revert before merging.
+FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a1"
 
 
 # use a logger scoped to fit_changedetector.arcgis (not the root logger) so
@@ -174,7 +177,7 @@ def build_verbosity_args(debug):
 
 
 def run_cli(command, cli_args):
-    """Run `uvx --from fit_changedetector==FIT_CHANGEDETECTOR_VERSION changedetector <command> <cli_args>`.
+    """Run `uvx --from FIT_CHANGEDETECTOR_SPEC changedetector <command> <cli_args>`.
 
     Streams subprocess output through LOG (arcpy messages + file log) and
     raises arcpy.ExecuteError with the real failure detail on a non-zero exit.
@@ -184,13 +187,7 @@ def run_cli(command, cli_args):
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [
-            "uvx",
-            "--from",
-            f"fit_changedetector=={FIT_CHANGEDETECTOR_VERSION}",
-            "changedetector",
-            command,
-        ]
+        ["uvx", "--from", FIT_CHANGEDETECTOR_SPEC, "changedetector", command]
         + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

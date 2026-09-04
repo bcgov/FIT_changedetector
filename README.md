@@ -16,7 +16,7 @@ ArcGIS Pro script tools are also provided, in the [`arcgis/`](arcgis/) folder of
 
 These do not need `fit_changedetector` (or a virtual environment for it) installed at all - each script tool runs the CLI via [uv](https://docs.astral.sh/uv/)'s `uvx`, which resolves and caches an isolated environment for a pinned `fit_changedetector` version on demand. [Install uv](https://docs.astral.sh/uv/getting-started/installation/), then drop `arcgis_common.py` and whichever of `arcgis_diff2gdb.py`/`arcgis_diff.py` you need into your ArcGIS toolbox folder - no virtual environment, environment variable, or `pip install` required.
 
-The version of `fit_changedetector` a script tool runs is pinned in `arcgis_common.py`'s `FIT_CHANGEDETECTOR_VERSION` - update it there to move to a newer release.
+The version of `fit_changedetector` a script tool runs is pinned in `arcgis_common.py`'s `FIT_CHANGEDETECTOR_SPEC` - update it there to move to a newer release.
 
 
 ## Usage
