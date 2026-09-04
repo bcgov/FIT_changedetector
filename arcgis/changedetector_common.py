@@ -149,10 +149,14 @@ def resolve_sources(param):
             param[src + "_file"] = desc.catalogPath
             param[src + "_layer"] = desc.baseName
         else:
+            # AddError alone doesn't stop execution - raise too, otherwise
+            # the caller hits a confusing KeyError on the missing _file/
+            # _layer keys instead of this clear message
             arcpy.AddError(
                 f"{param[f'{src}_fc']} is a {desc.dataType}, only geodatabase "
                 "feature classes and shapefiles are supported"
             )
+            raise arcpy.ExecuteError
     return param
 
 

@@ -7,22 +7,24 @@
 # just an ordinary PEP 8 name
 
 # this runs inside ArcGIS Pro's own Python, not the uvx-managed environment
-# the tool shells out to, so it can't import
-# fit_changedetector.id_fields/area_length_fields - keep the OBJECTID/
-# OID_/FID/SHAPE*/GEOMETRY* entries below in sync with those by hand
-IGNORE_FIELDS = [
+# the tool shells out to, so it can't import fit_changedetector directly -
+# keep this in sync by hand with id_fields + area_length_fields there
+MODULE_IGNORE_FIELDS = [
     "OBJECTID",
     "OID_",  # ArcPro adds this to csv files
     "FID",
     "SHAPE_LENGTH",
     "SHAPE_LENG",  # .shp truncation
-    "SHAPE",
     "SHAPE_AREA",
     "GEOMETRY_LENGTH",
     "GEOMETRY_AREA",
-    "GEOMETRY",
-    "SHAPE",
 ]
+
+# extra fields to exclude from this field picker specifically (the geometry
+# column itself) - not part of fit_changedetector's own ignore lists
+EXTRA_IGNORE_FIELDS = ["SHAPE", "GEOMETRY"]
+
+IGNORE_FIELDS = MODULE_IGNORE_FIELDS + EXTRA_IGNORE_FIELDS
 
 
 class ToolValidator:

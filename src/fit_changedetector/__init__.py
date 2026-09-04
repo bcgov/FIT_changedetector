@@ -19,7 +19,8 @@ area_length_fields = [
 # actual feature id, so if the source's own values for it aren't unique
 # (common - it's often just row order, not a stable identifier), writing any
 # output that retains it fails outright ("Cannot create feature of ID <n>
-# because one already exists"). Kept in sync by hand with IGNORE_FIELDS in
+# because one already exists"). This and area_length_fields above are both
+# kept in sync by hand with IGNORE_FIELDS in
 # arcgis/changedetector_toolvalidator.py, which can't import this package
 # (it runs inside ArcGIS Pro's own Python, not the uvx-managed environment
 # the tool shells out to).

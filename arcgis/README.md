@@ -62,6 +62,8 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 
 `out_name`, left blank, names the output (and its log file) with a timestamp automatically; set it to get a predictable filename instead - useful if you're calling the tool programmatically and want to know the output path in advance rather than reading it off the derived output parameter.
 
+Note that unlike the CLI, the ArcGIS tools provide no `--crs` parameter (for overriding the coordinate reference system used when hashing geometries).
+
 ## Releases & versioning
 
 Each script tool shells out to a specific, pinned `fit_changedetector` version - `changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` - rather than "whatever's newest," so a tool's behavior can't shift between runs without someone explicitly changing that pin.
