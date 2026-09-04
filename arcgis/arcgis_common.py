@@ -5,6 +5,11 @@ or its dependencies), so this module is stdlib + arcpy only. It's imported by
 the entry-point scripts as a plain sibling module - ArcGIS Pro adds a script
 tool's own directory to sys.path, so no packaging/installation is needed;
 just keep this file alongside the entry-point script(s) in the toolbox folder.
+
+Runs the CLI via `uvx` (https://docs.astral.sh/uv/) instead of a
+manually-provisioned virtualenv - uv resolves/caches an isolated environment
+for the pinned version below on demand, so there's nothing for a user to set
+up beyond having uv installed.
 """
 
 import logging
@@ -16,9 +21,10 @@ from pathlib import Path
 
 import arcpy
 
-# path to the virtualenv's python.exe, set as a system/user environment
-# variable so this file doesn't need editing after every install/update
-VENV_PYTHON_ENV_VAR = "FIT_CHANGEDETECTOR_VENV_PYTHON"
+# pinned so a run always uses a known, tested version of fit_changedetector
+# rather than silently picking up whatever's newest on PyPI - bump this with
+# each release
+FIT_CHANGEDETECTOR_VERSION = "0.1.0a1"
 
 
 # use a logger scoped to fit_changedetector.arcgis (not the root logger) so
@@ -95,16 +101,6 @@ def setup_logging(logfile, debug=False):
     LOG.addHandler(fh)
 
 
-def get_venv_python():
-    venv_python = os.environ.get(VENV_PYTHON_ENV_VAR)
-    if venv_python:
-        return venv_python
-    config_file = Path(__file__).parent / "venv_python.txt"
-    if config_file.exists():
-        return config_file.read_text().strip()
-    return None
-
-
 def resolve_sources(param):
     """Add file/layer keys to param, derived from its original_fc/new_fc keys.
 
@@ -177,8 +173,8 @@ def build_verbosity_args(debug):
     return args
 
 
-def run_cli(command, cli_args, venv_python):
-    """Run `venv_python -m fit_changedetector.cli <command> <cli_args>`.
+def run_cli(command, cli_args):
+    """Run `uvx --from fit_changedetector==FIT_CHANGEDETECTOR_VERSION changedetector <command> <cli_args>`.
 
     Streams subprocess output through LOG (arcpy messages + file log) and
     raises arcpy.ExecuteError with the real failure detail on a non-zero exit.
@@ -188,7 +184,14 @@ def run_cli(command, cli_args, venv_python):
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        [venv_python, "-u", "-m", "fit_changedetector.cli", command] + cli_args,
+        [
+            "uvx",
+            "--from",
+            f"fit_changedetector=={FIT_CHANGEDETECTOR_VERSION}",
+            "changedetector",
+            command,
+        ]
+        + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -219,27 +222,16 @@ def run_cli(command, cli_args, venv_python):
 
 
 def run_tool(command, param, logfile, cli_args, out_file=None):
-    """Shared entry-point body for the script tools: resolve the venv
-    python, set up logging, log the run, invoke the CLI, and clean up
-    handlers afterwards - regardless of which command is being run.
+    """Shared entry-point body for the script tools: set up logging, log
+    the run, invoke the CLI (via uvx), and clean up handlers afterwards -
+    regardless of which command is being run.
     """
-    venv_python = get_venv_python()
-    if not venv_python:
-        arcpy.AddError(
-            f"Environment variable {VENV_PYTHON_ENV_VAR} is not set, and no "
-            f"{Path(__file__).parent / 'venv_python.txt'} file was found. "
-            "Set the environment variable (preferred) or create that file "
-            "containing the path to python.exe within the virtualenv where "
-            "fit_changedetector is installed."
-        )
-        raise arcpy.ExecuteError
-
     setup_logging(logfile, param.get("debug", False))
     try:
         LOG.info(f"Script tool parameters: {pprint.pformat(param)}")
         if out_file:
             LOG.info(f"Output file: {out_file}")
-        run_cli(command, cli_args, venv_python)
+        run_cli(command, cli_args)
     finally:
         # release handlers (and the file handle) so they don't linger on
         # this logger for the rest of the ArcGIS Pro session

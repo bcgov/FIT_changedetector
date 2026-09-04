@@ -10,16 +10,13 @@ Install with pip:
 
     pip install fit_changedetector
 
-ArcGIS Pro script tools are also provided: `arcgis_diff2gdb.py` (writes results to a .gdb, wraps the `diff2gdb` CLI command) and `arcgis_diff.py` (prints a JSON summary, wraps the `diff` CLI command). Both require `arcgis_common.py`, which holds their shared logic.
-Because an ArcGIS managed conda environment is unlikely to be 100% compatible with this module's dependencies, installation of this module to a virtual environment is recommended:
+### ArcGIS Pro
 
-In a Windows Command Prompt (with no active conda environment):
+ArcGIS Pro script tools are also provided, in the [`arcgis/`](arcgis/) folder of this repository: `arcgis_diff2gdb.py` (writes results to a .gdb, wraps the `diff2gdb` CLI command) and `arcgis_diff.py` (prints a JSON summary, wraps the `diff` CLI command). Both require `arcgis_common.py`, which holds their shared logic.
 
-    python -m venv .venv
-    .venv\Scripts\activate.bat
-    pip install fit_changedetector
+These do not need `fit_changedetector` (or a virtual environment for it) installed at all - each script tool runs the CLI via [uv](https://docs.astral.sh/uv/)'s `uvx`, which resolves and caches an isolated environment for a pinned `fit_changedetector` version on demand. [Install uv](https://docs.astral.sh/uv/getting-started/installation/), then drop `arcgis_common.py` and whichever of `arcgis_diff2gdb.py`/`arcgis_diff.py` you need into your ArcGIS toolbox folder - no virtual environment, environment variable, or `pip install` required.
 
-Set the `FIT_CHANGEDETECTOR_VENV_PYTHON` environment variable to the path of `python.exe` in your virtual environment (e.g. via `setx FIT_CHANGEDETECTOR_VENV_PYTHON "C:\path\to\.venv\Scripts\python.exe"`, or through Windows' System Properties > Environment Variables), then drop `arcgis_common.py` and whichever of `arcgis_diff2gdb.py`/`arcgis_diff.py` you need into your ArcGIS toolbox. If you don't have permission to set an environment variable, instead create a `venv_python.txt` file next to `arcgis_common.py` in the toolbox folder, containing just the path to `python.exe`. To avoid conflict with the system Python, each script tool passes the arguments provided in the ArcGIS tool to the change detector CLI - which is run in a subprocess using the virtual environment's Python.
+The version of `fit_changedetector` a script tool runs is pinned in `arcgis_common.py`'s `FIT_CHANGEDETECTOR_VERSION` - update it there to move to a newer release.
 
 
 ## Usage
