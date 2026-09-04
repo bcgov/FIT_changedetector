@@ -1,5 +1,5 @@
 """Shared logic for the ArcGIS Pro script tools (changedetector_diff2gdb.py,
-changedetector_diff.py).
+changedetector_diff2json.py).
 
 Runs under ArcGIS Pro's own Python (which has arcpy but not fit_changedetector
 or its dependencies), so this module is stdlib + arcpy only. It's imported by

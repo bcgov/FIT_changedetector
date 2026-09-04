@@ -2,7 +2,7 @@
 
 Two script tools wrap the `changedetector` CLI (see the [main README](../README.md) for what the CLI itself does):
 
-- `changedetector_diff.py` - wraps `diff`, prints a JSON summary
+- `changedetector_diff2json.py` - wraps `diff`, prints a JSON summary
 - `changedetector_diff2gdb.py` - wraps `diff2gdb`, writes results to a .gdb
 
 Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them, and both run the CLI via [`uv`](https://docs.astral.sh/uv/)'s `uvx`, which resolves and caches an isolated `fit_changedetector` environment on demand - no venv, no `pip install`, nothing else to set up.
@@ -13,8 +13,8 @@ Both require `changedetector_common.py` (shared logic - subprocess invocation, l
 
 ## Setup
 
-1. Download `fit_changedetector-arcgis-tools-<version>.zip` from the [latest release](https://github.com/bcgov/FIT_changedetector/releases/latest) and extract `changedetector_common.py`, `changedetector_diff.py`, `changedetector_diff2gdb.py` (and this README) to a target folder - wherever you point the tool's Script File (ArcGIS Pro adds that script's own folder to `sys.path`). See [Releases & versioning](#releases--versioning) below for why this is the recommended source rather than copying the files straight out of the repo.
-2. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the entry-point script (`changedetector_diff.py` or `changedetector_diff2gdb.py`).
+1. Download `fit_changedetector-arcgis-tools-<version>.zip` from the [latest release](https://github.com/bcgov/FIT_changedetector/releases/latest) and extract `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py` (and this README) to a target folder - wherever you point the tool's Script File (ArcGIS Pro adds that script's own folder to `sys.path`). See [Releases & versioning](#releases--versioning) below for why this is the recommended source rather than copying the files straight out of the repo.
+2. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the entry-point script (`changedetector_diff2json.py` or `changedetector_diff2gdb.py`).
 3. Add the tool's parameters, in order, per the table below.
 4. Paste `changedetector_toolvalidator.py`'s contents into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
 5. Repeat for the second tool, if you want both.
@@ -39,7 +39,7 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 | 11 | drop_null_geometry | Boolean | Optional |
 | 12 | allow_duplicates | Boolean | Optional |
 
-`changedetector_diff.py` (`diff`):
+`changedetector_diff2json.py` (`diff`):
 
 | # | Name | Suggested type | Required |
 |---|------|-----------------|----------|
