@@ -23,10 +23,30 @@ import arcpy
 # the uvx --from spec for the fit_changedetector version to run. Pinned to a
 # released version so a run always uses a known, tested version rather than
 # silently picking up whatever's newest on PyPI - bump this with each
-# release. For testing changes not yet on PyPI, temporarily point this at a
-# git ref (e.g. "git+https://github.com/bcgov/FIT_changedetector.git@main")
-# or a local wheel/checkout path instead, then revert before merging.
+# release. Don't edit this for local testing - see get_spec() below.
 FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a1"
+
+# filename (checked next to this script) that, if present, overrides
+# FIT_CHANGEDETECTOR_SPEC - see get_spec()
+SPEC_OVERRIDE_FILE = "spec_override.txt"
+
+
+def get_spec():
+    """FIT_CHANGEDETECTOR_SPEC, unless a local SPEC_OVERRIDE_FILE next to
+    this script overrides it.
+
+    For testing changes not yet on PyPI, create that file (gitignored, so
+    `git pull` never touches it - no need to stash/revert anything)
+    containing a git ref (e.g.
+    "git+https://github.com/bcgov/FIT_changedetector.git@main") or a local
+    wheel/checkout path instead - uvx's --from accepts either. Read fresh
+    on every run, so editing it takes effect on the very next run, no
+    ArcGIS Pro restart needed.
+    """
+    override_file = Path(__file__).parent / SPEC_OVERRIDE_FILE
+    if override_file.exists():
+        return override_file.read_text().strip()
+    return FIT_CHANGEDETECTOR_SPEC
 
 
 # use a logger scoped to fit_changedetector.arcgis (not the root logger) so
@@ -176,7 +196,8 @@ def build_verbosity_args(debug):
 
 
 def run_cli(command, cli_args):
-    """Run `uvx --from FIT_CHANGEDETECTOR_SPEC changedetector <command> <cli_args>`.
+    """Run `uvx --from <spec> changedetector <command> <cli_args>`, where
+    <spec> is get_spec() (FIT_CHANGEDETECTOR_SPEC, or a local override).
 
     Streams subprocess output through LOG (arcpy messages + file log) and
     raises arcpy.ExecuteError with the real failure detail on a non-zero exit.
@@ -186,8 +207,7 @@ def run_cli(command, cli_args):
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        ["uvx", "--from", FIT_CHANGEDETECTOR_SPEC, "changedetector", command]
-        + cli_args,
+        ["uvx", "--from", get_spec(), "changedetector", command] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,

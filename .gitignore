@@ -3,3 +3,4 @@
 src/fit_changedetector/_version.py
 *.egg-info/
 build/
+arcgis/spec_override.txt
