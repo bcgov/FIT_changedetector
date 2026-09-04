@@ -16,7 +16,6 @@ import os
 import pprint
 import subprocess
 from datetime import datetime
-from pathlib import Path
 
 import arcpy
 
@@ -128,18 +127,23 @@ def resolve_sources(param):
 
     Mutates and returns param.
     """
-    # extract path/layer from source feature class
-    # There is probably an arcpy method for determining the source type,
-    # but just looking at the extension is simple and seems safe
+    # use arcpy.Describe to determine source type, rather than sniffing the
+    # path's file extension - the extension-based check broke for a feature
+    # class nested inside a .gdb feature dataset, since its immediate parent
+    # directory isn't the .gdb itself (github.com/bcgov/FIT_changedetector/issues/116)
     for src in ["original", "new"]:
-        if Path(param[f"{src}_fc"]).parent.suffix == ".gdb":
-            param[src + "_file"] = Path(param[f"{src}_fc"]).parent
-            param[src + "_layer"] = Path(param[f"{src}_fc"]).name
-        elif Path(param[f"{src}_fc"]).suffix == ".shp":
-            param[src + "_file"] = param[f"{src}_fc"]
-            param[src + "_layer"] = Path(param[f"{src}_fc"]).stem
+        desc = arcpy.Describe(param[f"{src}_fc"])
+        if desc.dataType == "FeatureClass":
+            param[src + "_file"] = desc.path
+            param[src + "_layer"] = desc.name
+        elif desc.dataType == "ShapeFile":
+            param[src + "_file"] = desc.catalogPath
+            param[src + "_layer"] = desc.baseName
         else:
-            arcpy.AddError("Only .gdb and .shp are supported")
+            arcpy.AddError(
+                f"{param[f'{src}_fc']} is a {desc.dataType}, only geodatabase "
+                "feature classes and shapefiles are supported"
+            )
     return param
 
 
