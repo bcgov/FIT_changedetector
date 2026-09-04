@@ -24,7 +24,7 @@ import arcpy
 # released version so a run always uses a known, tested version rather than
 # silently picking up whatever's newest on PyPI - bump this with each
 # release. Don't edit this for local testing - see get_spec() below.
-FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a1"
+FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a2"
 
 # filename (checked next to this script) that, if present, overrides
 # FIT_CHANGEDETECTOR_SPEC - see get_spec()
