@@ -1,4 +1,5 @@
-"""Shared logic for the ArcGIS Pro script tools (arcgis_diff2gdb.py, arcgis_diff.py).
+"""Shared logic for the ArcGIS Pro script tools (changedetector_diff2gdb.py,
+changedetector_diff.py).
 
 Runs under ArcGIS Pro's own Python (which has arcpy but not fit_changedetector
 or its dependencies), so this module is stdlib + arcpy only. It's imported by
@@ -6,10 +7,8 @@ the entry-point scripts as a plain sibling module - ArcGIS Pro adds a script
 tool's own directory to sys.path, so no packaging/installation is needed;
 just keep this file alongside the entry-point script(s) in the toolbox folder.
 
-Runs the CLI via `uvx` (https://docs.astral.sh/uv/) instead of a
-manually-provisioned virtualenv - uv resolves/caches an isolated environment
-for the pinned version below on demand, so there's nothing for a user to set
-up beyond having uv installed.
+Requires `uv` - script runs the CLI via `uvx` (https://docs.astral.sh/uv/).
+uv resolves/caches an isolated environment for the pinned version on demand.
 """
 
 import logging
@@ -204,12 +203,7 @@ def run_cli(command, cli_args):
     proc.wait()
 
     if proc.returncode != 0:
-        # surface the actual failure as the AddError, not just a generic
-        # message - everything captured above was logged via
-        # LOG.info/AddMessage regardless of severity, so without this the
-        # real reason (the last line of subprocess output - the exception
-        # message for an unhandled traceback, or click's own "Error: ..."
-        # line for a usage error) is easy to miss among progress messages
+        # surface the actual failure as an AddError to make it prominent
         error_detail = lines[-1] if lines else "(no output captured)"
         arcpy.AddError(
             f"External changedetector {command} script failed: {error_detail}"

@@ -1,7 +1,10 @@
 # ruff: noqa: F821
 
-# paste this into the Validation tab of the script tool properties
-# filename matches the ArcGIS ToolValidator class convention, not a PEP 8 module name
+# for script tools calling both _diff.py and diff2gdb.py, paste this into the
+# Validation tab of the script tool properties - this file itself is never
+# loaded by ArcGIS Pro, only the pasted code, so only the class name below
+# (ToolValidator, required by arcpy) matters; this module's own filename is
+# just an ordinary PEP 8 name
 
 # this runs inside ArcGIS Pro's own Python, not the uvx-managed environment
 # the tool shells out to, so it can't import

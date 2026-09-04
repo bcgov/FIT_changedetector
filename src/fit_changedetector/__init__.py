@@ -20,8 +20,9 @@ area_length_fields = [
 # (common - it's often just row order, not a stable identifier), writing any
 # output that retains it fails outright ("Cannot create feature of ID <n>
 # because one already exists"). Kept in sync by hand with IGNORE_FIELDS in
-# arcgis_ToolValidator.py, which can't import this package (it runs inside
-# ArcGIS Pro's own Python, not the tool's venv).
+# arcgis/changedetector_toolvalidator.py, which can't import this package
+# (it runs inside ArcGIS Pro's own Python, not the uvx-managed environment
+# the tool shells out to).
 id_fields = [
     "OBJECTID",
     "OID_",  # ArcPro adds this to csv files
