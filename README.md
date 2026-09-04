@@ -288,3 +288,5 @@ Note that if testing only the ArcGIS scripts, `uv sync` is not necessary:
 The package version is derived from git tags via [setuptools_scm](https://setuptools-scm.readthedocs.io/) - there's no hardcoded version to bump in source. Between tags, the version is a dev version derived from the most recent tag plus commit count/hash (e.g. `0.1.0a2.dev5+g1234abc`).
 
 To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, creates a GitHub Release, and builds/attaches a version-pinned copy of the ArcGIS tools - see [arcgis/README.md](arcgis/README.md#releases--versioning).
+
+Afterward, bump `arcgis/changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` to the new version and commit it to `main`. This update is done automatically in the released arcgis files but needs to be done manually in the code repository.
