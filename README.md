@@ -275,6 +275,13 @@ Uses [uv](https://docs.astral.sh/uv/) for dependency management:
     $ uv sync --extra test
     $ uv run pytest
 
+Note that if testing only the ArcGIS scripts, `uv sync` is not necessary:
+
+- clone the repo to get the latest script tool python files (in `/arcgis`)
+- place all the .py files together in the desired folder
+- update corresponding ArcGIS toolbox(es) as needed
+- edit `FIT_CHANGEDETECTOR_SPEC` in `changedetector_common.py` to point to the git ref of this module you'd like to test against (see the [arcgis readme for an example](arcgis/README.md))
+
 
 ## Releases
 
