@@ -270,7 +270,7 @@ Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, a
 
 Uses [uv](https://docs.astral.sh/uv/) for dependency management:
 
-    $ git clone git@github.com:bcgov/FIT_changedetector.git
+    $ git clone https://github.com/bcgov/FIT_changedetector.git
     $ cd FIT_changedetector
     $ uv sync --extra test
     $ uv run pytest
