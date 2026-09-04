@@ -74,4 +74,4 @@ To test changes that are not on PyPI yet, create a `spec_override.txt` file next
 
     git+https://github.com/bcgov/FIT_changedetector.git@main
 
-`get_spec()` reads that file fresh on every run if it exists, falling back to the committed `FIT_CHANGEDETECTOR_SPEC` otherwise - so editing it takes effect on the very next run (no ArcGIS Pro restart needed to pick up a *changed* override, unlike edits to the `.py` files themselves - see [Testing ArcGIS script changes](#testing-arcgis-script-changes) above). Delete the file to go back to the pinned release default.
+`get_spec()` reads that file fresh on every run if it exists, falling back to the committed `FIT_CHANGEDETECTOR_SPEC` otherwise - so editing it takes effect on the very next run (no ArcGIS Pro restart needed to pick up a *changed* override). Delete the file to go back to the pinned release default.
