@@ -274,3 +274,10 @@ Uses [uv](https://docs.astral.sh/uv/) for dependency management:
     $ cd FIT_changedetector
     $ uv sync --extra test
     $ uv run pytest
+
+
+## Releases
+
+The package version is derived from git tags via [setuptools_scm](https://setuptools-scm.readthedocs.io/) - there's no hardcoded version to bump in source. Between tags, the version is a dev version derived from the most recent tag plus commit count/hash (e.g. `0.1.0a2.dev5+g1234abc`).
+
+To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, creates a GitHub Release, and builds/attaches a version-pinned copy of the ArcGIS tools - see [arcgis/README.md](arcgis/README.md#releases--versioning).
