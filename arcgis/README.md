@@ -13,7 +13,7 @@ Both require `changedetector_common.py` (shared logic - subprocess invocation, l
 
 ## Setup
 
-1. Copy scripts `changedetector_common.py`, `changedetector_diff.py`, `changedetector_diff2gdb.py` to target folder - wherever you point the tool's Script File (ArcGIS Pro adds that script's own folder to `sys.path`).
+1. Download `fit_changedetector-arcgis-tools-<version>.zip` from the [latest release](https://github.com/bcgov/FIT_changedetector/releases/latest) and extract `changedetector_common.py`, `changedetector_diff.py`, `changedetector_diff2gdb.py` (and this README) to a target folder - wherever you point the tool's Script File (ArcGIS Pro adds that script's own folder to `sys.path`). See [Releases & versioning](#releases--versioning) below for why this is the recommended source rather than copying the files straight out of the repo.
 2. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the entry-point script (`changedetector_diff.py` or `changedetector_diff2gdb.py`).
 3. Add the tool's parameters, in order, per the table below.
 4. Paste `changedetector_toolvalidator.py`'s contents into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
@@ -58,8 +58,16 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 
 `out_name`, left blank, names the output (and its log file) with a timestamp automatically; set it to get a predictable filename instead - useful if you're calling the tool programmatically and want to know the output path in advance rather than reading it off the derived output parameter.
 
-## Testing against unreleased FIT_changedetector changes
+## Releases & versioning
 
-`changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` pins the exact `fit_changedetector` version each run installs via `uvx`. To test changes that are not on PyPI yet, temporarily point it at a git ref or a local wheel/checkout path instead (`uvx --from` accepts either), then revert before merging:
+Each script tool shells out to a specific, pinned `fit_changedetector` version - `changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` - rather than "whatever's newest," so a tool's behavior can't shift between runs without someone explicitly changing that pin.
+
+The copy of `arcgis/` committed in this repository is **not** what you should deploy from directly: `FIT_CHANGEDETECTOR_SPEC` there is whatever's convenient for local dev/testing (see below), not guaranteed to match any real release. Instead, every tagged release (`vX.Y.Z`) automatically builds a correctly-pinned copy and attaches it to the matching [GitHub Release](https://github.com/bcgov/FIT_changedetector/releases) as `fit_changedetector-arcgis-tools-vX.Y.Z.zip` (see `.github/workflows/release.yml`). That archive's `FIT_CHANGEDETECTOR_SPEC` is generated fresh from the tag at release time, so it's always version-matched to the `fit_changedetector` release published to PyPI in the same run - not something anyone has to remember to keep in sync by hand. Use the release zip unless you're specifically testing unreleased changes, per below.
+
+`fit_changedetector`'s own version is likewise derived from that same git tag, via `setuptools_scm` (see `pyproject.toml`) - so a single tag push drives both the PyPI release and the matching ArcGIS tools archive.
+
+### Testing against unreleased fit_changedetector changes
+
+To test changes that are not on PyPI yet, temporarily point `FIT_CHANGEDETECTOR_SPEC` at a git ref or a local wheel/checkout path instead of a released version (`uvx --from` accepts either), then revert before merging:
 
     FIT_CHANGEDETECTOR_SPEC = "git+https://github.com/bcgov/FIT_changedetector.git@main"
