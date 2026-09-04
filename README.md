@@ -280,7 +280,7 @@ Note that if testing only the ArcGIS scripts, `uv sync` is not necessary:
 - clone the repo to get the latest script tool python files (in `/arcgis`)
 - place all the .py files together in the desired folder
 - update corresponding ArcGIS toolbox(es) as needed
-- edit `FIT_CHANGEDETECTOR_SPEC` in `changedetector_common.py` to point to the git ref of this module you'd like to test against (see the [arcgis readme for an example](arcgis/README.md))
+- create a `spec_override.txt` file next to `changedetector_common.py` containing the git ref of this module you'd like to test against - gitignored, so it survives a `git pull` untouched (see the [arcgis readme for an example](arcgis/README.md#testing-against-unreleased-fit_changedetector-changes))
 
 
 ## Releases

@@ -19,6 +19,10 @@ Both require `changedetector_common.py` (shared logic - subprocess invocation, l
 4. Paste `changedetector_toolvalidator.py`'s contents into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
 5. Repeat for the second tool, if you want both.
 
+### Testing ArcGIS script changes
+
+ArcGIS Pro caches an imported sibling module (`changedetector_common.py`) in memory for the life of the session - editing that file (via `git pull` or by hand) has no effect on a tool you've already run at least once in the current session until you **restart ArcGIS Pro**. If this is the first run of a session, you're fine - it imports fresh automatically. `spec_override.txt` (below) is the one exception: it's read fresh from disk on every run, so changing *that* never needs a restart.
+
 ## Parameters
 
 Parameters 0-12 are identical for both tools. Each tool then adds its own tail, ending in a **Derived** output parameter that publishes the path of the file it wrote.
@@ -66,6 +70,8 @@ Note that the scripts in `arcgis/` committed in this repository are not guarante
 
 ### Testing against unreleased fit_changedetector changes
 
-To test changes that are not on PyPI yet, temporarily point `FIT_CHANGEDETECTOR_SPEC` at a git ref or a local wheel/checkout path instead of a released version (`uvx --from` accepts either), then revert before merging:
+To test changes that are not on PyPI yet, create a `spec_override.txt` file next to `changedetector_common.py` (gitignored - `git pull` never touches it, nothing to stash or revert) containing a git ref or a local wheel/checkout path instead of a released version (`uvx --from` accepts either):
 
-    FIT_CHANGEDETECTOR_SPEC = "git+https://github.com/bcgov/FIT_changedetector.git@main"
+    git+https://github.com/bcgov/FIT_changedetector.git@main
+
+`get_spec()` reads that file fresh on every run if it exists, falling back to the committed `FIT_CHANGEDETECTOR_SPEC` otherwise - so editing it takes effect on the very next run (no ArcGIS Pro restart needed to pick up a *changed* override). Delete the file to go back to the pinned release default.
