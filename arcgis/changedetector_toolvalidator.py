@@ -98,6 +98,19 @@ class ToolValidator:
             fieldlist = [f for f in fields_1 if f in pk_fieldset]
             hash_fieldlist = [f for f in fields_1 if f in hash_fieldset]
 
+            # source geometry fields may not have the same name
+            # Explicitly offer original_fc's own
+            # name (it need not match new_fc's) whenever both sources are
+            # spatial, so hashing on geometry always stays selectable.
+            shape_field_1 = getattr(
+                arcpy.Describe(self.params[0].value), "shapeFieldName", None
+            )
+            shape_field_2 = getattr(
+                arcpy.Describe(self.params[1].value), "shapeFieldName", None
+            )
+            if shape_field_1 and shape_field_2 and shape_field_1 not in hash_fieldlist:
+                hash_fieldlist.append(shape_field_1)
+
             self.params[3].filter.list = fieldlist
             self.params[4].filter.list = fieldlist
             self.params[5].filter.list = fieldlist
