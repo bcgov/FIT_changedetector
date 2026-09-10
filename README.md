@@ -88,9 +88,11 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       --in-layer TEXT           Name of layer to add hashed primary key
       -nln, --out-layer TEXT    Output layer name
       -hk, --hash-key TEXT      Name of new column containing hashed data
-      -d, --drop-null-geometry  Drop records with null geometry
-      -hf, --hash-fields TEXT   Comma separated list of fields to include in the
-                                hash (not including geometry)
+      -d, --drop-null-geometry  Drop records with null geometry. Only valid when the
+                                geometry field is included in --hash-fields
+      -hf, --hash-fields TEXT   Comma separated list of fields to hash. Include the
+                                geometry field's name (typically 'geometry') to
+                                include geometry in the hash  [required]
       -p, --precision FLOAT     Coordinate precision for geometry hash and
                                 comparison. Default=0.01
       --crs TEXT                Coordinate reference system to use when hashing
@@ -123,27 +125,30 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -pk, --primary-key TEXT    Comma separated list of primary key column(s),
                                  common to both datasets
       -hk, --hash-key TEXT       Name of new column to add as hash key
-      -hf, --hash-fields TEXT    Comma separated list of fields to include in the
-                                 hash (in addition to geometry)
+      -hf, --hash-fields TEXT    Comma separated list of fields to hash, when no
+                                 --primary-key is given - required in that case.
+                                 Include the geometry field's name (typically
+                                 'geometry') to include geometry in the hash
       -p, --precision FLOAT      Coordinate precision for geometry hash and
                                  comparison. Default=0.01
       -a, --suffix-a TEXT        Suffix to append to column names from data source A
                                  when comparing attributes
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
-      -d, --drop-null-geometry   Drop records with null geometry
+      -d, --drop-null-geometry   Drop records with null geometry. Only valid when
+                                 the geometry field is included in --hash-fields
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
                                  include the dropped records in a DUPLICATES
-                                 category/layer of the output. Not applied when no
-                                 primary key or hash fields are given (a pure
-                                 geometry hash) - a duplicate there always fails,
-                                 since geometry alone can't reliably pair records
-                                 between datasets when more than one shares a
-                                 location
+                                 category/layer of the output. Not applied to a pure
+                                 geometry hash (no primary key, and --hash-fields
+                                 hashes on the geometry field alone) - a duplicate
+                                 there always fails, since geometry alone can't
+                                 reliably pair records between datasets when more
+                                 than one shares a location
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
       -o, --out-file PATH        Path to write JSON summary to, instead of printing
@@ -170,27 +175,30 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -pk, --primary-key TEXT    Comma separated list of primary key column(s),
                                  common to both datasets
       -hk, --hash-key TEXT       Name of new column to add as hash key
-      -hf, --hash-fields TEXT    Comma separated list of fields to include in the
-                                 hash (in addition to geometry)
+      -hf, --hash-fields TEXT    Comma separated list of fields to hash, when no
+                                 --primary-key is given - required in that case.
+                                 Include the geometry field's name (typically
+                                 'geometry') to include geometry in the hash
       -p, --precision FLOAT      Coordinate precision for geometry hash and
                                  comparison. Default=0.01
       -a, --suffix-a TEXT        Suffix to append to column names from data source A
                                  when comparing attributes
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
-      -d, --drop-null-geometry   Drop records with null geometry
+      -d, --drop-null-geometry   Drop records with null geometry. Only valid when
+                                 the geometry field is included in --hash-fields
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
                                  drop all but the first occurrence of each
                                  duplicated key from the source it was found in, and
                                  include the dropped records in a DUPLICATES
-                                 category/layer of the output. Not applied when no
-                                 primary key or hash fields are given (a pure
-                                 geometry hash) - a duplicate there always fails,
-                                 since geometry alone can't reliably pair records
-                                 between datasets when more than one shares a
-                                 location
+                                 category/layer of the output. Not applied to a pure
+                                 geometry hash (no primary key, and --hash-fields
+                                 hashes on the geometry field alone) - a duplicate
+                                 there always fails, since geometry alone can't
+                                 reliably pair records between datasets when more
+                                 than one shares a location
       -o, --out-file PATH        Path to output file, defaults to
                                  ./changedetector_YYYYMMDD_HHMM.gdb
       -i, --dump-inputs          Dump input layers (with new hash key) to output
@@ -209,12 +217,12 @@ Compare the test datasets using their known primary key:
         tests/data/parks_b.geojson \
         -pk id
 
-Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, written to `new_hash_column`:
+Compare the test datasets, using a hash of geometry and the column `park_name` as synthetic primary key, written to `new_hash_column` (include the geometry field's name, typically `geometry`, in `--hash-fields` to fold geometry into the hash - omit it to hash on attributes only):
 
     $ changedetector diff2gdb -v \
         tests/data/parks_a.geojson \
         tests/data/parks_b.geojson \
-        -hf park_name \
+        -hf park_name,geometry \
         -hk new_hash_column
 
 `IN_FILE_A` may be `-` to read GeoJSON from stdin instead of a file, e.g. to compare a database export against a file on disk without writing the export to disk first:

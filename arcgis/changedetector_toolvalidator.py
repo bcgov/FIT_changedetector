@@ -20,8 +20,13 @@ MODULE_IGNORE_FIELDS = [
     "GEOMETRY_AREA",
 ]
 
-# extra fields to exclude from this field picker specifically (the geometry
-# column itself) - not part of fit_changedetector's own ignore lists
+# extra fields to exclude from the Primary Key / Fields to Compare / Fields
+# to Ignore pickers specifically (the geometry column itself) - not part of
+# fit_changedetector's own ignore lists. Not applied to the Fields to
+# Include in Hash picker - the hash key is now generated from an explicit
+# field list, so including the geometry field there is how a user opts
+# geometry into (or out of) the hash, see
+# https://github.com/bcgov/FIT_changedetector/issues/120
 EXTRA_IGNORE_FIELDS = ["SHAPE", "GEOMETRY"]
 
 IGNORE_FIELDS = MODULE_IGNORE_FIELDS + EXTRA_IGNORE_FIELDS
@@ -79,15 +84,24 @@ class ToolValidator:
 
             # intersect to get the common fields
             common_fields = list(set(fields_2).intersection(set(fields_1)))
-            common_fields = [f for f in common_fields if f.upper() not in IGNORE_FIELDS]
+
+            # fields valid for Primary Key / Fields to Compare / Fields to Ignore
+            # (geometry excluded)
+            pk_fieldset = {f for f in common_fields if f.upper() not in IGNORE_FIELDS}
+            # fields valid for Fields to Include in Hash (geometry allowed -
+            # its presence in the list is what includes it in the hash)
+            hash_fieldset = {
+                f for f in common_fields if f.upper() not in MODULE_IGNORE_FIELDS
+            }
 
             # ordering is lost after converting into sets, re-order based on first input fc
-            fieldlist = [f for f in fields_1 if f in common_fields]
+            fieldlist = [f for f in fields_1 if f in pk_fieldset]
+            hash_fieldlist = [f for f in fields_1 if f in hash_fieldset]
 
             self.params[3].filter.list = fieldlist
             self.params[4].filter.list = fieldlist
             self.params[5].filter.list = fieldlist
-            self.params[7].filter.list = fieldlist
+            self.params[7].filter.list = hash_fieldlist
 
     def updateMessages(self):
         # Modify the messages created by internal validation for each tool
