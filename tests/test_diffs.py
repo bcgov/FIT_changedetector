@@ -214,6 +214,78 @@ def test_diff_source_columns(gdf):
     assert list(d["MODIFIED_GEOM"].columns) == list(df_b.columns)
 
 
+def test_gdf_diff_different_geometry_column_names():
+    """df_a's and df_b's own geometry columns can be named differently -
+    only possible for a GeoParquet source, which preserves its own internal
+    column name on read rather than being normalized to "geometry" like
+    every other format (eg via geopandas.read_file()/pyogrio). gdf_diff must
+    still produce correct results, keeping each schema-preserving output's
+    own geometry column name rather than crashing or silently producing the
+    wrong schema.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(2, 2)], crs="EPSG:3005"
+    ).rename_geometry("geom")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
+    assert len(d["UNCHANGED"]) == 1
+    assert len(d["MODIFIED_GEOM"]) == 1
+    # MODIFIED_GEOM has "same schema as dataset b" - df_b's own geometry
+    # field name ("geom"), not a hardcoded "geometry"
+    assert list(d["MODIFIED_GEOM"].columns) == list(df_b.columns)
+    assert d["MODIFIED_GEOM"].geometry.name == "geom"
+    assert d["MODIFIED_GEOM"]["geom"].iloc[0] == Point(2, 2)
+
+
+def test_gdf_diff_different_geometry_column_names_duplicates():
+    """DUPLICATES combines rows from both sources into one table, so needs a
+    single consistent geometry column even when df_a/df_b's own geometry
+    columns are named differently.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 1, 2], "n": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2], "n": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    ).rename_geometry("geom")
+    d = fcd.gdf_diff(
+        df_a, df_b, primary_key="id", allow_duplicates=True, return_type="gdf"
+    )
+    assert len(d["DUPLICATES"]) == 1
+    assert d["DUPLICATES"].geometry.name == "geometry"
+    assert d["DUPLICATES"]["_fcd_source_"].iloc[0] == "a"
+
+
+def test_diff_to_gdb_geoparquet_different_geometry_column_names(tmp_path):
+    """diff_to_gdb must not crash writing results when the two GeoParquet
+    sources preserve differently-named geometry columns - see
+    test_gdf_diff_different_geometry_column_names.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(2, 2)], crs="EPSG:3005"
+    ).rename_geometry("geom")
+    path_a = tmp_path / "diffgeomname_a.parquet"
+    path_b = tmp_path / "diffgeomname_b.parquet"
+    df_a.to_parquet(path_a)
+    df_b.to_parquet(path_b)
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file, primary_key=["id"])
+
+    modified = geopandas.read_file(out_file, layer="MODIFIED_GEOM")
+    assert len(modified) == 1
+    assert next(iter(modified.geometry)) == Point(2, 2)
+
+
 def test_diff_ignore_columns_default():
     df_a = geopandas.read_file("tests/data/parks_a.geojson").rename(
         columns={"parkclasscode": "Shape_Area"}

@@ -633,6 +633,16 @@ def gdf_diff(
     )
     duplicates_a["_fcd_source_"] = suffix_a
     duplicates_b["_fcd_source_"] = suffix_b
+    if spatial:
+        # duplicates_a/duplicates_b keep df_a_src's/df_b_src's own geometry
+        # field name (almost always "geometry", but can genuinely differ for
+        # a GeoParquet source - see the MODIFIED_GEOM handling below) - the
+        # combined DUPLICATES table needs one consistent geometry column
+        # regardless, since rows from both sources land in the same table
+        if duplicates_a.geometry.name != "geometry":
+            duplicates_a = duplicates_a.rename_geometry("geometry")
+        if duplicates_b.geometry.name != "geometry":
+            duplicates_b = duplicates_b.rename_geometry("geometry")
     duplicates = pandas.concat([duplicates_a, duplicates_b], ignore_index=True)
     if spatial and not isinstance(duplicates, geopandas.GeoDataFrame):
         duplicates = geopandas.GeoDataFrame(duplicates, geometry="geometry")
@@ -820,13 +830,23 @@ def gdf_diff(
     # this output will be empty for non-spatial comparisons - and therefore not written to file.
     # so, for non-spatial, matching the schema is not required
     if spatial:
-        df_b_src = df_b_src.drop(columns=[df_b_src.geometry.name])
+        # df_b_src's own geometry field name (fields_b_src, captured above,
+        # already reflects it) - almost always "geometry", but can genuinely
+        # differ from df_a_src's/the "geometry"-named comparison copies' for
+        # a GeoParquet source read with its native column name preserved
+        # (every other format is normalized to "geometry" on read regardless
+        # of its own internal name, so this only matters for parquet)
+        geom_field_b = df_b_src.geometry.name
+        df_b_src = df_b_src.drop(columns=[geom_field_b])
         m_geometries = df_b_src.merge(
-            m_geometries, how="inner", left_index=True, right_index=True
+            m_geometries.rename(columns={"geometry": geom_field_b}),
+            how="inner",
+            left_index=True,
+            right_index=True,
         )
         m_geometries[primary_key] = m_geometries.index
         m_geometries = m_geometries[fields_b_src].reset_index(drop=True)
-        m_geometries = geopandas.GeoDataFrame(m_geometries, geometry="geometry")
+        m_geometries = geopandas.GeoDataFrame(m_geometries, geometry=geom_field_b)
 
     if return_type == "gdf":
         return {
@@ -1154,8 +1174,13 @@ def diff_to_gdb(
         LOG.info(f"{key}: {len(diff[key])} records")
         if len(diff[key]) > 0:
             # add empty geometry column for writing non-spatial data to .gpkg
-            # (does not work for .gdb driver, .gdb output fails with non-spatial data)
-            if "geometry" not in diff[key].columns:
+            # (does not work for .gdb driver, .gdb output fails with non-spatial data).
+            # Checked via isinstance rather than a literal "geometry" column
+            # name - a spatial result's geometry column is not always named
+            # "geometry" (NEW/DELETED/UNCHANGED/MODIFIED_GEOM preserve each
+            # source's own schema, which for a GeoParquet source can
+            # genuinely use a different name)
+            if not isinstance(diff[key], geopandas.GeoDataFrame):
                 diff[key] = geopandas.GeoDataFrame(
                     diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
                 )
