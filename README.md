@@ -137,7 +137,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
       -d, --drop-null-geometry   Drop records with null geometry. Only valid when
-                                 the geometry field is included in --hash-fields
+                                 the geometry field is included in --hash-fields -
+                                 has no effect (and is rejected) when --primary-key
+                                 is supplied, since no hash key is generated in that
+                                 case
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
@@ -188,7 +191,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
       -d, --drop-null-geometry   Drop records with null geometry. Only valid when
-                                 the geometry field is included in --hash-fields
+                                 the geometry field is included in --hash-fields -
+                                 has no effect (and is rejected) when --primary-key
+                                 is supplied, since no hash key is generated in that
+                                 case
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,

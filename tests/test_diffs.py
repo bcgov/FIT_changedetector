@@ -330,6 +330,44 @@ def test_diff_ignore_pk(gdf):
         )
 
 
+def test_diff_ignore_fields_removes_all_matches_regardless_of_order():
+    """Regression test: fields to ignore used to be dropped from `fields` by
+    mutating the list while iterating over it, which silently skipped
+    whichever entry followed a removed one, if it also matched. Ignoring 4 of
+    6 fields guarantees, by pigeonhole, that at least two ignored fields are
+    adjacent in `fields` however it ends up ordered - so this fails
+    deterministically on the old code regardless of dict/set iteration
+    order, rather than only on some field orderings."""
+    df_a = pandas.DataFrame(
+        {
+            "pk": [1, 2],
+            "col1": ["a", "a"],
+            "col2": ["a", "a"],
+            "col3": ["a", "a"],
+            "col4": ["a", "a"],
+            "col5": ["a", "a"],
+        }
+    )
+    df_b = df_a.copy()
+    # every column changes - without ignore_fields, all 5 would show up as
+    # modified attributes
+    for col in ["col1", "col2", "col3", "col4", "col5"]:
+        df_b[col] = "b"
+    d = fcd.gdf_diff(
+        df_a,
+        df_b,
+        primary_key="pk",
+        return_type="gdf",
+        ignore_fields=["col1", "col2", "col3", "col4"],
+    )
+    modified_columns = set(d["MODIFIED_ATTR"].columns)
+    for col in ["col1", "col2", "col3", "col4"]:
+        assert f"{col}_a" not in modified_columns
+        assert f"{col}_b" not in modified_columns
+    assert "col5_a" in modified_columns
+    assert "col5_b" in modified_columns
+
+
 def test_diff_non_spatial():
     df_a = geopandas.read_file("tests/data/pets_1.csv")
     df_b = geopandas.read_file("tests/data/pets_2.csv")
@@ -878,18 +916,18 @@ def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
     diff, _, _, primary_key, _ = _read_and_diff(
         str(path_a),
         str(path_b),
-        None,
-        None,
-        "objectid",
-        None,
-        None,
-        "a",
-        "b",
-        None,
-        None,
-        "fcd_hash_id",
-        None,
-        0.01,
+        layer_a=None,
+        layer_b=None,
+        primary_key="objectid",
+        fields=None,
+        ignore_fields=None,
+        suffix_a="a",
+        suffix_b="b",
+        drop_null_geometry=None,
+        crs=None,
+        hash_key="fcd_hash_id",
+        hash_fields=None,
+        precision=0.01,
     )
     assert primary_key == "objectid"
     assert list(diff["MODIFIED_ATTR"]["objectid"]) == [2]
@@ -1095,3 +1133,47 @@ def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
     assert len(d["UNCHANGED"]) == 2
     assert len(d["MODIFIED_GEOM"]) == 0
     assert len(d["MODIFIED_BOTH"]) == 0
+
+
+def test_gdf_diff_options_are_keyword_only():
+    """fields/ignore_fields/.../allow_duplicates must not be passable
+    positionally - gdf_diff has many same-typed options in a row (two
+    strings, several bools), so a transposed pair (e.g. suffix_a/suffix_b)
+    would fail silently rather than raise if positional calls were allowed."""
+    with pytest.raises(TypeError):
+        fcd.gdf_diff(
+            GeoDataFrame({"id": [1]}, geometry=[Point(0, 0)]),
+            GeoDataFrame({"id": [1]}, geometry=[Point(0, 0)]),
+            "id",
+            None,  # fields, passed positionally - must raise
+        )
+
+
+def test_diff_to_json_and_diff_to_gdb_options_are_keyword_only():
+    """Same as test_gdf_diff_options_are_keyword_only, for the public
+    diff_to_json/diff_to_gdb entry points and the _read_and_diff helper they
+    share - see github.com/bcgov/FIT_changedetector for the crs/hash_key
+    (both plain strings) transposition this guards against."""
+    with pytest.raises(TypeError):
+        fcd.diff_to_json(
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            None,
+            None,
+            "id",  # primary_key, passed positionally - must raise
+        )
+    with pytest.raises(TypeError):
+        fcd.diff_to_gdb(
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            None,
+            None,
+            "out.gdb",
+            "id",  # primary_key, passed positionally - must raise
+        )
+    with pytest.raises(TypeError):
+        _read_and_diff(
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            None,  # layer_a, passed positionally - must raise
+        )
