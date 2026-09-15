@@ -1116,6 +1116,43 @@ def test_diff_to_gdb_allow_duplicates_hash_with_fields(tmp_path):
     assert duplicates["_fcd_source_"].iloc[0] == "a"
 
 
+def test_diff_to_gdb_hash_with_fields_duplicate_without_allow_duplicates_raises(
+    tmp_path,
+):
+    """Mirror of test_diff_to_gdb_allow_duplicates_hash_with_fields: the same
+    genuine attribute+geometry hash collision must still raise when
+    allow_duplicates is not set (the default) - through the full diff_to_gdb
+    pipeline (_read_and_diff -> add_hash_key -> gdf_diff), not just the
+    isolated add_hash_key() unit covered by test_add_hash_key_hash_dups.
+    """
+    df_a = GeoDataFrame(
+        {"cat": ["x", "x", "y"], "name": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"cat": ["x", "y"], "name": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "hash_dupes_fields_a.geojson"
+    path_b = tmp_path / "hash_dupes_fields_b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    with pytest.raises(
+        ValueError, match="Duplicate values for output hash are present"
+    ):
+        fcd.diff_to_gdb(
+            str(path_a),
+            str(path_b),
+            None,
+            None,
+            str(tmp_path / "out.gdb"),
+            hash_fields=["cat", "geometry"],
+        )
+
+
 def test_gdf_diff_single_vs_multipart_same_feature_unchanged():
     """A feature that is single-part in one source and the equivalent
     multi-part in the other must be treated as unchanged, not rejected
