@@ -19,9 +19,11 @@ Both require `changedetector_common.py` (shared logic - subprocess invocation, l
 4. Paste `changedetector_toolvalidator.py`'s contents into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
 5. Repeat for the second tool, if you want both.
 
-### Testing ArcGIS script changes
+## Upgrades
 
-ArcGIS Pro caches an imported sibling module (`changedetector_common.py`) in memory for the life of the session - editing that file (via `git pull` or by hand) has no effect on a tool you've already run at least once in the current session until you **restart ArcGIS Pro**. If this is the first run of a session, you're fine - it imports fresh automatically. `spec_override.txt` (below) is the one exception: it's read fresh from disk on every run, so changing *that* never needs a restart.
+For releases that change the ArcGIS tools' parameters or validation code, additional manual upgrade steps are required.
+These release specific steps (beyond the usual file swap) are provided in [UPGRADING.md](UPGRADING.md).
+
 
 ## Parameters
 
