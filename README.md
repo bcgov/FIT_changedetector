@@ -112,7 +112,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       present in each category (use --count to omit the key lists and print just the
       counts). Use --out-file to write the JSON to a file instead of stdout.
 
-      IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+      To read GeoJSON from stdin, specify "-" for IN_FILE_A
 
     Options:
       --layer-a TEXT             Name of layer to use within in_file_a (not valid if
@@ -163,7 +163,7 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
 
       Compare two datasets, writing results to .gdb
 
-      IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+      To read GeoJSON from stdin, specify "-" for IN_FILE_A
 
     Options:
       --layer-a TEXT             Name of layer to use within in_file_a (not valid if

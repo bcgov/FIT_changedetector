@@ -269,7 +269,7 @@ def diff2gdb(
 ):
     """Compare two datasets, writing results to .gdb
 
-    IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+    To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """
     configure_logging(verbose - quiet)
 
@@ -345,7 +345,7 @@ def diff(
     just the counts). Use --out-file to write the JSON to a file instead of
     stdout.
 
-    IN_FILE_A may be "-" to read GeoJSON from stdin instead of a file.
+    To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """
     configure_logging(verbose - quiet)
 
