@@ -20,8 +20,13 @@ MODULE_IGNORE_FIELDS = [
     "GEOMETRY_AREA",
 ]
 
-# extra fields to exclude from this field picker specifically (the geometry
-# column itself) - not part of fit_changedetector's own ignore lists
+# extra fields to exclude from the Primary Key / Fields to Compare / Fields
+# to Ignore pickers specifically (the geometry column itself) - not part of
+# fit_changedetector's own ignore lists. Not applied to the Fields to
+# Include in Hash picker - the hash key is now generated from an explicit
+# field list, so including the geometry field there is how a user opts
+# geometry into (or out of) the hash, see
+# https://github.com/bcgov/FIT_changedetector/issues/120
 EXTRA_IGNORE_FIELDS = ["SHAPE", "GEOMETRY"]
 
 IGNORE_FIELDS = MODULE_IGNORE_FIELDS + EXTRA_IGNORE_FIELDS
@@ -54,6 +59,17 @@ class ToolValidator:
             self.params[4].enabled = 1
             self.params[5].enabled = 1
 
+        # Drop Null Geometry only has an effect once a hash key is generated
+        # (no primary key given) - an explicit primary key is always used
+        # directly, never hashed, so the library rejects the combination
+        # outright. Grey it out here rather than letting the user hit that
+        # as a run-time failure.
+        if self.params[3].value:
+            self.params[11].value = False
+            self.params[11].enabled = 0
+        else:
+            self.params[11].enabled = 1
+
         # if coordinate precision is not supplied, set default based on spatial reference
         if self.params[8].value is None:
             sr = arcpy.Describe(self.params[0].value).spatialReference
@@ -79,15 +95,37 @@ class ToolValidator:
 
             # intersect to get the common fields
             common_fields = list(set(fields_2).intersection(set(fields_1)))
-            common_fields = [f for f in common_fields if f.upper() not in IGNORE_FIELDS]
+
+            # fields valid for Primary Key / Fields to Compare / Fields to Ignore
+            # (geometry excluded)
+            pk_fieldset = {f for f in common_fields if f.upper() not in IGNORE_FIELDS}
+            # fields valid for Fields to Include in Hash (geometry allowed -
+            # its presence in the list is what includes it in the hash)
+            hash_fieldset = {
+                f for f in common_fields if f.upper() not in MODULE_IGNORE_FIELDS
+            }
 
             # ordering is lost after converting into sets, re-order based on first input fc
-            fieldlist = [f for f in fields_1 if f in common_fields]
+            fieldlist = [f for f in fields_1 if f in pk_fieldset]
+            hash_fieldlist = [f for f in fields_1 if f in hash_fieldset]
+
+            # source geometry fields may not have the same name
+            # Explicitly offer original_fc's own
+            # name (it need not match new_fc's) whenever both sources are
+            # spatial, so hashing on geometry always stays selectable.
+            shape_field_1 = getattr(
+                arcpy.Describe(self.params[0].value), "shapeFieldName", None
+            )
+            shape_field_2 = getattr(
+                arcpy.Describe(self.params[1].value), "shapeFieldName", None
+            )
+            if shape_field_1 and shape_field_2 and shape_field_1 not in hash_fieldlist:
+                hash_fieldlist.append(shape_field_1)
 
             self.params[3].filter.list = fieldlist
             self.params[4].filter.list = fieldlist
             self.params[5].filter.list = fieldlist
-            self.params[7].filter.list = fieldlist
+            self.params[7].filter.list = hash_fieldlist
 
     def updateMessages(self):
         # Modify the messages created by internal validation for each tool

@@ -1,3 +1,4 @@
+import hashlib
 import json
 
 import geopandas
@@ -35,14 +36,28 @@ def gdf():
 
 def test_add_hash_key_geom():
     df = geopandas.read_file("tests/data/parks_a.geojson")
-    df = fcd.add_hash_key(df, "test_hash")
+    df = fcd.add_hash_key(df, "test_hash", fields=["geometry"])
     assert df["test_hash"].iloc[0] == "fe370ca2e67ae006d003a2448eba4d2797f9ec03"
 
 
 def test_add_hash_key_geom_columns():
     df = geopandas.read_file("tests/data/parks_a.geojson")
-    df = fcd.add_hash_key(df, "test_hash", fields=["park_name"])
+    df = fcd.add_hash_key(df, "test_hash", fields=["park_name", "geometry"])
     assert df["test_hash"].iloc[0] == "4a55cfe9a6b8c0863e0c1c4c18eef7a367fd7f54"
+
+
+def test_add_hash_key_attrs_only():
+    """Omitting the geometry field's name from fields hashes attributes only -
+    see https://github.com/bcgov/FIT_changedetector/issues/120."""
+    df = geopandas.read_file("tests/data/parks_a.geojson")
+    expected = df[["park_name"]].apply(
+        lambda x: hashlib.sha1(
+            "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
+        ).hexdigest(),
+        axis=1,
+    )
+    df = fcd.add_hash_key(df, "test_hash", fields=["park_name"])
+    assert list(df["test_hash"]) == list(expected)
 
 
 def test_add_hash_key_geom_dups(gdf):
@@ -54,7 +69,7 @@ def test_add_hash_key_geom_dups(gdf):
         }
     ).set_crs("EPSG:3005")
     with pytest.raises(ValueError):
-        gdf = fcd.add_hash_key(gdf, "test_hash")
+        gdf = fcd.add_hash_key(gdf, "test_hash", fields=["geometry"])
 
 
 def test_add_hash_key_hash_dups(gdf):
@@ -66,7 +81,7 @@ def test_add_hash_key_hash_dups(gdf):
         }
     ).set_crs("EPSG:3005")
     with pytest.raises(ValueError):
-        gdf = fcd.add_hash_key(gdf, "test_hash", fields=["col2"])
+        gdf = fcd.add_hash_key(gdf, "test_hash", fields=["col2", "geometry"])
 
 
 def test_add_hash_key_allow_dups(gdf):
@@ -77,27 +92,50 @@ def test_add_hash_key_allow_dups(gdf):
             "geometry": [Point(1, 1), Point(1, 1), Point(1, 2)],
         }
     ).set_crs("EPSG:3005")
-    gdf = fcd.add_hash_key(gdf, "test_hash", fields=["col2"], allow_duplicates=True)
+    gdf = fcd.add_hash_key(
+        gdf, "test_hash", fields=["col2", "geometry"], allow_duplicates=True
+    )
     assert len(gdf.drop_duplicates(subset=["test_hash"])) == 2
 
 
 def test_add_hash_empty():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     with pytest.raises(ValueError):
-        df = fcd.add_hash_key(df, "test_hash", fields=[], hash_geometry=False)
+        df = fcd.add_hash_key(df, "test_hash", fields=[])
 
 
 def test_invalid_hash_precision():
     df = geopandas.read_file("tests/data/parks_a.geojson")
     with pytest.raises(ValueError):
-        df = fcd.add_hash_key(
-            df, "test_hash", fields=[], hash_geometry=True, precision=999
-        )
+        df = fcd.add_hash_key(df, "test_hash", fields=["geometry"], precision=999)
+
+
+def test_add_hash_key_drop_null_geometry_without_geometry_field_raises():
+    """drop_null_geometry only has meaning when the geometry field is
+    included in fields - see https://github.com/bcgov/FIT_changedetector/issues/120."""
+    df = geopandas.read_file("tests/data/parks_a.geojson")
+    with pytest.raises(
+        ValueError, match="drop_null_geometry has no effect unless the geometry field"
+    ):
+        fcd.add_hash_key(df, "test_hash", fields=["park_name"], drop_null_geometry=True)
+
+
+def test_add_hash_key_missing_field_hints_geometry_name():
+    """A misnamed field (eg "Shape"/"SHAPE" from ArcGIS habit, when this
+    source's geometry column is actually named something else) raises with a
+    hint at the dataset's real geometry field name, rather than a bare
+    "field not present" error (or, previously, an unvalidated raw KeyError).
+    """
+    df = geopandas.read_file("tests/data/parks_a.geojson")
+    with pytest.raises(
+        ValueError, match=r"Field\(s\) \['Shape'\].*geometry field is named 'geometry'"
+    ):
+        fcd.add_hash_key(df, "test_hash", fields=["park_name", "Shape"])
 
 
 def test_add_hash_ll(caplog):
     df = geopandas.read_file("tests/data/parks_a.geojson").to_crs("EPSG:4326")
-    df = fcd.add_hash_key(df, "test_hash")
+    df = fcd.add_hash_key(df, "test_hash", fields=["geometry"])
     assert (
         "Data is projected in degrees, default precision of 0.01m specified. Adjusting to .0000001 degrees"
         in caplog.text
@@ -127,7 +165,7 @@ def test_diff_primary_key_and_hash_fields_raises():
             "tests/data/parks_b.geojson",
             None,
             None,
-            primary_key=["id"],
+            primary_key="id",
             hash_fields=["name"],
         )
 
@@ -174,6 +212,78 @@ def test_diff_source_columns(gdf):
     assert list(d["UNCHANGED"].columns) == list(df_a.columns)
     # modified geometries - schema b
     assert list(d["MODIFIED_GEOM"].columns) == list(df_b.columns)
+
+
+def test_gdf_diff_different_geometry_column_names():
+    """df_a's and df_b's own geometry columns can be named differently -
+    only possible for a GeoParquet source, which preserves its own internal
+    column name on read rather than being normalized to "geometry" like
+    every other format (eg via geopandas.read_file()/pyogrio). gdf_diff must
+    still produce correct results, keeping each schema-preserving output's
+    own geometry column name rather than crashing or silently producing the
+    wrong schema.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(2, 2)], crs="EPSG:3005"
+    ).rename_geometry("geom")
+    d = fcd.gdf_diff(df_a, df_b, primary_key="id", return_type="gdf")
+    assert len(d["UNCHANGED"]) == 1
+    assert len(d["MODIFIED_GEOM"]) == 1
+    # MODIFIED_GEOM has "same schema as dataset b" - df_b's own geometry
+    # field name ("geom"), not a hardcoded "geometry"
+    assert list(d["MODIFIED_GEOM"].columns) == list(df_b.columns)
+    assert d["MODIFIED_GEOM"].geometry.name == "geom"
+    assert d["MODIFIED_GEOM"]["geom"].iloc[0] == Point(2, 2)
+
+
+def test_gdf_diff_different_geometry_column_names_duplicates():
+    """DUPLICATES combines rows from both sources into one table, so needs a
+    single consistent geometry column even when df_a/df_b's own geometry
+    columns are named differently.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 1, 2], "n": ["a0", "a1", "a2"]},
+        geometry=[Point(0, 0), Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2], "n": ["a0", "a2"]},
+        geometry=[Point(0, 0), Point(1, 1)],
+        crs="EPSG:3005",
+    ).rename_geometry("geom")
+    d = fcd.gdf_diff(
+        df_a, df_b, primary_key="id", allow_duplicates=True, return_type="gdf"
+    )
+    assert len(d["DUPLICATES"]) == 1
+    assert d["DUPLICATES"].geometry.name == "geometry"
+    assert d["DUPLICATES"]["_fcd_source_"].iloc[0] == "a"
+
+
+def test_diff_to_gdb_geoparquet_different_geometry_column_names(tmp_path):
+    """diff_to_gdb must not crash writing results when the two GeoParquet
+    sources preserve differently-named geometry columns - see
+    test_gdf_diff_different_geometry_column_names.
+    """
+    df_a = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(1, 1)], crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2]}, geometry=[Point(0, 0), Point(2, 2)], crs="EPSG:3005"
+    ).rename_geometry("geom")
+    path_a = tmp_path / "diffgeomname_a.parquet"
+    path_b = tmp_path / "diffgeomname_b.parquet"
+    df_a.to_parquet(path_a)
+    df_b.to_parquet(path_b)
+
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file, primary_key="id")
+
+    modified = geopandas.read_file(out_file, layer="MODIFIED_GEOM")
+    assert len(modified) == 1
+    assert next(iter(modified.geometry)) == Point(2, 2)
 
 
 def test_diff_ignore_columns_default():
@@ -577,7 +687,7 @@ def test_unsupported_geometry_type_rejected(tmp_path):
             None,
             None,
             str(tmp_path / "out.gdb"),
-            primary_key=["id"],
+            primary_key="id",
         )
 
 
@@ -601,7 +711,7 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
         None,
         None,
         str(tmp_path / "out.gdb"),
-        primary_key=["id"],
+        primary_key="id",
     )
 
 
@@ -644,7 +754,9 @@ def test_diff_to_gdb_mixed_multipart_no_primary_key_writes_ok(tmp_path):
     df_b.to_file(path_b, driver="GeoJSON")
 
     out_file = str(tmp_path / "out.gdb")
-    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+    fcd.diff_to_gdb(
+        str(path_a), str(path_b), None, None, out_file, hash_fields=["geometry"]
+    )
 
     # every layer written must be uniformly promoted to multipart - a real
     # mix of single/multipart types in any written layer is exactly what
@@ -685,7 +797,9 @@ def test_diff_to_gdb_uniform_singlepart_not_promoted(tmp_path):
     df_b.to_file(path_b, driver="GeoJSON")
 
     out_file = str(tmp_path / "out.gdb")
-    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+    fcd.diff_to_gdb(
+        str(path_a), str(path_b), None, None, out_file, hash_fields=["geometry"]
+    )
 
     written_layers = pyogrio.list_layers(out_file)[:, 0]
     assert len(written_layers) > 0
@@ -724,7 +838,9 @@ def test_diff_to_gdb_duplicate_objectid_dropped(tmp_path):
     df_b.to_file(path_b, driver="GeoJSON")
 
     out_file = str(tmp_path / "out.gdb")
-    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file)
+    fcd.diff_to_gdb(
+        str(path_a), str(path_b), None, None, out_file, hash_fields=["geometry"]
+    )
 
     for layer in pyogrio.list_layers(out_file)[:, 0]:
         gdf = geopandas.read_file(out_file, layer=layer)
@@ -764,18 +880,18 @@ def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
         str(path_b),
         None,
         None,
-        ["objectid"],
+        "objectid",
         None,
         None,
         "a",
         "b",
-        True,
+        None,
         None,
         "fcd_hash_id",
         None,
         0.01,
     )
-    assert primary_key == ["objectid"]
+    assert primary_key == "objectid"
     assert list(diff["MODIFIED_ATTR"]["objectid"]) == [2]
 
 
@@ -808,6 +924,7 @@ def test_diff_to_gdb_no_primary_key_null_geometry(tmp_path):
         None,
         None,
         out_file,
+        hash_fields=["geometry"],
     )
     # df_a's id=2 (Point(1,1)) has no geometry match in df_b -> deleted
     deleted = geopandas.read_file(out_file, layer="DELETED")
@@ -848,6 +965,7 @@ def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
             None,
             None,
             str(tmp_path / "out.gdb"),
+            hash_fields=["geometry"],
             drop_null_geometry=False,
         )
 
@@ -878,7 +996,7 @@ def test_diff_to_gdb_allow_duplicates_writes_duplicates_layer(tmp_path):
         None,
         None,
         out_file,
-        primary_key=["id"],
+        primary_key="id",
         allow_duplicates=True,
     )
     duplicates = geopandas.read_file(out_file, layer="DUPLICATES")
@@ -918,6 +1036,7 @@ def test_diff_to_gdb_allow_duplicates_not_applied_to_geometry_only_hash(tmp_path
             None,
             None,
             str(tmp_path / "out.gdb"),
+            hash_fields=["geometry"],
             allow_duplicates=True,
         )
 
@@ -950,7 +1069,7 @@ def test_diff_to_gdb_allow_duplicates_hash_with_fields(tmp_path):
         None,
         None,
         out_file,
-        hash_fields=["cat"],
+        hash_fields=["cat", "geometry"],
         allow_duplicates=True,
     )
     duplicates = geopandas.read_file(out_file, layer="DUPLICATES")

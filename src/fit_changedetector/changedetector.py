@@ -225,21 +225,28 @@ def _prepare_sources(df_a, df_b, keep_fields, label_a="a", label_b="b"):
 def add_hash_key(
     df,
     new_field,
-    fields: list | None = None,
-    hash_geometry=True,
-    drop_null_geometry=True,
+    fields: list,
+    drop_null_geometry=None,
     allow_duplicates=False,
     precision=0.01,
 ):
-    """Add new column to input dataframe, containing hash of input columns and/or geometry.
+    """Add new column to input dataframe, containing hash of the provided fields.
 
-    allow_duplicates does not apply to a geometry-only hash (hash_geometry=True
-    and fields empty) - a duplicate hash always raises there, since geometry
+    fields must be provided and lists every column to fold into the hash -
+    to include geometry, add the geometry column's name (df.geometry.name,
+    typically "geometry") to fields explicitly; omit it to hash on
+    attributes only.
+
+    drop_null_geometry only has meaning when the geometry field is included
+    in fields - specifying it otherwise raises, rather than silently having
+    no effect. When applicable, it defaults to True (drop null geometries
+    with a warning) if not specified.
+
+    allow_duplicates does not apply to a geometry-only hash (fields is just
+    the geometry column) - a duplicate hash always raises there, since geometry
     alone can't reliably pair records between datasets when more than one
     shares a location.
     """
-    if fields is None:
-        fields = []
     pandas.options.mode.chained_assignment = None
 
     # validate precision
@@ -255,9 +262,34 @@ def add_hash_key(
         )
 
     # Fail if nothing provided to hash
-    if not fields and not hash_geometry:
+    if not fields:
         raise ValueError(
-            "Nothing to hash, specify hash_geometry and/or columns to hash"
+            "Nothing to hash, specify fields to hash (include the geometry field's name "
+            "to hash on geometry)"
+        )
+
+    # is the geometry field named in fields? if so, hash on geometry too
+    geom_field = df.geometry.name if isinstance(df, geopandas.GeoDataFrame) else None
+    hash_geometry = geom_field is not None and geom_field in fields
+
+    # Fail if a requested field isn't actually present - a misnamed geometry
+    # field (eg "Shape"/"SHAPE" from ArcGIS habit, when this source's
+    # geometry column is actually named something else) is the most likely
+    # cause, so hint at the real name to save a confusing round trip
+    missing = [f for f in fields if f not in df.columns]
+    if missing:
+        hint = (
+            f" - this dataset's geometry field is named '{geom_field}'"
+            if geom_field
+            else ""
+        )
+        raise ValueError(f"Field(s) {missing} not present in input data{hint}")
+
+    # drop_null_geometry only applies when hashing the geometry field
+    if not hash_geometry and drop_null_geometry:
+        raise ValueError(
+            "drop_null_geometry has no effect unless the geometry field is included in "
+            "fields - remove one or the other"
         )
 
     # Fail if attempting include a geometry based column in fields [],
@@ -268,18 +300,21 @@ def add_hash_key(
                 f"Cannot hash field {f}, hashing on area/length fields is not supported"
             )
 
-    # If using default precision of 1cm on data using degrees,
-    # presume this is an oversight, warn and adjust.
-    # (if non-default precision is provided, presume that the user is right)
-    if df.geometry.crs.is_geographic and precision == 0.01:
-        LOG.warning(
-            "Data is projected in degrees, default precision of 0.01m specified. "
-            "Adjusting to .0000001 degrees"
-        )
-        precision = 0.0000001
-
     # if hashing the geometry, ensure no nulls are present and standardize ring order/precision
     if hash_geometry:
+        # If using default precision of 1cm on data using degrees,
+        # presume this is an oversight, warn and adjust.
+        # (if non-default precision is provided, presume that the user is right)
+        if df.geometry.crs.is_geographic and precision == 0.01:
+            LOG.warning(
+                "Data is projected in degrees, default precision of 0.01m specified. "
+                "Adjusting to .0000001 degrees"
+            )
+            precision = 0.0000001
+
+        if drop_null_geometry is None:
+            drop_null_geometry = True
+
         # check for null geometries, drop if specified
         if len(df[df.geometry.isnull()]) > 0:
             LOG.warning("Null geometries are present in source")
@@ -295,12 +330,17 @@ def add_hash_key(
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df = df.copy()  # copy so the original df does not get the new column
         df["_geometry_normalized_"] = (
-            df[df.geometry.name].normalize().set_precision(precision, mode="pointwise")
+            df[geom_field].normalize().set_precision(precision, mode="pointwise")
         )
-        fields = fields + ["_geometry_normalized_"]
+        hash_fields = [
+            "_geometry_normalized_" if f == geom_field else f for f in fields
+        ]
+    else:
+        df = df.copy()  # copy so the original df does not get the new column
+        hash_fields = fields
 
     # add sha1 hash of provided fields
-    df[new_field] = df[fields].apply(
+    df[new_field] = df[hash_fields].apply(
         lambda x: hashlib.sha1(
             "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
         ).hexdigest(),
@@ -320,7 +360,7 @@ def add_hash_key(
     # field also contributes to the hash (or is used directly as
     # primary_key), since that gives gdf_diff a much more solid basis for
     # pairing records across datasets.
-    hash_is_geometry_only = fields == ["_geometry_normalized_"]
+    hash_is_geometry_only = hash_fields == ["_geometry_normalized_"]
     if len(df) != len(df[new_field].drop_duplicates()) and (
         not allow_duplicates or hash_is_geometry_only
     ):
@@ -593,6 +633,16 @@ def gdf_diff(
     )
     duplicates_a["_fcd_source_"] = suffix_a
     duplicates_b["_fcd_source_"] = suffix_b
+    if spatial:
+        # duplicates_a/duplicates_b keep df_a_src's/df_b_src's own geometry
+        # field name (almost always "geometry", but can genuinely differ for
+        # a GeoParquet source - see the MODIFIED_GEOM handling below) - the
+        # combined DUPLICATES table needs one consistent geometry column
+        # regardless, since rows from both sources land in the same table
+        if duplicates_a.geometry.name != "geometry":
+            duplicates_a = duplicates_a.rename_geometry("geometry")
+        if duplicates_b.geometry.name != "geometry":
+            duplicates_b = duplicates_b.rename_geometry("geometry")
     duplicates = pandas.concat([duplicates_a, duplicates_b], ignore_index=True)
     if spatial and not isinstance(duplicates, geopandas.GeoDataFrame):
         duplicates = geopandas.GeoDataFrame(duplicates, geometry="geometry")
@@ -780,13 +830,23 @@ def gdf_diff(
     # this output will be empty for non-spatial comparisons - and therefore not written to file.
     # so, for non-spatial, matching the schema is not required
     if spatial:
-        df_b_src = df_b_src.drop(columns=[df_b_src.geometry.name])
+        # df_b_src's own geometry field name (fields_b_src, captured above,
+        # already reflects it) - almost always "geometry", but can genuinely
+        # differ from df_a_src's/the "geometry"-named comparison copies' for
+        # a GeoParquet source read with its native column name preserved
+        # (every other format is normalized to "geometry" on read regardless
+        # of its own internal name, so this only matters for parquet)
+        geom_field_b = df_b_src.geometry.name
+        df_b_src = df_b_src.drop(columns=[geom_field_b])
         m_geometries = df_b_src.merge(
-            m_geometries, how="inner", left_index=True, right_index=True
+            m_geometries.rename(columns={"geometry": geom_field_b}),
+            how="inner",
+            left_index=True,
+            right_index=True,
         )
         m_geometries[primary_key] = m_geometries.index
         m_geometries = m_geometries[fields_b_src].reset_index(drop=True)
-        m_geometries = geopandas.GeoDataFrame(m_geometries, geometry="geometry")
+        m_geometries = geopandas.GeoDataFrame(m_geometries, geometry=geom_field_b)
 
     if return_type == "gdf":
         return {
@@ -824,12 +884,10 @@ def _read_and_diff(
     only what they do with the result differs.
 
     Returns (diff, df_a, df_b, primary_key, hashed) - df_a/df_b are the loaded,
-    hash-keyed (if applicable) sources; primary_key is always a single-item list
+    hash-keyed (if applicable) sources; primary_key is always a single field name
     on return (a generated hash_key if none was supplied); hashed indicates
     whether a hash key was generated (diff_to_gdb() uses this to force dump_inputs).
     """
-    if primary_key is None:
-        primary_key = []
     if fields is None:
         fields = []
     if ignore_fields is None:
@@ -851,46 +909,54 @@ def _read_and_diff(
     # (unpromoted) geometry would hash a feature stored single-part in one
     # source and multi-part in the other to different values, spuriously
     # reporting it as NEW+DELETED instead of UNCHANGED.
-    keep_fields = {f.upper() for f in primary_key + fields + hash_fields}
+    keep_fields = {f.upper() for f in fields + hash_fields}
+    if primary_key:
+        keep_fields.add(primary_key.upper())
     df_a, df_b = _prepare_sources(df_a, df_b, keep_fields, suffix_a, suffix_b)
 
-    # any time a pk is supplied, presume that we do not hash geometry
     if primary_key:
-        hash_geometry = False
-
-        # hash_fields only has meaning when hashing (no primary key, or a
-        # multi-column primary key) - reject the combination outright rather
-        # than silently ignoring it
+        # hash_fields only has meaning when hashing (no primary key given) -
+        # reject the combination outright rather than silently ignoring it
         if hash_fields:
             raise ValueError(
                 f"hash_fields {hash_fields} has no effect when a primary_key is supplied - "
                 "remove one or the other"
             )
-
-    # if no primary key provided, link the two datasets by presuming geometries are the same
-    # (hash on geometry)
-    else:
-        LOG.warning(
-            "No primary key supplied, script will attempt to hash on geometries (and hash_fields, "
-            "if specified)"
-        )
-        # are there geometries in both datasets?
-        if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
-            df_a, geopandas.GeoDataFrame
-        ):
-            hash_geometry = True
-        else:
+        # drop_null_geometry only has meaning once a hash key is generated -
+        # an explicit primary_key is always used directly (never hashed), so
+        # the option has nothing to act on
+        if drop_null_geometry:
             raise ValueError(
-                "Cannot compare the datasets - if no primary key is available, geometries must be "
-                "present in both source datasets"
+                "drop_null_geometry has no effect when a primary_key is supplied "
+                "(no hash key is generated in that case) - remove it"
             )
+
+    # if no primary key provided, link the two datasets by hashing on
+    # hash_fields - the complete list of fields to include in the hash,
+    # including the geometry field's name (df_a.geometry.name/df_b.geometry.name,
+    # typically "geometry") if geometry is to be included
+    else:
+        if not hash_fields:
+            raise ValueError(
+                "No primary_key supplied - specify hash_fields (the complete list of "
+                "fields to hash on, including the geometry field's name if geometry is "
+                "to be included) to generate a hash key for linking datasets"
+            )
+        LOG.warning(f"No primary key supplied, hashing on fields {hash_fields}")
 
     # validate that provided fields/pk/hash columns are present in data
     for source in [(src_a, df_a), (src_b, df_b)]:
-        # fail if fields/hash fields/pk are not present
-        for fieldname in fields + hash_fields + primary_key:
+        # fail if fields/hash fields/pk are not present - hint at the actual
+        # geometry field name, in case a misnamed geometry field (eg
+        # "Shape"/"SHAPE" from ArcGIS habit) is the cause
+        for fieldname in fields + hash_fields + ([primary_key] if primary_key else []):
             if fieldname not in source[1].columns:
-                raise ValueError(f"Field {fieldname} is not present in {source[0]}")
+                hint = ""
+                if isinstance(source[1], geopandas.GeoDataFrame):
+                    hint = f" - this dataset's geometry field is named '{source[1].geometry.name}'"
+                raise ValueError(
+                    f"Field {fieldname} is not present in {source[0]}{hint}"
+                )
 
         # if ignore_fields are not present in data, just warn
         for fieldname in ignore_fields:
@@ -910,20 +976,18 @@ def _read_and_diff(
         else:
             raise ValueError(f"Cannot reproject {src_b}, no geometries present")
 
-    # add hashed key
-    # - hash multi column primary keys (without geom) for simplicity
-    # - hash with geometry if no primary key specified
-    # allow_duplicates is passed through so a hash collision (two records
-    # hashing identically within one source) is deferred to gdf_diff's own
-    # duplicate-primary-key handling below, rather than raising here
+    # add hashed key, on hash_fields, if no primary key was given (hash_fields
+    # must include the geometry field's name to hash on geometry). allow_duplicates
+    # is passed through so a hash collision (two records hashing identically
+    # within one source) is deferred to gdf_diff's own duplicate-primary-key
+    # handling below, rather than raising here
     hashed = False
-    if hash_geometry or len(primary_key) > 1:
+    if not primary_key:
         LOG.info(f"Adding hashed key to source_{suffix_a} as {hash_key}")
         df_a = fcd.add_hash_key(
             df_a,
             new_field=hash_key,
-            fields=primary_key + hash_fields,
-            hash_geometry=hash_geometry,
+            fields=hash_fields,
             precision=precision,
             drop_null_geometry=drop_null_geometry,
             allow_duplicates=allow_duplicates,
@@ -932,22 +996,19 @@ def _read_and_diff(
         df_b = fcd.add_hash_key(
             df_b,
             new_field=hash_key,
-            fields=primary_key + hash_fields,
-            hash_geometry=hash_geometry,
+            fields=hash_fields,
             precision=precision,
             drop_null_geometry=drop_null_geometry,
             allow_duplicates=allow_duplicates,
         )
-        primary_key = [hash_key]
+        primary_key = hash_key
         hashed = True
 
     # run the diff
     diff = fcd.gdf_diff(
         df_a,
         df_b,
-        primary_key[
-            0
-        ],  # pk is always a single column (a string) after above processing
+        primary_key,
         fields=fields,
         ignore_fields=ignore_fields,
         precision=precision,
@@ -969,7 +1030,7 @@ def diff_to_json(
     ignore_fields=None,
     suffix_a="a",
     suffix_b="b",
-    drop_null_geometry=True,
+    drop_null_geometry=None,
     crs=None,
     hash_key="fcd_hash_id",
     hash_fields=None,
@@ -1011,8 +1072,9 @@ def diff_to_json(
         del result["DUPLICATES"]
     summary = {key: len(df) for key, df in result.items()}
     if not counts_only:
-        pk_name = resolved_primary_key[0]
-        summary["keys"] = {key: df[pk_name].tolist() for key, df in result.items()}
+        summary["keys"] = {
+            key: df[resolved_primary_key].tolist() for key, df in result.items()
+        }
     if out_file:
         LOG.info(f"Writing JSON summary to {out_file}")
         with open(out_file, "w") as f:
@@ -1032,7 +1094,7 @@ def diff_to_gdb(
     ignore_fields=None,
     suffix_a="a",
     suffix_b="b",
-    drop_null_geometry=True,
+    drop_null_geometry=None,
     crs=None,
     hash_key="fcd_hash_id",
     hash_fields=None,
@@ -1043,7 +1105,9 @@ def diff_to_gdb(
     """
     Compare two datasets:
       - open two data sources, load to geopandas dataframes (gdf)
-      - if no primary key specified, add one to each gdf as new column based on geometry hash
+      - if no primary key specified, add one to each gdf as new column based
+        on a hash of hash_fields (the complete list of fields to hash,
+        including the geometry field's name if geometry is to be included)
       - compare the datasets with gdf_diff, assigning input records to one of:
          + NEW
          + DELETED
@@ -1101,8 +1165,13 @@ def diff_to_gdb(
         LOG.info(f"{key}: {len(diff[key])} records")
         if len(diff[key]) > 0:
             # add empty geometry column for writing non-spatial data to .gpkg
-            # (does not work for .gdb driver, .gdb output fails with non-spatial data)
-            if "geometry" not in diff[key].columns:
+            # (does not work for .gdb driver, .gdb output fails with non-spatial data).
+            # Checked via isinstance rather than a literal "geometry" column
+            # name - a spatial result's geometry column is not always named
+            # "geometry" (NEW/DELETED/UNCHANGED/MODIFIED_GEOM preserve each
+            # source's own schema, which for a GeoParquet source can
+            # genuinely use a different name)
+            if not isinstance(diff[key], geopandas.GeoDataFrame):
                 diff[key] = geopandas.GeoDataFrame(
                     diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
                 )

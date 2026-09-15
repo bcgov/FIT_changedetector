@@ -32,7 +32,7 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 | 0 | original_fc | Feature Layer | Required |
 | 1 | new_fc | Feature Layer | Required |
 | 2 | out_folder | Folder | Required |
-| 3 | primary_key | String, multivalue | Optional |
+| 3 | primary_key | String | Optional |
 | 4 | fields | String, multivalue | Optional |
 | 5 | ignore_fields | String, multivalue | Optional |
 | 6 | hash_key | String | Optional |
@@ -72,23 +72,23 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Summary:** Compares two feature classes and reports the differences as a JSON summary, with no spatial output.
 
-**Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by geometry - and classifies every record as NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), or MODIFIED_BOTH. Writes a JSON file listing record counts per category, plus the primary key value(s) present in each (a Duplicates category is added if duplicate primary keys are allowed). No spatial output is produced - use "Change Detector - Diff to GDB" instead if you need the actual changed features written out.
+**Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and classifies every record as NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), or MODIFIED_BOTH. Writes a JSON file listing record counts per category, plus the primary key value(s) present in each (a Duplicates category is added if duplicate primary keys are allowed). No spatial output is produced - use "Change Detector - Diff to GDB" instead if you need the actual changed features written out.
 
-**Usage:** Wraps the `changedetector diff` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by geometry, in which case both sources must contain geometry. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
+**Usage:** Wraps the `changedetector diff` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
 
 **Syntax:**
 - **Original Feature Class** - The "before" dataset to compare.
 - **New Feature Class** - The "after" dataset to compare against Original Feature Class.
 - **Output Folder** - Folder where the JSON summary and the run's log file are written.
-- **Primary Key** - Column(s), common to both datasets, that uniquely identify each record. If left blank, records are matched by geometry instead (both sources must then contain geometry).
+- **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields).
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
 - **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`.
-- **Fields to Include in Hash** - Additional fields (besides geometry) to fold into the generated hash key. Only used when no primary key is supplied.
+- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; has no effect otherwise. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
 - **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries. Default: `0.01`.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.
-- **Drop Null Geometry** - Drop records with null geometry before comparing.
+- **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**.
 - **Allow Duplicate Primary Keys** - Do not fail on a duplicated primary key - instead, keep the first occurrence of each duplicated key (per source) and report the dropped records under a Duplicates category. Not applied when matching by geometry alone (no primary key or hash fields) - a duplicate there always fails, since geometry alone can't reliably pair records when more than one shares a location.
 - **Output File Name** - Optional. Names the output JSON file and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
@@ -98,15 +98,15 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Summary:** Compares two feature classes and writes the differences as layers in a new file geodatabase.
 
-**Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by geometry - and writes the results to a new file geodatabase, one layer per category: NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), MODIFIED_BOTH, and DUPLICATES (if duplicate primary keys are allowed). Optionally also writes copies of the two input layers, with the hash key added, for reference. Use "Change Detector - Diff (JSON Summary)" instead if you just need a quick count/summary without spatial output.
+**Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and writes the results to a new file geodatabase, one layer per category: NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), MODIFIED_BOTH, and DUPLICATES (if duplicate primary keys are allowed). Optionally also writes copies of the two input layers, with the hash key added, for reference. Use "Change Detector - Diff (JSON Summary)" instead if you just need a quick count/summary without spatial output.
 
-**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by geometry, in which case both sources must contain geometry. Writes results as separate layers - NEW, DELETED, UNCHANGED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
+**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, UNCHANGED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
 
 **Syntax:** same as diff2json for the parameters below, plus Dump Input Layers:
 - **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Compare**, **Fields to Ignore**, **Hash Key**, **Fields to Include in Hash**, **Coordinate Precision**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
-- **Primary Key** - Column(s), common to both datasets, that uniquely identify each record. If left blank, records are matched by geometry instead (both sources must then contain geometry). Leaving this blank, or supplying more than one column, forces **Dump Input Layers** on regardless of that parameter's own setting - see below.
+- **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields). Leaving this blank forces **Dump Input Layers** on regardless of that parameter's own setting - see below.
 - **Allow Duplicate Primary Keys** - as in diff2json above.
-- **Dump Input Layers** - Also write copies of the two input layers, with the generated hash key column added, into the output geodatabase for reference. Forced on automatically whenever a hash key had to be generated (Primary Key left blank, or given more than one column) - the generated key only exists in that hashed copy, so dumping the inputs is how you can see which geometry/attribute values produced which hash. In that case, this happens regardless of how this parameter is set.
+- **Dump Input Layers** - Also write copies of the two input layers, with the generated hash key column added, into the output geodatabase for reference. Forced on automatically whenever a hash key had to be generated (Primary Key left blank) - the generated key only exists in that hashed copy, so dumping the inputs is how you can see which geometry/attribute values produced which hash. In that case, this happens regardless of how this parameter is set.
 - **Output File Name** - Optional. Names the output `.gdb` and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
 - **Output File** *(Derived)* - Path of the file geodatabase written by this run.

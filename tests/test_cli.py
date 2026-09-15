@@ -327,7 +327,7 @@ def test_diff2gdb_hash(tmp_path):
             "tests/data/parks_a.geojson",
             "tests/data/parks_b.geojson",
             "-hf",
-            "park_name",
+            "park_name,geometry",
             "-o",
             str(os.path.join(tmp_path, "test.gdb")),
         ],
@@ -354,7 +354,7 @@ def test_add_hash_key(tmp_path):
             "-nln",
             "testlayer",
             "-hf",
-            "park_name",
+            "park_name,geometry",
             "-hk",
             "hashed_key",
         ],
@@ -376,6 +376,178 @@ def test_add_hash_key(tmp_path):
         )
         .iloc[0]
     )
+
+
+def test_add_hash_key_requires_hash_fields(tmp_path):
+    """--hash-fields is required for add-hash-key - there's no primary key
+    concept here, so fields must always be given explicitly (including the
+    geometry field's name, to hash on geometry)."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "add-hash-key",
+            "tests/data/parks_a.geojson",
+            os.path.join(tmp_path, "test.gdb"),
+            "-nln",
+            "testlayer",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--hash-fields" in result.output
+
+
+def test_add_hash_key_attrs_only(tmp_path):
+    """Omitting the geometry field's name from --hash-fields hashes
+    attributes only - see https://github.com/bcgov/FIT_changedetector/issues/120."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "add-hash-key",
+            "tests/data/parks_a.geojson",
+            os.path.join(tmp_path, "test.gdb"),
+            "-nln",
+            "testlayer",
+            "-hf",
+            "park_name",
+            "-hk",
+            "hashed_key",
+        ],
+    )
+    assert result.exit_code == 0
+    df = geopandas.read_file(os.path.join(tmp_path, "test.gdb"), layer="testlayer")
+    assert "hashed_key" in df.columns
+    assert (
+        df["hashed_key"].iloc[0]
+        == df[["park_name"]]
+        .apply(
+            lambda x: hashlib.sha1(
+                "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
+            ).hexdigest(),
+            axis=1,
+        )
+        .iloc[0]
+    )
+
+
+def test_diff_no_primary_key_no_hash_fields_raises(tmp_path):
+    """No --primary-key and no --hash-fields must raise, rather than
+    silently defaulting to a geometry-only hash - fields to hash must now be
+    given explicitly (including the geometry field's name, if geometry is to
+    be included)."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "specify hash_fields" in str(result.exception)
+
+
+def test_diff_drop_null_geometry_without_geometry_in_hash_raises(tmp_path):
+    """--drop-null-geometry is only valid when the geometry field is
+    included in --hash-fields."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-hf",
+            "park_name",
+            "-d",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "drop_null_geometry has no effect" in str(result.exception)
+
+
+def test_diff_drop_null_geometry_with_primary_key_raises(tmp_path):
+    """--drop-null-geometry has no effect when a --primary-key is supplied -
+    an explicit primary key is always used directly, never hashed, so there
+    is no hash key generation for the option to affect."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "-d",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "drop_null_geometry has no effect when a primary_key is supplied" in str(
+        result.exception
+    )
+
+
+def test_diff_primary_key_is_not_comma_split(tmp_path):
+    """--primary-key takes a single field name, not a comma separated list -
+    a comma in the value is treated as part of one literal field name
+    (composite keys go through --hash-fields instead)."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id,park_name",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Field id,park_name is not present in" in str(result.exception)
+
+
+def test_diff_missing_field_hints_geometry_name():
+    """A misnamed field (eg "Shape"/"SHAPE" from ArcGIS habit) in --hash-fields
+    raises with a hint at the dataset's real geometry field name."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-hf",
+            "park_name,Shape",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Field Shape is not present" in str(result.exception)
+    assert "geometry field is named 'geometry'" in str(result.exception)
+
+
+def test_add_hash_key_missing_field_hints_geometry_name(tmp_path):
+    """A misnamed field (eg "Shape"/"SHAPE" from ArcGIS habit) in
+    --hash-fields raises with a hint at the dataset's real geometry field
+    name."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "add-hash-key",
+            "tests/data/parks_a.geojson",
+            os.path.join(tmp_path, "test.gdb"),
+            "-nln",
+            "testlayer",
+            "-hf",
+            "park_name,Shape",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Field Shape is not present" in str(result.exception)
+    assert "geometry field is named 'geometry'" in str(result.exception)
 
 
 # not yet functional,

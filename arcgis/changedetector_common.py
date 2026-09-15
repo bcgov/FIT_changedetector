@@ -134,6 +134,11 @@ def resolve_sources(param):
     # directory isn't the .gdb itself (github.com/bcgov/FIT_changedetector/issues/116)
     for src in ["original", "new"]:
         desc = arcpy.Describe(param[f"{src}_fc"])
+        # arcpy's own name for the geometry field (typically "Shape") - used
+        # by build_common_diff_args() to translate a geometry field picked
+        # from the Fields to Include in Hash parameter into the literal
+        # "geometry" the CLI actually expects, see below
+        param[src + "_shape_field"] = getattr(desc, "shapeFieldName", None)
         if desc.dataType == "FeatureClass":
             # desc.path is the fc's immediate parent workspace - if the fc
             # sits inside a feature dataset, that's the feature dataset's own
@@ -172,6 +177,30 @@ def build_output_stem(out_name, default_prefix):
     return f"{default_prefix}_{timestamp}"
 
 
+def translate_hash_fields(param):
+    """param["hash_fields"] (from the Fields to Include in Hash parameter),
+    with the geometry field's arcpy name (eg "Shape" - see resolve_sources())
+    translated to the literal "geometry".
+
+    Expects param to already have *_shape_field keys from resolve_sources().
+
+    geopandas/pyogrio (what the `changedetector` CLI actually reads sources
+    with) always normalizes the active geometry column to "geometry" on
+    read, regardless of what the source format itself calls it internally -
+    so a hash field picked in ArcGIS Pro's UI under arcpy's own name for
+    that column (eg "Shape") would not be found by the CLI unless translated
+    here first.
+    """
+    shape_fields = {
+        f.upper()
+        for f in (param.get("original_shape_field"), param.get("new_shape_field"))
+        if f
+    }
+    return [
+        "geometry" if f.upper() in shape_fields else f for f in param["hash_fields"]
+    ]
+
+
 def build_common_diff_args(param):
     """CLI args shared by `diff` and `diff2gdb` - mirrors cli.py's common_diff_options.
 
@@ -183,7 +212,7 @@ def build_common_diff_args(param):
     if param["new_layer"]:
         args += ["--layer-b", param["new_layer"]]
     if param["primary_key"]:
-        args += ["--primary-key", ",".join(param["primary_key"])]
+        args += ["--primary-key", param["primary_key"]]
     if param["fields"]:
         args += ["--fields", ",".join(param["fields"])]
     if param["ignore_fields"]:
@@ -191,7 +220,7 @@ def build_common_diff_args(param):
     if param["hash_key"]:
         args += ["--hash-key", param["hash_key"]]
     if param["hash_fields"]:
-        args += ["--hash-fields", ",".join(param["hash_fields"])]
+        args += ["--hash-fields", ",".join(translate_hash_fields(param))]
     if param["precision"] is not None:
         args += ["--precision", str(param["precision"])]
     if param["suffix_a"]:

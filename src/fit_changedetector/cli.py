@@ -50,7 +50,8 @@ def common_diff_options(f):
         click.option(
             "--primary-key",
             "-pk",
-            help="Comma separated list of primary key column(s), common to both datasets",
+            help="Name of primary key column, common to both datasets - for a composite "
+            "key, use --hash-fields instead to generate one from multiple fields",
         ),
         click.option(
             "--hash-key",
@@ -61,7 +62,11 @@ def common_diff_options(f):
         click.option(
             "--hash-fields",
             "-hf",
-            help="Comma separated list of fields to include in the hash (in addition to geometry)",
+            help=(
+                "Comma separated list of fields to hash, when no --primary-key is given - "
+                "required in that case. Include the geometry field's name (typically "
+                "'geometry') to include geometry in the hash"
+            ),
         ),
         click.option(
             "--precision",
@@ -85,7 +90,10 @@ def common_diff_options(f):
             "--drop-null-geometry",
             "-d",
             is_flag=True,
-            help="Drop records with null geometry",
+            help=(
+                "Drop records with null geometry. Only valid when the geometry field is "
+                "included in --hash-fields"
+            ),
         ),
         click.option(
             "--crs",
@@ -98,9 +106,10 @@ def common_diff_options(f):
                 "Do not fail on a duplicated primary key - instead, drop all but the first "
                 "occurrence of each duplicated key from the source it was found in, and "
                 "include the dropped records in a DUPLICATES category/layer of the output. "
-                "Not applied when no primary key or hash fields are given (a pure geometry "
-                "hash) - a duplicate there always fails, since geometry alone can't reliably "
-                "pair records between datasets when more than one shares a location"
+                "Not applied to a pure geometry hash (no primary key, and --hash-fields "
+                "hashes on the geometry field alone) - a duplicate there always fails, "
+                "since geometry alone can't reliably pair records between datasets when "
+                "more than one shares a location"
             ),
         ),
     ]
@@ -141,12 +150,19 @@ def cli():
     "--drop-null-geometry",
     "-d",
     is_flag=True,
-    help="Drop records with null geometry",
+    help=(
+        "Drop records with null geometry. Only valid when the geometry field is "
+        "included in --hash-fields"
+    ),
 )
 @click.option(
     "--hash-fields",
     "-hf",
-    help="Comma separated list of fields to include in the hash (not including geometry)",
+    required=True,
+    help=(
+        "Comma separated list of fields to hash. Include the geometry field's name "
+        "(typically 'geometry') to include geometry in the hash"
+    ),
 )
 @click.option(
     "--precision",
@@ -177,15 +193,15 @@ def add_hash_key(
     configure_logging(verbose - quiet)
     df = geopandas.read_file(in_file, layer=in_layer)
 
-    # validate provided fields
+    # validate provided fields - hint at the actual geometry field name, in
+    # case a misnamed geometry field (eg "Shape"/"SHAPE" from ArcGIS habit)
+    # is the cause
     src = os.path.join(in_file, in_layer or "")
-    if hash_fields:
-        hash_fields = hash_fields.split(",")
-        for fieldname in hash_fields:
-            if fieldname not in df.columns:
-                raise ValueError(f"Field {fieldname} is not present in {src}")
-    else:
-        hash_fields = []
+    hash_fields = hash_fields.split(",")
+    for fieldname in hash_fields:
+        if fieldname not in df.columns:
+            hint = f" - this dataset's geometry field is named '{df.geometry.name}'"
+            raise ValueError(f"Field {fieldname} is not present in {src}{hint}")
 
     # if specified, reproject
     if crs:
@@ -195,7 +211,6 @@ def add_hash_key(
         df,
         new_field=hash_key,
         fields=hash_fields,
-        hash_geometry=True,
         precision=precision,
         drop_null_geometry=drop_null_geometry,
     )
@@ -258,10 +273,9 @@ def diff2gdb(
     """
     configure_logging(verbose - quiet)
 
-    # parse multi-item parameters
+    # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
     ignore_fields = split_string(ignore_fields)
-    primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
     fcd.diff_to_gdb(
@@ -335,10 +349,9 @@ def diff(
     """
     configure_logging(verbose - quiet)
 
-    # parse multi-item parameters
+    # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
     ignore_fields = split_string(ignore_fields)
-    primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
     fcd.diff_to_json(
