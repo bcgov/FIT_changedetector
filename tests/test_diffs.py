@@ -330,6 +330,44 @@ def test_diff_ignore_pk(gdf):
         )
 
 
+def test_diff_ignore_fields_removes_all_matches_regardless_of_order():
+    """Regression test: fields to ignore used to be dropped from `fields` by
+    mutating the list while iterating over it, which silently skipped
+    whichever entry followed a removed one, if it also matched. Ignoring 4 of
+    6 fields guarantees, by pigeonhole, that at least two ignored fields are
+    adjacent in `fields` however it ends up ordered - so this fails
+    deterministically on the old code regardless of dict/set iteration
+    order, rather than only on some field orderings."""
+    df_a = pandas.DataFrame(
+        {
+            "pk": [1, 2],
+            "col1": ["a", "a"],
+            "col2": ["a", "a"],
+            "col3": ["a", "a"],
+            "col4": ["a", "a"],
+            "col5": ["a", "a"],
+        }
+    )
+    df_b = df_a.copy()
+    # every column changes - without ignore_fields, all 5 would show up as
+    # modified attributes
+    for col in ["col1", "col2", "col3", "col4", "col5"]:
+        df_b[col] = "b"
+    d = fcd.gdf_diff(
+        df_a,
+        df_b,
+        primary_key="pk",
+        return_type="gdf",
+        ignore_fields=["col1", "col2", "col3", "col4"],
+    )
+    modified_columns = set(d["MODIFIED_ATTR"].columns)
+    for col in ["col1", "col2", "col3", "col4"]:
+        assert f"{col}_a" not in modified_columns
+        assert f"{col}_b" not in modified_columns
+    assert "col5_a" in modified_columns
+    assert "col5_b" in modified_columns
+
+
 def test_diff_non_spatial():
     df_a = geopandas.read_file("tests/data/pets_1.csv")
     df_b = geopandas.read_file("tests/data/pets_2.csv")

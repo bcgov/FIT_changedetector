@@ -495,7 +495,7 @@ def _validate_and_prepare_diff_inputs(
         fields = list(fields_common)
 
     # remove ignore_fields from comparison
-    for f in fields:
+    for f in list(fields):
         if f.upper() in ignore_fields:
             LOG.warning(
                 f"Field {f} is ignored by changedetector and will not be included in results"
