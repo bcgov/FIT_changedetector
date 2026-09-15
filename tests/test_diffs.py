@@ -165,7 +165,7 @@ def test_diff_primary_key_and_hash_fields_raises():
             "tests/data/parks_b.geojson",
             None,
             None,
-            primary_key=["id"],
+            primary_key="id",
             hash_fields=["name"],
         )
 
@@ -279,7 +279,7 @@ def test_diff_to_gdb_geoparquet_different_geometry_column_names(tmp_path):
     df_b.to_parquet(path_b)
 
     out_file = str(tmp_path / "out.gdb")
-    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file, primary_key=["id"])
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file, primary_key="id")
 
     modified = geopandas.read_file(out_file, layer="MODIFIED_GEOM")
     assert len(modified) == 1
@@ -687,7 +687,7 @@ def test_unsupported_geometry_type_rejected(tmp_path):
             None,
             None,
             str(tmp_path / "out.gdb"),
-            primary_key=["id"],
+            primary_key="id",
         )
 
 
@@ -711,7 +711,7 @@ def test_mixed_single_multipart_geometry_type_allowed(tmp_path):
         None,
         None,
         str(tmp_path / "out.gdb"),
-        primary_key=["id"],
+        primary_key="id",
     )
 
 
@@ -880,7 +880,7 @@ def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
         str(path_b),
         None,
         None,
-        ["objectid"],
+        "objectid",
         None,
         None,
         "a",
@@ -891,7 +891,7 @@ def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
         None,
         0.01,
     )
-    assert primary_key == ["objectid"]
+    assert primary_key == "objectid"
     assert list(diff["MODIFIED_ATTR"]["objectid"]) == [2]
 
 
@@ -996,7 +996,7 @@ def test_diff_to_gdb_allow_duplicates_writes_duplicates_layer(tmp_path):
         None,
         None,
         out_file,
-        primary_key=["id"],
+        primary_key="id",
         allow_duplicates=True,
     )
     duplicates = geopandas.read_file(out_file, layer="DUPLICATES")

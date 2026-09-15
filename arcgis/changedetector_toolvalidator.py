@@ -59,6 +59,17 @@ class ToolValidator:
             self.params[4].enabled = 1
             self.params[5].enabled = 1
 
+        # Drop Null Geometry only has an effect once a hash key is generated
+        # (no primary key given) - an explicit primary key is always used
+        # directly, never hashed, so the library rejects the combination
+        # outright. Grey it out here rather than letting the user hit that
+        # as a run-time failure.
+        if self.params[3].value:
+            self.params[11].value = False
+            self.params[11].enabled = 0
+        else:
+            self.params[11].enabled = 1
+
         # if coordinate precision is not supplied, set default based on spatial reference
         if self.params[8].value is None:
             sr = arcpy.Describe(self.params[0].value).spatialReference

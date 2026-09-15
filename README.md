@@ -122,8 +122,9 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -f, --fields TEXT          Comma separated list of fields to compare (do not
                                  include primary key)
       -if, --ignore-fields TEXT  Comma separated list of fields to ignore
-      -pk, --primary-key TEXT    Comma separated list of primary key column(s),
-                                 common to both datasets
+      -pk, --primary-key TEXT    Name of primary key column, common to both datasets
+                                 - for a composite key, use --hash-fields instead to
+                                 generate one from multiple fields
       -hk, --hash-key TEXT       Name of new column to add as hash key
       -hf, --hash-fields TEXT    Comma separated list of fields to hash, when no
                                  --primary-key is given - required in that case.
@@ -172,8 +173,9 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -f, --fields TEXT          Comma separated list of fields to compare (do not
                                  include primary key)
       -if, --ignore-fields TEXT  Comma separated list of fields to ignore
-      -pk, --primary-key TEXT    Comma separated list of primary key column(s),
-                                 common to both datasets
+      -pk, --primary-key TEXT    Name of primary key column, common to both datasets
+                                 - for a composite key, use --hash-fields instead to
+                                 generate one from multiple fields
       -hk, --hash-key TEXT       Name of new column to add as hash key
       -hf, --hash-fields TEXT    Comma separated list of fields to hash, when no
                                  --primary-key is given - required in that case.

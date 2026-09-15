@@ -50,7 +50,8 @@ def common_diff_options(f):
         click.option(
             "--primary-key",
             "-pk",
-            help="Comma separated list of primary key column(s), common to both datasets",
+            help="Name of primary key column, common to both datasets - for a composite "
+            "key, use --hash-fields instead to generate one from multiple fields",
         ),
         click.option(
             "--hash-key",
@@ -272,10 +273,9 @@ def diff2gdb(
     """
     configure_logging(verbose - quiet)
 
-    # parse multi-item parameters
+    # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
     ignore_fields = split_string(ignore_fields)
-    primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
     fcd.diff_to_gdb(
@@ -349,10 +349,9 @@ def diff(
     """
     configure_logging(verbose - quiet)
 
-    # parse multi-item parameters
+    # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
     ignore_fields = split_string(ignore_fields)
-    primary_key = split_string(primary_key)
     hash_fields = split_string(hash_fields)
 
     fcd.diff_to_json(

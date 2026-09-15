@@ -212,7 +212,7 @@ def build_common_diff_args(param):
     if param["new_layer"]:
         args += ["--layer-b", param["new_layer"]]
     if param["primary_key"]:
-        args += ["--primary-key", ",".join(param["primary_key"])]
+        args += ["--primary-key", param["primary_key"]]
     if param["fields"]:
         args += ["--fields", ",".join(param["fields"])]
     if param["ignore_fields"]:

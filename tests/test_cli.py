@@ -468,6 +468,47 @@ def test_diff_drop_null_geometry_without_geometry_in_hash_raises(tmp_path):
     assert "drop_null_geometry has no effect" in str(result.exception)
 
 
+def test_diff_drop_null_geometry_with_primary_key_raises(tmp_path):
+    """--drop-null-geometry has no effect when a --primary-key is supplied -
+    an explicit primary key is always used directly, never hashed, so there
+    is no hash key generation for the option to affect."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "-d",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "drop_null_geometry has no effect when a primary_key is supplied" in str(
+        result.exception
+    )
+
+
+def test_diff_primary_key_is_not_comma_split(tmp_path):
+    """--primary-key takes a single field name, not a comma separated list -
+    a comma in the value is treated as part of one literal field name
+    (composite keys go through --hash-fields instead)."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id,park_name",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "Field id,park_name is not present in" in str(result.exception)
+
+
 def test_diff_missing_field_hints_geometry_name():
     """A misnamed field (eg "Shape"/"SHAPE" from ArcGIS habit) in --hash-fields
     raises with a hint at the dataset's real geometry field name."""

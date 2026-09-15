@@ -32,7 +32,7 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 | 0 | original_fc | Feature Layer | Required |
 | 1 | new_fc | Feature Layer | Required |
 | 2 | out_folder | Folder | Required |
-| 3 | primary_key | String, multivalue | Optional |
+| 3 | primary_key | String | Optional |
 | 4 | fields | String, multivalue | Optional |
 | 5 | ignore_fields | String, multivalue | Optional |
 | 6 | hash_key | String | Optional |
@@ -80,7 +80,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Original Feature Class** - The "before" dataset to compare.
 - **New Feature Class** - The "after" dataset to compare against Original Feature Class.
 - **Output Folder** - Folder where the JSON summary and the run's log file are written.
-- **Primary Key** - Column(s), common to both datasets, that uniquely identify each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required.
+- **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields).
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
 - **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`.
@@ -104,9 +104,9 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Syntax:** same as diff2json for the parameters below, plus Dump Input Layers:
 - **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Compare**, **Fields to Ignore**, **Hash Key**, **Fields to Include in Hash**, **Coordinate Precision**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
-- **Primary Key** - Column(s), common to both datasets, that uniquely identify each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required. Leaving this blank, or supplying more than one column, forces **Dump Input Layers** on regardless of that parameter's own setting - see below.
+- **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields). Leaving this blank forces **Dump Input Layers** on regardless of that parameter's own setting - see below.
 - **Allow Duplicate Primary Keys** - as in diff2json above.
-- **Dump Input Layers** - Also write copies of the two input layers, with the generated hash key column added, into the output geodatabase for reference. Forced on automatically whenever a hash key had to be generated (Primary Key left blank, or given more than one column) - the generated key only exists in that hashed copy, so dumping the inputs is how you can see which geometry/attribute values produced which hash. In that case, this happens regardless of how this parameter is set.
+- **Dump Input Layers** - Also write copies of the two input layers, with the generated hash key column added, into the output geodatabase for reference. Forced on automatically whenever a hash key had to be generated (Primary Key left blank) - the generated key only exists in that hashed copy, so dumping the inputs is how you can see which geometry/attribute values produced which hash. In that case, this happens regardless of how this parameter is set.
 - **Output File Name** - Optional. Names the output `.gdb` and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
 - **Output File** *(Derived)* - Path of the file geodatabase written by this run.
