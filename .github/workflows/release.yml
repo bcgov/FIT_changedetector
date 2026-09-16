@@ -137,3 +137,39 @@ jobs:
         gh release upload
         '${{ github.ref_name }}' dist/**
         --repo '${{ github.repository }}'
+
+  bump-arcgis-spec:
+    name: Bump FIT_CHANGEDETECTOR_SPEC on main
+    needs:
+    - github-release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # IMPORTANT: pushes a commit directly to main
+
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        ref: main
+    # build's "Build a version-pinned ArcGIS tools archive" step does this same
+    # substitution in a scratch copy for the release zip - that one is
+    # generated fresh every release and never needs committing. This is the
+    # one place it has to land as a real commit: the source tree on main,
+    # which is what get_spec() falls back to for anyone running the scripts
+    # straight from a checkout (no spec_override.txt) - see arcgis/README.md#releases--versioning.
+    - name: Bump the pinned spec to this release
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        sed -i "s/^FIT_CHANGEDETECTOR_SPEC = .*/FIT_CHANGEDETECTOR_SPEC = \"fit_changedetector==${VERSION}\"/" arcgis/changedetector_common.py
+        grep -q "fit_changedetector==${VERSION}\"\$" arcgis/changedetector_common.py \
+          || { echo "FIT_CHANGEDETECTOR_SPEC substitution failed"; exit 1; }
+    - name: Commit and push, if changed
+      run: |
+        if git diff --quiet -- arcgis/changedetector_common.py; then
+          echo "FIT_CHANGEDETECTOR_SPEC already up to date, nothing to commit"
+          exit 0
+        fi
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git commit -am "Bump FIT_CHANGEDETECTOR_SPEC to ${GITHUB_REF_NAME}"
+        git push origin HEAD:main
