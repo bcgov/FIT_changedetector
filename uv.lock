@@ -116,6 +116,7 @@ dependencies = [
     { name = "cligj" },
     { name = "geopandas" },
     { name = "pyarrow" },
+    { name = "pyogrio" },
 ]
 
 [package.optional-dependencies]
@@ -133,6 +134,7 @@ requires-dist = [
     { name = "geopandas", specifier = ">=1.0.0" },
     { name = "pre-commit", marker = "extra == 'test'" },
     { name = "pyarrow" },
+    { name = "pyogrio", specifier = ">=0.12.0" },
     { name = "pytest", marker = "extra == 'test'" },
 ]
 provides-extras = ["test"]
