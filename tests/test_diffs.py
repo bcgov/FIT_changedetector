@@ -608,11 +608,18 @@ def test_validate_diff_inputs_dtype_mismatch():
         _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
 
 
-def test_validate_diff_inputs_geometry_type_mismatch():
+def test_validate_diff_inputs_geometry_type_mismatch_not_rejected():
+    """A record whose geometry base type differs between sources (e.g. a
+    point in df_a replaced by a polygon in df_b) is not rejected outright -
+    it's presumed intentional (e.g. every feature has changed type) and
+    simply reported as a geometry change rather than raising.
+    """
     df_a, df_b = _spatial_gdf(), _spatial_gdf()
     df_b.loc[0, "geometry"] = Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])
-    with pytest.raises(ValueError, match="not equivalent"):
-        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+    _, _, _, _, _, spatial, _, _ = _validate_and_prepare_diff_inputs(
+        df_a, df_b, "pk", [], [], 0.01
+    )
+    assert spatial
 
 
 def test_validate_diff_inputs_crs_mismatch():

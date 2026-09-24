@@ -516,27 +516,9 @@ def _validate_and_prepare_diff_inputs(
                 f"Field types do not match. {f}: ({df_a[f].dtype}, {df_b[f].dtype})"
             )
 
-    # some spatial data checks for typical issues
-    if spatial:
-        # mixed single/multipart geometries were already promoted to
-        # multipart above (via _prepare_sources, before df_a_src/df_b_src
-        # were copied) - a feature that's single-part in one source and
-        # multi-part in the other would otherwise fail this equivalence
-        # check, or be spuriously reported as MODIFIED_GEOM rather than
-        # unchanged
-        types_a = _geom_types(df_a)
-        types_b = _geom_types(df_b)
-
-        # ensure geometry types are equivalent
-        if types_a != types_b:
-            raise ValueError(
-                f"Geometry types {','.join(list(types_a))} and {','.join(list(types_b))} "
-                "are not equivalent"
-            )
-
-        # are CRS equivalent?
-        if df_a.crs != df_b.crs:
-            raise ValueError("Coordinate reference systems are not equivalent")
+    # are CRS equivalent?
+    if spatial and df_a.crs != df_b.crs:
+        raise ValueError("Coordinate reference systems are not equivalent")
 
     # is primary key unique in both datasets? if allow_duplicates, retain the records
     # to be dropped (full, unfiltered schema) so callers can report/write them out
