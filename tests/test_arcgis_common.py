@@ -214,22 +214,25 @@ def _validator(**values):
     return validator
 
 
-def test_validator_requires_hash_fields_without_primary_key():
-    """#130: no Primary Key and no Fields to Include in Hash is flagged at
-    validation, rather than failing at run time."""
+def test_validator_requires_primary_key_or_hash_fields():
+    """#130: no Primary Key and no Fields to Include in Hash is flagged on
+    both at validation, rather than failing at run time."""
     validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc")
     validator.updateMessages()
+    validator.params[3].setErrorMessage.assert_called_once()
     validator.params[6].setErrorMessage.assert_called_once()
 
 
-def test_validator_hash_fields_not_required_with_primary_key_or_hash_fields():
+def test_validator_primary_key_or_hash_fields_satisfies_requirement():
     for values in ({"p3": "id"}, {"p6": ["NAME"]}):
         validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc", **values)
         validator.updateMessages()
+        validator.params[3].setErrorMessage.assert_not_called()
         validator.params[6].setErrorMessage.assert_not_called()
 
 
-def test_validator_hash_fields_not_flagged_before_sources_chosen():
+def test_validator_key_requirement_not_flagged_before_sources_chosen():
     validator = _validator(p0="a.gdb/fc")
     validator.updateMessages()
+    validator.params[3].setErrorMessage.assert_not_called()
     validator.params[6].setErrorMessage.assert_not_called()

@@ -149,16 +149,21 @@ class ToolValidator:
         # Modify the messages created by internal validation for each tool
         # parameter. This method is called after internal validation.
 
-        # with no Primary Key, records are matched by a hash key generated from
-        # Fields to Include in Hash - so it's required in that case. Flag it
-        # here rather than letting the run fail in the CLI (#130). Only once
-        # both sources are chosen, so a freshly opened tool isn't already in error.
+        # records are matched either by Primary Key, or by a hash key generated
+        # from Fields to Include in Hash - so one of the two is required. Flag
+        # both rather than letting the run fail in the CLI (#130). Only once both
+        # sources are chosen, so a freshly opened tool isn't already in error.
         if (
             self.params[0].value is not None
             and self.params[1].value is not None
             and not self.params[3].value
             and not self.params[6].value
         ):
+            self.params[3].setErrorMessage(
+                "Primary Key is required unless Fields to Include in Hash is "
+                "supplied - select a field that uniquely identifies each record, "
+                "or match records by a hash key instead."
+            )
             self.params[6].setErrorMessage(
                 "Fields to Include in Hash is required when no Primary Key is "
                 "supplied - select the field(s) to generate a hash key from "
