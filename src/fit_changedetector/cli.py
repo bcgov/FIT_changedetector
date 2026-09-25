@@ -372,9 +372,9 @@ def diff(
     Same comparison as `diff2gdb`, but for when spatial output isn't needed -
     prints a JSON summary instead of writing a .gdb: record counts per
     NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
-    present in each category (use --count to omit the key lists and print
-    just the counts). Use --out-file to write the JSON to a file instead of
-    stdout.
+    present in each category other than UNCHANGED (use --count to omit the key
+    lists and print just the counts). Use --out-file to write the JSON to a file
+    instead of stdout.
 
     To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """

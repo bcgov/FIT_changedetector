@@ -1147,8 +1147,10 @@ def diff_to_json(
     out_file, if provided).
 
     By default, includes record counts per category plus a "keys" section
-    listing the primary key value(s) present in each category. If
-    counts_only, print just the counts.
+    listing the primary key value(s) present in each category except UNCHANGED
+    (the tool reports changes - unchanged keys would just be clutter, and
+    diff_to_gdb() doesn't write them either). If counts_only, print just the
+    counts.
 
     The "DUPLICATES" category (see allow_duplicates) is only included when
     allow_duplicates is True - otherwise it's always empty (a duplicated
@@ -1180,7 +1182,9 @@ def diff_to_json(
     summary = {key: len(df) for key, df in result.items()}
     if not counts_only:
         summary["keys"] = {
-            key: df[resolved_primary_key].tolist() for key, df in result.items()
+            key: df[resolved_primary_key].tolist()
+            for key, df in result.items()
+            if key != "UNCHANGED"
         }
     if out_file:
         LOG.info(f"Writing JSON summary to {out_file}")

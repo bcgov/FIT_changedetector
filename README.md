@@ -109,8 +109,9 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       Same comparison as `diff2gdb`, but for when spatial output isn't needed -
       prints a JSON summary instead of writing a .gdb: record counts per
       NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
-      present in each category (use --count to omit the key lists and print just the
-      counts). Use --out-file to write the JSON to a file instead of stdout.
+      present in each category other than UNCHANGED (use --count to omit the key
+      lists and print just the counts). Use --out-file to write the JSON to a file
+      instead of stdout.
 
       To read GeoJSON from stdin, specify "-" for IN_FILE_A
 
@@ -264,10 +265,10 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
         changedetector diff2gdb -v - tests/data/parks_b.geojson -pk id
 
-`diff` prints record counts per category plus the primary key value(s) present in each by default; add `--count`/`-c` to print just the counts:
+`diff` prints record counts per category plus the primary key value(s) present in each (except `UNCHANGED`) by default; add `--count`/`-c` to print just the counts:
 
     $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id
-    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1, "keys": {"NEW": ["8"], "DELETED": ["2"], "UNCHANGED": ["1"], "MODIFIED_BOTH": ["5"], "MODIFIED_ATTR": ["3", "6", "7", "9"], "MODIFIED_GEOM": ["4"]}}
+    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1, "keys": {"NEW": ["8"], "DELETED": ["2"], "MODIFIED_BOTH": ["5"], "MODIFIED_ATTR": ["3", "6", "7", "9"], "MODIFIED_GEOM": ["4"]}}
 
     $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id --count
     {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1}

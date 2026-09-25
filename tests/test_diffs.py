@@ -313,7 +313,7 @@ def test_diff_parquet_integer_nulls_without_pandas_metadata(tmp_path, capsys):
         str(path_a), str(tmp_path / "b.gpkg"), None, None, primary_key="id"
     )
     out = json.loads(capsys.readouterr().out)
-    assert out["keys"]["UNCHANGED"] == [1, 2]
+    assert out["UNCHANGED"] == 2
     assert out["keys"]["MODIFIED_ATTR"] == [3]
 
 
