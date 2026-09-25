@@ -39,8 +39,9 @@ def test_diff2gdb_pk(tmp_path):
 
 
 def test_diff_pk(tmp_path, monkeypatch):
-    """diff lists the primary key value(s) in each category of change (not
-    UNCHANGED - #129), as JSON to stdout, and writes no output file at all."""
+    """diff produces the same counts as diff2gdb(), as JSON to stdout, and
+    writes no output file at all. By default, also includes a "keys" section
+    listing the primary key value(s) present in each category."""
     repo_root = os.getcwd()
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -56,13 +57,20 @@ def test_diff_pk(tmp_path, monkeypatch):
     )
     assert result.exit_code == 0
     assert os.listdir(tmp_path) == []
-    assert json.loads(result.output) == {
-        "NEW": ["8"],
-        "DELETED": ["2"],
-        "MODIFIED_BOTH": ["5"],
-        "MODIFIED_ATTR": ["3", "6", "7", "9"],
-        "MODIFIED_GEOM": ["4"],
+    output = json.loads(result.output)
+    counts = {k: v for k, v in output.items() if k != "keys"}
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
     }
+    # keys are listed for every category except UNCHANGED (#129)
+    assert set(output["keys"].keys()) == set(counts.keys()) - {"UNCHANGED"}
+    for key in output["keys"]:
+        assert len(output["keys"][key]) == counts[key]
 
 
 def test_diff_pk_out_file(tmp_path):
@@ -85,12 +93,19 @@ def test_diff_pk_out_file(tmp_path):
     assert result.output == ""
     with open(out_file) as f:
         output = json.load(f)
-    assert output["MODIFIED_ATTR"] == ["3", "6", "7", "9"]
+    counts = {k: v for k, v in output.items() if k != "keys"}
+    assert counts == {
+        "NEW": 1,
+        "DELETED": 1,
+        "UNCHANGED": 1,
+        "MODIFIED_BOTH": 1,
+        "MODIFIED_ATTR": 4,
+        "MODIFIED_GEOM": 1,
+    }
 
 
 def test_diff_pk_count(tmp_path, monkeypatch):
-    """--count prints the record count per category of change, instead of
-    the primary key values."""
+    """--count omits the "keys" section, printing just the record counts."""
     repo_root = os.getcwd()
     monkeypatch.chdir(tmp_path)
     runner = CliRunner()
@@ -106,13 +121,16 @@ def test_diff_pk_count(tmp_path, monkeypatch):
         ],
     )
     assert result.exit_code == 0
-    assert json.loads(result.output) == {
+    counts = json.loads(result.output)
+    assert counts == {
         "NEW": 1,
         "DELETED": 1,
+        "UNCHANGED": 1,
         "MODIFIED_BOTH": 1,
         "MODIFIED_ATTR": 4,
         "MODIFIED_GEOM": 1,
     }
+    assert "keys" not in counts
 
 
 def test_diff_duplicate_primary_key_raises(tmp_path):
@@ -161,7 +179,9 @@ def test_diff_allow_duplicates(tmp_path):
         ["diff", str(path_a), str(path_b), "-pk", "id", "--allow-duplicates"],
     )
     assert result.exit_code == 0
-    assert json.loads(result.output)["DUPLICATES"] == [1]
+    output = json.loads(result.output)
+    assert output["DUPLICATES"] == 1
+    assert output["keys"]["DUPLICATES"] == [1]
 
 
 def test_diff_no_promote_multi(tmp_path):
@@ -179,7 +199,7 @@ def test_diff_no_promote_multi(tmp_path):
     args = ["diff", str(path_a), str(path_b), "-pk", "id", "--count"]
     result = runner.invoke(cli, args)
     assert result.exit_code == 0
-    assert sum(json.loads(result.output).values()) == 0  # unchanged
+    assert json.loads(result.output)["UNCHANGED"] == 1
     result = runner.invoke(cli, args + ["--no-promote-multi"])
     assert result.exit_code == 0
     assert json.loads(result.output)["MODIFIED_GEOM"] == 1
@@ -204,7 +224,7 @@ def test_diff_strict_types(tmp_path):
     args = ["diff", str(path_a), str(path_b), "-pk", "id", "--count"]
     result = runner.invoke(cli, args)
     assert result.exit_code == 0
-    assert sum(json.loads(result.output).values()) == 0  # unchanged
+    assert json.loads(result.output)["UNCHANGED"] == 1
     result = runner.invoke(cli, args + ["--strict-types"])
     assert result.exit_code != 0
     assert "Field types do not match" in str(result.exception)

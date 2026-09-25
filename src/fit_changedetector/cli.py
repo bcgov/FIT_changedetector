@@ -334,7 +334,7 @@ def diff2gdb(
     "--count",
     "-c",
     is_flag=True,
-    help="Print the record count per category, instead of the primary key values",
+    help="Print only record counts, omitting the primary key values in each category",
 )
 @click.option(
     "--out-file",
@@ -370,10 +370,11 @@ def diff(
     """Compare two datasets, printing a JSON summary to stdout
 
     Same comparison as `diff2gdb`, but for when spatial output isn't needed -
-    prints a JSON summary instead of writing a .gdb: the primary key value(s)
-    in each NEW/DELETED/MODIFIED_* category (use --count for the record count
-    per category instead). Use --out-file to write the JSON to a file instead
-    of stdout.
+    prints a JSON summary instead of writing a .gdb: record counts per
+    NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
+    present in each category other than UNCHANGED (use --count to omit the key
+    lists and print just the counts). Use --out-file to write the JSON to a file
+    instead of stdout.
 
     To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """

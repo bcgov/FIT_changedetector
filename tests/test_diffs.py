@@ -313,13 +313,8 @@ def test_diff_parquet_integer_nulls_without_pandas_metadata(tmp_path, capsys):
         str(path_a), str(tmp_path / "b.gpkg"), None, None, primary_key="id"
     )
     out = json.loads(capsys.readouterr().out)
-    assert out == {
-        "NEW": [],
-        "DELETED": [],
-        "MODIFIED_BOTH": [],
-        "MODIFIED_ATTR": [3],
-        "MODIFIED_GEOM": [],
-    }
+    assert out["UNCHANGED"] == 2
+    assert out["keys"]["MODIFIED_ATTR"] == [3]
 
 
 def test_diff_ignore_columns_default():
@@ -826,9 +821,9 @@ def _write_single_vs_multipart_sources(tmp_path):
 def test_diff_to_json_no_promote_multi(tmp_path, capsys):
     path_a, path_b = _write_single_vs_multipart_sources(tmp_path)
     fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk")
-    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == []
+    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == 0
     fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk", promote_multi=False)
-    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == [3]
+    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == 1
 
 
 def test_diff_to_gdb_no_promote_multi_mixed_single_multipart(tmp_path):
@@ -924,7 +919,7 @@ def test_diff_to_json_mixed_base_types_allowed(tmp_path, capsys):
     path_a, path_b = _write_mixed_base_type_sources(tmp_path)
     fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk")
     out = json.loads(capsys.readouterr().out)
-    assert out["MODIFIED_GEOM"] == [3]
+    assert out["MODIFIED_GEOM"] == 1
 
 
 def test_validate_diff_inputs_crs_mismatch():
