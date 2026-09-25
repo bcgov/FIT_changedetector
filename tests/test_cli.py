@@ -67,9 +67,10 @@ def test_diff_pk(tmp_path, monkeypatch):
         "MODIFIED_ATTR": 4,
         "MODIFIED_GEOM": 1,
     }
-    assert set(output["keys"].keys()) == set(counts.keys())
-    for key, count in counts.items():
-        assert len(output["keys"][key]) == count
+    # keys are listed for every category except UNCHANGED (#129)
+    assert set(output["keys"].keys()) == set(counts.keys()) - {"UNCHANGED"}
+    for key in output["keys"]:
+        assert len(output["keys"][key]) == counts[key]
 
 
 def test_diff_pk_out_file(tmp_path):
