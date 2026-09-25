@@ -66,6 +66,8 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 
 Note that unlike the CLI, the ArcGIS tools provide no `--crs` parameter (for overriding the coordinate reference system used when hashing geometries).
 
+The file geodatabase written by `changedetector_diff2gdb.py` stores 64-bit integer fields as Big Integer, rather than as floating point (Double), which cannot exactly represent every large value - eg a large id. Big Integer fields require ArcGIS Pro 3.2 or later.
+
 ## Tool metadata
 
 Suggested text for each tool's **Summary** and **Description** (Tool Properties > General tab) and **Usage**/**Syntax** (Edit Metadata - Syntax is per-parameter help).

@@ -3,6 +3,7 @@ import json
 import os
 
 import geopandas
+import numpy
 from click.testing import CliRunner
 from geopandas import GeoDataFrame
 from shapely.geometry import MultiPoint, Point
@@ -201,6 +202,31 @@ def test_diff_no_promote_multi(tmp_path):
     result = runner.invoke(cli, args + ["--no-promote-multi"])
     assert result.exit_code == 0
     assert json.loads(result.output)["MODIFIED_GEOM"] == 1
+
+
+def test_diff_strict_types(tmp_path):
+    """Integer (Int32) vs Integer64 fields are compared by default, and
+    rejected with --strict-types."""
+    geom = [Point(0, 0)]
+    df_a = GeoDataFrame(
+        {"id": numpy.array([1], dtype="int32")}, geometry=geom, crs="EPSG:3005"
+    )
+    df_b = GeoDataFrame(
+        {"id": numpy.array([1], dtype="int64")}, geometry=geom, crs="EPSG:3005"
+    )
+    path_a = tmp_path / "a.gpkg"
+    path_b = tmp_path / "b.gpkg"
+    df_a.to_file(path_a)
+    df_b.to_file(path_b)
+
+    runner = CliRunner()
+    args = ["diff", str(path_a), str(path_b), "-pk", "id", "--count"]
+    result = runner.invoke(cli, args)
+    assert result.exit_code == 0
+    assert json.loads(result.output)["UNCHANGED"] == 1
+    result = runner.invoke(cli, args + ["--strict-types"])
+    assert result.exit_code != 0
+    assert "Field types do not match" in str(result.exception)
 
 
 def test_diff2gdb_stdin(tmp_path):

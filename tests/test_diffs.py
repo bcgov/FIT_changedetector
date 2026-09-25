@@ -2,7 +2,10 @@ import hashlib
 import json
 
 import geopandas
+import numpy
 import pandas
+import pyarrow
+import pyarrow.parquet
 import pyogrio
 import pytest
 from geopandas import GeoDataFrame
@@ -17,6 +20,7 @@ from shapely.geometry import (
 
 import fit_changedetector as fcd
 from fit_changedetector.changedetector import (
+    _common_int_dtype,
     _read_and_diff,
     _validate_and_prepare_diff_inputs,
 )
@@ -284,6 +288,33 @@ def test_diff_to_gdb_geoparquet_different_geometry_column_names(tmp_path):
     modified = geopandas.read_file(out_file, layer="MODIFIED_GEOM")
     assert len(modified) == 1
     assert next(iter(modified.geometry)) == Point(2, 2)
+
+
+def test_diff_parquet_integer_nulls_without_pandas_metadata(tmp_path, capsys):
+    """Parquet written without pandas metadata (eg by GDAL/duckdb) with nulls
+    in an integer column - read_parquet alone would return float64, which
+    doesn't match the same Integer field from an OGR source."""
+    geom = [Point(0, 0), Point(1, 1), Point(2, 2)]
+    df = GeoDataFrame({"id": [1, 2, 3], "n": [5, 6, 7]}, geometry=geom, crs="EPSG:3005")
+    df["n"] = df["n"].astype("int32")
+    df.to_file(tmp_path / "b.gpkg")
+
+    df.to_parquet(tmp_path / "tmp.parquet")
+    table = pyarrow.parquet.read_table(tmp_path / "tmp.parquet")
+    table = table.set_column(
+        table.schema.get_field_index("n"), "n", pyarrow.array([5, 6, None], "int32")
+    )
+    metadata = {k: v for k, v in table.schema.metadata.items() if k != b"pandas"}
+    path_a = tmp_path / "a.parquet"
+    pyarrow.parquet.write_table(table.replace_schema_metadata(metadata), path_a)
+    assert geopandas.read_parquet(path_a)["n"].dtype == "float64"
+
+    fcd.diff_to_json(
+        str(path_a), str(tmp_path / "b.gpkg"), None, None, primary_key="id"
+    )
+    out = json.loads(capsys.readouterr().out)
+    assert out["keys"]["UNCHANGED"] == [1, 2]
+    assert out["keys"]["MODIFIED_ATTR"] == [3]
 
 
 def test_diff_ignore_columns_default():
@@ -604,6 +635,135 @@ def test_validate_diff_inputs_dtype_mismatch():
     df_a, df_b = _spatial_gdf(), _spatial_gdf()
     df_b["col1"] = df_b["col1"].astype("string")
     assert df_a["col1"].dtype != df_b["col1"].dtype
+    with pytest.raises(ValueError, match="Field types do not match"):
+        _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
+
+
+def test_gdf_diff_integer_width_mismatch_warns(caplog):
+    """Integer fields of differing width (including the primary key) are
+    compared as their smallest common type (here Int64), with a warning,
+    rather than rejected (#128)."""
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["count"] = pandas.array([1, 2, 3], dtype="Int32")
+    df_b["count"] = pandas.array([1, 2, 30], dtype="Int64")
+    df_a["pk"] = df_a["pk"].astype("int16")
+    df_b["pk"] = df_b["pk"].astype("Int64")
+    with caplog.at_level("WARNING"):
+        diff = fcd.gdf_diff(df_a, df_b, "pk")
+    assert "Integer field types differ, comparing as Int64. count" in caplog.text
+    assert "Integer field types differ, comparing as Int64. pk" in caplog.text
+    assert len(diff["UNCHANGED"]) == 2
+    assert diff["MODIFIED_ATTR"]["pk"].tolist() == [3]
+
+
+@pytest.mark.parametrize(
+    "dtype_a, dtype_b, expected",
+    [
+        ("Int16", "Int32", "Int32"),
+        ("Int32", "Int64", "Int64"),
+        ("int32", "Int32", "Int32"),
+        ("UInt8", "UInt16", "UInt16"),
+        ("UInt16", "Int16", "Int32"),
+        ("uint32", "Int32", "Int64"),
+        ("uint64", "Int64", None),
+    ],
+)
+def test_common_int_dtype(dtype_a, dtype_b, expected):
+    """Integers of differing width are compared as the smallest type holding
+    both - there is none for uint64 with a signed type."""
+    assert (
+        _common_int_dtype(
+            pandas.api.types.pandas_dtype(dtype_a),
+            pandas.api.types.pandas_dtype(dtype_b),
+        )
+        == expected
+    )
+
+
+def test_diff_to_gdb_integer_width_mismatch_stays_integer(tmp_path):
+    """Int16 vs Int32 is compared (and written) as Int32 - not widened to
+    Int64, which the .gdb diff layers would store as Float64."""
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["pk"] = df_b["pk"] = numpy.array([1, 2, 3], dtype="int32")
+    df_a["count"] = numpy.array([1, 2, 3], dtype="int16")
+    df_b["count"] = numpy.array([1, 2, 30], dtype="int32")
+    path_a, path_b = tmp_path / "a.gpkg", tmp_path / "b.gpkg"
+    df_a.to_file(path_a)
+    df_b.to_file(path_b)
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(str(path_a), str(path_b), None, None, out_file, primary_key="pk")
+    modified = pyogrio.read_dataframe(out_file, layer="MODIFIED_ATTR")
+    assert modified["count_a"].dtype == "int32"
+    assert modified["count_b"].dtype == "int32"
+
+
+def test_diff_to_gdb_int64_written_exactly(tmp_path):
+    """64-bit integers above 2**53 (not exactly representable as Float64) are
+    written to every .gdb layer as Integer64, unchanged."""
+    big = 2**53 + 1
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["pk"] = numpy.array([big, big + 2, big + 4], dtype="int64")
+    df_b["pk"] = numpy.array([big, big + 2, big + 6], dtype="int64")
+    df_b.loc[0, "col1"] = "changed"
+    path_a, path_b = tmp_path / "a.gpkg", tmp_path / "b.gpkg"
+    df_a.to_file(path_a)
+    df_b.to_file(path_b)
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        out_file,
+        primary_key="pk",
+        dump_inputs=True,
+    )
+    expected = {
+        "NEW": [big + 6],
+        "DELETED": [big + 4],
+        "MODIFIED_ATTR": [big],
+        "source_a": [big, big + 2, big + 4],
+    }
+    for layer, pks in expected.items():
+        assert pyogrio.read_info(out_file, layer=layer)["dtypes"][0] == "int64"
+        assert pyogrio.read_dataframe(out_file, layer=layer)["pk"].tolist() == pks
+
+
+def test_gdf_diff_uint64_vs_signed_rejected():
+    """No integer type holds both uint64 and a signed type - still raises."""
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["count"] = numpy.array([1, 2, 3], dtype="uint64")
+    df_b["count"] = pandas.array([1, 2, 3], dtype="Int64")
+    with pytest.raises(ValueError, match="Field types do not match"):
+        fcd.gdf_diff(df_a, df_b, "pk")
+
+
+def test_gdf_diff_unsigned_primary_key_width_mismatch():
+    """An unsigned primary key (eg from parquet) vs Int64 - results are joined
+    back to the full-schema sources on the key, which must be widened there too.
+    """
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["pk"] = df_a["pk"].astype("uint16")
+    df_b["pk"] = pandas.array([1, 2, 4], dtype="Int64")
+    diff = fcd.gdf_diff(df_a, df_b, "pk")
+    assert diff["UNCHANGED"]["pk"].tolist() == [1, 2]
+    assert diff["NEW"]["pk"].tolist() == [4]
+    assert diff["DELETED"]["pk"].tolist() == [3]
+
+
+def test_gdf_diff_integer_width_mismatch_strict_types_rejected():
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["count"] = pandas.array([1, 2, 3], dtype="Int32")
+    df_b["count"] = pandas.array([1, 2, 3], dtype="Int64")
+    with pytest.raises(ValueError, match="Field types do not match"):
+        fcd.gdf_diff(df_a, df_b, "pk", strict_types=True)
+
+
+def test_validate_diff_inputs_integer_vs_float_rejected():
+    """Only integer width differences are tolerated - int vs float still raises."""
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_a["count"] = pandas.array([1, 2, 3], dtype="Int32")
+    df_b["count"] = [1.0, 2.0, 3.0]
     with pytest.raises(ValueError, match="Field types do not match"):
         _validate_and_prepare_diff_inputs(df_a, df_b, "pk", [], [], 0.01)
 

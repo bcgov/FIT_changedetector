@@ -128,6 +128,15 @@ def common_diff_options(f):
                 "it is MODIFIED_GEOM"
             ),
         ),
+        click.option(
+            "--strict-types",
+            is_flag=True,
+            help=(
+                "Require compared field types to match exactly. By default, integer "
+                "fields of differing width (eg Integer vs Integer64) are compared as "
+                "the smallest integer type holding both, with a warning"
+            ),
+        ),
     ]
     return functools.reduce(lambda g, opt: opt(g), reversed(options), f)
 
@@ -243,7 +252,7 @@ def add_hash_key(
         raise ValueError("Output layer name is required if no input layer is specified")
 
     LOG.info(f"Writing new dataset {out_file} with new hash based column {hash_key}")
-    df.to_file(out_file, driver="OpenFileGDB", layer=out_layer)
+    df.to_file(out_file, driver="OpenFileGDB", layer=out_layer, **fcd.gdb_write_options)
 
 
 @cli.command()
@@ -281,6 +290,7 @@ def diff2gdb(
     dump_inputs,
     allow_duplicates,
     promote_multi,
+    strict_types,
     verbose,
     quiet,
 ):
@@ -314,6 +324,7 @@ def diff2gdb(
         dump_inputs=dump_inputs,
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
+        strict_types=strict_types,
     )
 
 
@@ -352,6 +363,7 @@ def diff(
     out_file,
     allow_duplicates,
     promote_multi,
+    strict_types,
     verbose,
     quiet,
 ):
@@ -392,6 +404,7 @@ def diff(
         out_file=out_file,
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
+        strict_types=strict_types,
     )
 
 

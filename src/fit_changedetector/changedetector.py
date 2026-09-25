@@ -8,7 +8,10 @@ import sys
 from datetime import datetime
 
 import geopandas
+import numpy
 import pandas
+import pyarrow
+import pyarrow.parquet
 import pyogrio
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multilinestring import MultiLineString
@@ -89,6 +92,43 @@ def _cast_dtypes(df, path, layer=None, src=None):
 _PARQUET_EXTENSIONS = (".parquet", ".geoparquet")
 
 
+def _nullable_int_dtype(name):
+    """Pandas nullable integer dtype name for a numpy/arrow integer type name,
+    eg "int32" -> "Int32", "uint8" -> "UInt8".
+    """
+    return "UInt" + name[4:] if name.startswith("u") else "Int" + name[3:]
+
+
+def _common_int_dtype(dtype_a, dtype_b):
+    """Smallest pandas nullable integer dtype holding all values of both integer
+    dtypes (eg Int16/Int32 -> Int32, UInt16/Int16 -> Int32), or None if there is
+    none (uint64 with any signed type).
+    """
+    common = numpy.promote_types(
+        getattr(dtype_a, "numpy_dtype", dtype_a),
+        getattr(dtype_b, "numpy_dtype", dtype_b),
+    )
+    if common.kind not in "iu":
+        return None
+    return _nullable_int_dtype(common.name)
+
+
+def _cast_parquet_int_dtypes(df, path):
+    """Cast *df*'s integer columns to pandas nullable dtypes matching the parquet schema.
+
+    The parquet equivalent of _cast_dtypes: without pandas metadata in the file
+    (eg parquet written by GDAL or duckdb), geopandas.read_parquet() reads an integer
+    column containing nulls as float64 - which then fails gdf_diff's dtype check
+    against the same field from another source.
+    """
+    for field in pyarrow.parquet.read_schema(path):
+        if field.name in df.columns and pyarrow.types.is_integer(field.type):
+            target = _nullable_int_dtype(str(field.type))
+            if str(df[field.name].dtype) != target:
+                df[field.name] = df[field.name].astype(target)
+    return df
+
+
 def _normalize_string_dtypes(df):
     """Cast string-like columns to pandas' "string" dtype.
 
@@ -109,10 +149,13 @@ def _read_source(path, layer, label):
 
     A path of "-" reads GeoJSON from stdin instead of a file (no layer support,
     since a stream has no concept of multiple layers). A .parquet/.geoparquet path
-    reads via geopandas.read_parquet() instead of the OGR-based geopandas.read_file() -
-    pyogrio has no parquet driver, and parquet already carries a precise schema, so
-    the OGR-based _cast_dtypes is not applicable (though string dtypes are still
-    normalized, see _normalize_string_dtypes).
+    reads via geopandas.read_parquet() (pyarrow) instead of the OGR-based
+    geopandas.read_file() - GDAL's Parquet driver is optional (requires GDAL built
+    with Apache Arrow), and the GDAL bundled in pyogrio's wheels is built without it.
+    With no OGR field types available, _cast_dtypes is not applicable; integer
+    columns are instead cast per the parquet schema (see
+    _cast_parquet_int_dtypes), and string dtypes normalized (see
+    _normalize_string_dtypes).
     """
     if path == "-":
         if layer:
@@ -129,7 +172,8 @@ def _read_source(path, layer, label):
             raise ValueError(
                 f"--layer-{label} cannot be used when reading source {label} from parquet"
             )
-        return _normalize_string_dtypes(geopandas.read_parquet(path)), path
+        df = _cast_parquet_int_dtypes(geopandas.read_parquet(path), path)
+        return _normalize_string_dtypes(df), path
     src = os.path.join(path, layer or "")
     df = _cast_dtypes(geopandas.read_file(path, layer=layer), path, layer, src=src)
     return df, src
@@ -396,14 +440,16 @@ def _validate_and_prepare_diff_inputs(
     precision,
     allow_duplicates=False,
     promote_multi=True,
+    strict_types=False,
 ):
     """Validate df_a/df_b are comparable and prepare them for gdf_diff.
 
     Checks: valid precision, primary key present/unique (unless allow_duplicates)
     in both datasets and not also an ignore_field, fields provided (if any) common
-    to both datasets, equivalent field dtypes, and (for spatial sources) supported
-    geometry types and equivalent CRS - raising ValueError/TypeError on the first violation
-    found.
+    to both datasets, equivalent field dtypes (unless strict_types, integers of
+    differing width are cast to their smallest common type with a warning), and
+    (for spatial sources) supported geometry types and equivalent CRS - raising
+    ValueError/TypeError on the first violation found.
 
     If allow_duplicates, rather than raising on a duplicated primary key, drop
     all but the first occurrence of each duplicated key (independently in each
@@ -525,9 +571,33 @@ def _validate_and_prepare_diff_inputs(
     df_a = df_a[fields]
     df_b = df_b[fields]
 
-    # are data types equivalent for fields to be compared?
+    # are data types equivalent for fields to be compared? Unless strict_types,
+    # integers of differing width (eg OGR Integer/Integer64 -> Int32/Int64) are a
+    # minor difference - warn, and compare both as their smallest common type
+    # rather than making the user edit their data (#128)
     for f in df_a.columns:
-        if df_a[f].dtype != df_b[f].dtype:
+        if df_a[f].dtype == df_b[f].dtype:
+            continue
+        common = None
+        if (
+            not strict_types
+            and pandas.api.types.is_integer_dtype(df_a[f])
+            and pandas.api.types.is_integer_dtype(df_b[f])
+        ):
+            common = _common_int_dtype(df_a[f].dtype, df_b[f].dtype)
+        if common:
+            LOG.warning(
+                f"Integer field types differ, comparing as {common}. {f}: "
+                f"({df_a[f].dtype}, {df_b[f].dtype})"
+            )
+            df_a[f] = df_a[f].astype(common)
+            df_b[f] = df_b[f].astype(common)
+            # results are joined back to the full-schema sources on the primary
+            # key, which fails for mismatched index types (eg uint16 vs Int64)
+            if f == primary_key:
+                df_a_src[f] = df_a_src[f].astype(common)
+                df_b_src[f] = df_b_src[f].astype(common)
+        else:
             raise ValueError(
                 f"Field types do not match. {f}: ({df_a[f].dtype}, {df_b[f].dtype})"
             )
@@ -589,6 +659,7 @@ def gdf_diff(
     return_type="gdf",
     allow_duplicates=False,
     promote_multi=True,
+    strict_types=False,
 ):
     """
     Compare two geodataframes and generate a diff.
@@ -597,7 +668,9 @@ def gdf_diff(
     - have valid, compatible primary keys (unique, unless allow_duplicates - see
       below)
     - have at least one equivalent column (ok if this is just the primary key)
-    - equivalent column names must be of equivalent types
+    - equivalent column names must be of equivalent types (unless strict_types,
+      integers of differing width are accepted with a warning, and compared as
+      their smallest common type - eg Int16/Int32 as Int32)
     - have supported geometry types and equivalent coordinate reference systems
 
     If allow_duplicates, a duplicated primary key does not raise - instead, all
@@ -612,6 +685,10 @@ def gdf_diff(
     stored single-part in one source and multi-part in the other compares as
     unchanged. Set promote_multi=False for stricter checking: geometries are
     compared as-is, and such a feature is reported as MODIFIED_GEOM.
+
+    If strict_types, field types must match exactly - integer fields of
+    differing width (e.g. Int32 vs Int64) raise rather than being compared as
+    their smallest common type.
 
     Output diff is represented by six dataframes:
     - additions (with same schema as dataset b)
@@ -644,6 +721,7 @@ def gdf_diff(
         precision,
         allow_duplicates,
         promote_multi,
+        strict_types,
     )
     duplicates_a["_fcd_source_"] = suffix_a
     duplicates_b["_fcd_source_"] = suffix_b
@@ -892,6 +970,7 @@ def _read_and_diff(
     precision,
     allow_duplicates=False,
     promote_multi=True,
+    strict_types=False,
 ):
     """Read both sources, resolve/hash the primary key, and run gdf_diff.
 
@@ -1035,6 +1114,7 @@ def _read_and_diff(
         suffix_b=suffix_b,
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
+        strict_types=strict_types,
     )
 
     return diff, df_a, df_b, primary_key, hashed
@@ -1060,6 +1140,7 @@ def diff_to_json(
     out_file=None,
     allow_duplicates=False,
     promote_multi=True,
+    strict_types=False,
 ):
     """
     Compare two datasets, print a JSON summary to stdout (or write it to
@@ -1073,7 +1154,7 @@ def diff_to_json(
     allow_duplicates is True - otherwise it's always empty (a duplicated
     primary key raises instead), so including it would just be clutter.
 
-    See gdf_diff for promote_multi.
+    See gdf_diff for promote_multi and strict_types.
     """
     result, _, _, resolved_primary_key, _ = _read_and_diff(
         file_a,
@@ -1092,6 +1173,7 @@ def diff_to_json(
         precision=precision,
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
+        strict_types=strict_types,
     )
     if not allow_duplicates:
         del result["DUPLICATES"]
@@ -1128,6 +1210,7 @@ def diff_to_gdb(
     dump_inputs=False,
     allow_duplicates=False,
     promote_multi=True,
+    strict_types=False,
 ):
     """
     Compare two datasets:
@@ -1146,7 +1229,7 @@ def diff_to_gdb(
            duplicated primary key)
       - write results to .gdb
 
-    See gdf_diff for promote_multi.
+    See gdf_diff for promote_multi and strict_types.
     """
     diff, df_a, df_b, primary_key, hashed = _read_and_diff(
         file_a,
@@ -1165,6 +1248,7 @@ def diff_to_gdb(
         precision=precision,
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
+        strict_types=strict_types,
     )
     if hashed:
         dump_inputs = True
@@ -1174,8 +1258,8 @@ def diff_to_gdb(
     # are not supported. Single/multipart of one base type are fine - they
     # were already promoted to multipart, unless promote_multi is disabled,
     # in which case promote them on write (the comparison is already done,
-    # so this affects output only).
-    write_opts = {}
+    # so this affects output only). See fcd.gdb_write_options for the rest.
+    write_opts = dict(fcd.gdb_write_options)
     if isinstance(df_a, geopandas.GeoDataFrame):
         types = _geom_types(df_a) | _geom_types(df_b)
         base_types = {t.removeprefix("Multi") for t in types}
@@ -1233,18 +1317,17 @@ def diff_to_gdb(
         LOG.info(
             f"Writing source data to {out_file}, with geometry hash key {hash_key}"
         )
-        options = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER", **write_opts}
         df_a.to_file(
             out_file,
             driver="OpenFileGDB",
             layer="source_" + suffix_a,
             mode="a",
-            **options,
+            **write_opts,
         )
         df_b.to_file(
             out_file,
             driver="OpenFileGDB",
             layer="source_" + suffix_b,
             mode="a",
-            **options,
+            **write_opts,
         )

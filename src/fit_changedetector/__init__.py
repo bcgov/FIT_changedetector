@@ -30,6 +30,12 @@ id_fields = [
     "FID",
 ]
 
+# creation options for every .gdb write. ARCGIS_PRO_3_2_OR_LATER preserves 64-bit
+# integers - without it GDAL writes them as Float64, which can't represent every
+# value above 2**53 exactly (eg large ids). Output then requires ArcGIS Pro 3.2+
+# to read any 64-bit integer field.
+gdb_write_options = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"}
+
 valid_precisions = [
     1,
     0.1,
