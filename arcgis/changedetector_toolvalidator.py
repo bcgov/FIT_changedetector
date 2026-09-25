@@ -78,6 +78,16 @@ class ToolValidator:
             self.params[7].enabled = 1
             self.params[11].enabled = 1
 
+        # Conversely, hide Primary Key once Fields to Include in Hash is chosen -
+        # keyed off the hash fields rather than Hash Key, which usually holds its
+        # default name. Whichever the user fills in first hides the other; clear
+        # it to switch. Primary Key needs no clearing here - if it had a value,
+        # the block above would have just cleared Fields to Include in Hash.
+        if self.params[7].value:
+            self.params[3].enabled = 0
+        else:
+            self.params[3].enabled = 1
+
         # if coordinate precision is not supplied, set default based on spatial reference
         if self.params[8].value is None:
             sr = arcpy.Describe(self.params[0].value).spatialReference

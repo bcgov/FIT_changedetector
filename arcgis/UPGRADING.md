@@ -15,6 +15,8 @@ Previously the tool ran and then failed in the CLI; it is now flagged before run
 [#130](https://github.com/bcgov/FIT_changedetector/issues/130). Conversely, when a Primary Key is
 supplied, Fields to Include in Hash is now cleared and hidden (as Drop Null Geometry already was),
 since the CLI rejects that combination too - and Hash Key is hidden, as it has no effect.
+Likewise, Primary Key is hidden once Fields to Include in Hash has a selection - whichever is
+filled in first hides the other.
 
 To upgrade an existing deployment:
 
