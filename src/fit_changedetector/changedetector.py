@@ -198,18 +198,14 @@ def _promote_if_mixed(df_a, df_b):
     return df_a, df_b
 
 
-def _prepare_sources(df_a, df_b, keep_fields, label_a="a", label_b="b"):
-    """Promote mixed single/multipart geometries (see _promote_if_mixed), and
-    drop ESRI-reserved id fields (OBJECTID/OID_/FID, see fcd.id_fields) not in
-    keep_fields, from both df_a and df_b.
+def _prepare_sources(
+    df_a, df_b, keep_fields, label_a="a", label_b="b", promote_multi=True
+):
+    """
+    - promote mixed single/multipart geometries (unless not promote_multi)
+    - drop ESRI-reserved id fields not in keep_fields
 
-    Shared by _read_and_diff() (whose own df_a/df_b are what dump_inputs
-    writes directly to .gdb) and _validate_and_prepare_diff_inputs() (called
-    both via _read_and_diff, and directly by a gdf_diff() caller) - keeping
-    this in one place means it can't land in one of those copies but not
-    another, which is exactly what caused past bugs here (mixed types/a
-    duplicated OBJECTID crashing a .gdb write that only one of the two
-    "identical-looking" code paths had been fixed to avoid).
+    Shared by _read_and_diff() and _validate_and_prepare_diff_inputs()
 
     keep_fields is a set of upper-cased field names to exclude from the
     id-field drop even if they match fcd.id_fields - e.g. a caller-chosen
@@ -220,7 +216,8 @@ def _prepare_sources(df_a, df_b, keep_fields, label_a="a", label_b="b"):
     ):
         _check_geom_types(df_a, label_a)
         _check_geom_types(df_b, label_b)
-        df_a, df_b = _promote_if_mixed(df_a, df_b)
+        if promote_multi:
+            df_a, df_b = _promote_if_mixed(df_a, df_b)
 
     for f in list(df_a.columns):
         if f.upper() in fcd.id_fields and f.upper() not in keep_fields:
@@ -391,7 +388,14 @@ def add_hash_key(
 
 
 def _validate_and_prepare_diff_inputs(
-    df_a, df_b, primary_key, fields, ignore_fields, precision, allow_duplicates=False
+    df_a,
+    df_b,
+    primary_key,
+    fields,
+    ignore_fields,
+    precision,
+    allow_duplicates=False,
+    promote_multi=True,
 ):
     """Validate df_a/df_b are comparable and prepare them for gdf_diff.
 
@@ -409,8 +413,9 @@ def _validate_and_prepare_diff_inputs(
     Also resolves *fields* to its final list (common fields when none given,
     always including the primary key and geometry), standardizes the geometry
     column name, drops esri-generated area/length and reserved id fields (see
-    fcd.area_length_fields/fcd.id_fields), and (for spatial sources) promotes
-    mixed single/multipart geometries to multipart (see _prepare_sources).
+    fcd.area_length_fields/fcd.id_fields), and (for spatial sources, if
+    promote_multi) promotes mixed single/multipart geometries to multipart (see
+    _prepare_sources).
 
     Returns (df_a, df_b, df_a_src, df_b_src, fields, spatial, duplicates_a,
     duplicates_b), where df_a/df_b are filtered to the resolved fields,
@@ -460,7 +465,7 @@ def _validate_and_prepare_diff_inputs(
     # went through this, so it's a no-op here; it still matters for gdf_diff()
     # called directly with raw/mixed-type input.)
     keep_fields = {primary_key.upper()} | {f.upper() for f in fields}
-    df_a, df_b = _prepare_sources(df_a, df_b, keep_fields)
+    df_a, df_b = _prepare_sources(df_a, df_b, keep_fields, promote_multi=promote_multi)
 
     # retain a full copy of both sources for writing unchanged source schemas (apart from above
     # geometry adjustment) to NEW/UNCHANGED/DELETED/MODIFIED_GEOM (not the fields used for attribute
@@ -583,6 +588,7 @@ def gdf_diff(
     suffix_b="b",
     return_type="gdf",
     allow_duplicates=False,
+    promote_multi=True,
 ):
     """
     Compare two geodataframes and generate a diff.
@@ -599,6 +605,13 @@ def gdf_diff(
     in each source) before diffing, and returned separately as "DUPLICATES"
     (full source schema, plus a "_fcd_source_" column set to suffix_a/suffix_b
     identifying which source each record was dropped from).
+
+    If promote_multi (the default) and the sources between them mix single and
+    multipart geometries of the same base type (e.g. Point and MultiPoint),
+    all geometries are promoted to multipart before comparison - so a feature
+    stored single-part in one source and multi-part in the other compares as
+    unchanged. Set promote_multi=False for stricter checking: geometries are
+    compared as-is, and such a feature is reported as MODIFIED_GEOM.
 
     Output diff is represented by six dataframes:
     - additions (with same schema as dataset b)
@@ -623,7 +636,14 @@ def gdf_diff(
         duplicates_a,
         duplicates_b,
     ) = _validate_and_prepare_diff_inputs(
-        df_a, df_b, primary_key, fields, ignore_fields, precision, allow_duplicates
+        df_a,
+        df_b,
+        primary_key,
+        fields,
+        ignore_fields,
+        precision,
+        allow_duplicates,
+        promote_multi,
     )
     duplicates_a["_fcd_source_"] = suffix_a
     duplicates_b["_fcd_source_"] = suffix_b
@@ -871,6 +891,7 @@ def _read_and_diff(
     hash_fields,
     precision,
     allow_duplicates=False,
+    promote_multi=True,
 ):
     """Read both sources, resolve/hash the primary key, and run gdf_diff.
 
@@ -903,11 +924,14 @@ def _read_and_diff(
     # promotion) also what gets hashed below - a mixed source hashed on raw
     # (unpromoted) geometry would hash a feature stored single-part in one
     # source and multi-part in the other to different values, spuriously
-    # reporting it as NEW+DELETED instead of UNCHANGED.
+    # reporting it as NEW+DELETED instead of UNCHANGED (unless promote_multi
+    # is disabled, in which case that is the intended, stricter, result).
     keep_fields = {f.upper() for f in fields + hash_fields}
     if primary_key:
         keep_fields.add(primary_key.upper())
-    df_a, df_b = _prepare_sources(df_a, df_b, keep_fields, suffix_a, suffix_b)
+    df_a, df_b = _prepare_sources(
+        df_a, df_b, keep_fields, suffix_a, suffix_b, promote_multi=promote_multi
+    )
 
     if primary_key:
         # hash_fields only has meaning when hashing (no primary key given) -
@@ -1010,6 +1034,7 @@ def _read_and_diff(
         suffix_a=suffix_a,
         suffix_b=suffix_b,
         allow_duplicates=allow_duplicates,
+        promote_multi=promote_multi,
     )
 
     return diff, df_a, df_b, primary_key, hashed
@@ -1034,6 +1059,7 @@ def diff_to_json(
     counts_only=False,
     out_file=None,
     allow_duplicates=False,
+    promote_multi=True,
 ):
     """
     Compare two datasets, print a JSON summary to stdout (or write it to
@@ -1046,6 +1072,8 @@ def diff_to_json(
     The "DUPLICATES" category (see allow_duplicates) is only included when
     allow_duplicates is True - otherwise it's always empty (a duplicated
     primary key raises instead), so including it would just be clutter.
+
+    See gdf_diff for promote_multi.
     """
     result, _, _, resolved_primary_key, _ = _read_and_diff(
         file_a,
@@ -1063,6 +1091,7 @@ def diff_to_json(
         hash_fields=hash_fields,
         precision=precision,
         allow_duplicates=allow_duplicates,
+        promote_multi=promote_multi,
     )
     if not allow_duplicates:
         del result["DUPLICATES"]
@@ -1098,6 +1127,7 @@ def diff_to_gdb(
     precision=0.01,
     dump_inputs=False,
     allow_duplicates=False,
+    promote_multi=True,
 ):
     """
     Compare two datasets:
@@ -1115,6 +1145,8 @@ def diff_to_gdb(
          + DUPLICATES (only if allow_duplicates - records dropped due to a
            duplicated primary key)
       - write results to .gdb
+
+    See gdf_diff for promote_multi.
     """
     diff, df_a, df_b, primary_key, hashed = _read_and_diff(
         file_a,
@@ -1132,23 +1164,28 @@ def diff_to_gdb(
         hash_fields=hash_fields,
         precision=precision,
         allow_duplicates=allow_duplicates,
+        promote_multi=promote_multi,
     )
     if hashed:
         dump_inputs = True
 
     # a .gdb layer holds a single geometry type, so sources mixing base types
     # (within or between them - e.g. DUPLICATES combines records from both)
-    # are not supported. Single/multipart of one base type are fine, they
-    # were already promoted to multipart.
+    # are not supported. Single/multipart of one base type are fine - they
+    # were already promoted to multipart, unless promote_multi is disabled,
+    # in which case promote them on write (the comparison is already done,
+    # so this affects output only).
+    write_opts = {}
     if isinstance(df_a, geopandas.GeoDataFrame):
-        base_types = {
-            t.removeprefix("Multi") for t in _geom_types(df_a) | _geom_types(df_b)
-        }
+        types = _geom_types(df_a) | _geom_types(df_b)
+        base_types = {t.removeprefix("Multi") for t in types}
         if len(base_types) > 1:
             raise ValueError(
                 f"Sources mix geometry types {sorted(base_types)} - .gdb output "
                 "requires a single geometry type across both sources"
             )
+        if _has_mixed_single_multipart(types):
+            write_opts["promote_to_multi"] = True
 
     # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
@@ -1186,7 +1223,9 @@ def diff_to_gdb(
                 diff[key] = geopandas.GeoDataFrame(
                     diff[key], geometry=geopandas.GeoSeries([None] * len(diff[key]))
                 )
-            diff[key].to_file(out_file, driver="OpenFileGDB", layer=key, mode=mode)
+            diff[key].to_file(
+                out_file, driver="OpenFileGDB", layer=key, mode=mode, **write_opts
+            )
             mode = "a"
 
     # re-write source datasets if new pk generated (and some kind of output generated)
@@ -1194,7 +1233,7 @@ def diff_to_gdb(
         LOG.info(
             f"Writing source data to {out_file}, with geometry hash key {hash_key}"
         )
-        options = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER"}
+        options = {"TARGET_ARCGIS_VERSION": "ARCGIS_PRO_3_2_OR_LATER", **write_opts}
         df_a.to_file(
             out_file,
             driver="OpenFileGDB",

@@ -5,7 +5,7 @@ import os
 import geopandas
 from click.testing import CliRunner
 from geopandas import GeoDataFrame
-from shapely.geometry import Point
+from shapely.geometry import MultiPoint, Point
 
 from fit_changedetector.cli import cli
 
@@ -180,6 +180,27 @@ def test_diff_allow_duplicates(tmp_path):
     output = json.loads(result.output)
     assert output["DUPLICATES"] == 1
     assert output["keys"]["DUPLICATES"] == [1]
+
+
+def test_diff_no_promote_multi(tmp_path):
+    """By default a feature stored single-part in one source and multi-part
+    in the other is UNCHANGED - --no-promote-multi reports it as MODIFIED_GEOM.
+    """
+    df_a = GeoDataFrame({"id": [1]}, geometry=[Point(0, 0)], crs="EPSG:3005")
+    df_b = GeoDataFrame({"id": [1]}, geometry=[MultiPoint([(0, 0)])], crs="EPSG:3005")
+    path_a = tmp_path / "a.geojson"
+    path_b = tmp_path / "b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+
+    runner = CliRunner()
+    args = ["diff", str(path_a), str(path_b), "-pk", "id", "--count"]
+    result = runner.invoke(cli, args)
+    assert result.exit_code == 0
+    assert json.loads(result.output)["UNCHANGED"] == 1
+    result = runner.invoke(cli, args + ["--no-promote-multi"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["MODIFIED_GEOM"] == 1
 
 
 def test_diff2gdb_stdin(tmp_path):

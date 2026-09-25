@@ -153,6 +153,14 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  there always fails, since geometry alone can't
                                  reliably pair records between datasets when more
                                  than one shares a location
+      --no-promote-multi         Stricter geometry checking - compare geometries as-
+                                 is. By default, when the sources mix single and
+                                 multipart geometries of the same type (eg Point and
+                                 MultiPoint), all geometries are promoted to
+                                 multipart before comparing, so a feature stored
+                                 single-part in one source and multi-part in the
+                                 other is UNCHANGED - with this option it is
+                                 MODIFIED_GEOM
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
       -o, --out-file PATH        Path to write JSON summary to, instead of printing
@@ -207,6 +215,14 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  there always fails, since geometry alone can't
                                  reliably pair records between datasets when more
                                  than one shares a location
+      --no-promote-multi         Stricter geometry checking - compare geometries as-
+                                 is. By default, when the sources mix single and
+                                 multipart geometries of the same type (eg Point and
+                                 MultiPoint), all geometries are promoted to
+                                 multipart before comparing, so a feature stored
+                                 single-part in one source and multi-part in the
+                                 other is UNCHANGED - with this option it is
+                                 MODIFIED_GEOM
       -o, --out-file PATH        Path to output file, defaults to
                                  ./changedetector_YYYYMMDD_HHMM.gdb
       -i, --dump-inputs          Dump input layers (with new hash key) to output
@@ -272,7 +288,7 @@ Neither `diff` nor `diff2gdb` have a bounding box / spatial filtering option, an
 Prior to comparing geometries, the tool will:
 
 - normalize geometries (vertex order/starting point or ring winding direction)
-- promote mixed single/multipart types to multipart (when a source contains both variants — a uniformly single-part source compared against a uniformly multi-part source will still raise a type mismatch)
+- promote single/multipart types to multipart, when the sources (within or between them) contain both variants of a type - so a feature stored single-part in one source and multi-part in the other is UNCHANGED. Use `--no-promote-multi` for stricter checking, comparing geometries as-is (such a feature is then MODIFIED_GEOM)
 - apply coordinate precision tolerance (`-p`/`--precision`, default 0.01)
 
 On the other hand, a new vertex in an otherwise unchanged geometry will be considered as MODIFIED_GEOM.

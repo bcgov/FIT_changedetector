@@ -634,6 +634,59 @@ def test_single_vs_multipart_across_sources_unchanged():
     assert len(diff["MODIFIED_GEOM"]) == 0
 
 
+def test_single_vs_multipart_no_promote_multi_modified():
+    """With promote_multi=False, geometries are compared as-is - a feature
+    stored single-part in one source and multi-part in the other is modified
+    """
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b["geometry"] = [MultiPoint([p]) for p in df_a.geometry]
+    diff = fcd.gdf_diff(df_a, df_b, "pk", promote_multi=False)
+    assert len(diff["UNCHANGED"]) == 0
+    assert len(diff["MODIFIED_GEOM"]) == 3
+
+
+def _write_single_vs_multipart_sources(tmp_path):
+    """Write source a (points) and source b (the same points, one stored as
+    a MultiPoint) to GeoJSON, returning their paths."""
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b.loc[2, "geometry"] = MultiPoint([(2, 2)])
+    path_a, path_b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+    return str(path_a), str(path_b)
+
+
+def test_diff_to_json_no_promote_multi(tmp_path, capsys):
+    path_a, path_b = _write_single_vs_multipart_sources(tmp_path)
+    fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk")
+    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == 0
+    fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk", promote_multi=False)
+    assert json.loads(capsys.readouterr().out)["MODIFIED_GEOM"] == 1
+
+
+def test_diff_to_gdb_no_promote_multi_mixed_single_multipart(tmp_path):
+    """With promote_multi=False, mixed single/multipart sources still write
+    to .gdb (promoted to multipart on write), with the single vs multipart
+    feature reported as MODIFIED_GEOM."""
+    path_a, path_b = _write_single_vs_multipart_sources(tmp_path)
+    out_file = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        path_a,
+        path_b,
+        None,
+        None,
+        out_file,
+        primary_key="pk",
+        promote_multi=False,
+        dump_inputs=True,
+    )
+    assert len(geopandas.read_file(out_file, layer="MODIFIED_GEOM")) == 1
+    source_b = geopandas.read_file(out_file, layer="source_b")
+    assert set(source_b.geom_type) == {"MultiPoint"}
+
+
 def test_mixed_single_multipart_with_other_base_type_promoted():
     """Single/multipart mixing is detected even when another base type is
     also present (e.g. Point + MultiPoint + Polygon)."""
