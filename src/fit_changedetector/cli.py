@@ -113,6 +113,21 @@ def common_diff_options(f):
                 "more than one shares a location"
             ),
         ),
+        click.option(
+            "--no-promote-multi",
+            "promote_multi",
+            is_flag=True,
+            flag_value=False,
+            default=True,
+            help=(
+                "Stricter geometry checking - compare geometries as-is. By default, "
+                "when the sources mix single and multipart geometries of the same "
+                "type (eg Point and MultiPoint), all geometries are promoted to "
+                "multipart before comparing, so a feature stored single-part in one "
+                "source and multi-part in the other is UNCHANGED - with this option "
+                "it is MODIFIED_GEOM"
+            ),
+        ),
     ]
     return functools.reduce(lambda g, opt: opt(g), reversed(options), f)
 
@@ -265,6 +280,7 @@ def diff2gdb(
     crs,
     dump_inputs,
     allow_duplicates,
+    promote_multi,
     verbose,
     quiet,
 ):
@@ -297,6 +313,7 @@ def diff2gdb(
         precision=precision,
         dump_inputs=dump_inputs,
         allow_duplicates=allow_duplicates,
+        promote_multi=promote_multi,
     )
 
 
@@ -334,6 +351,7 @@ def diff(
     count,
     out_file,
     allow_duplicates,
+    promote_multi,
     verbose,
     quiet,
 ):
@@ -373,6 +391,7 @@ def diff(
         counts_only=count,
         out_file=out_file,
         allow_duplicates=allow_duplicates,
+        promote_multi=promote_multi,
     )
 
 
