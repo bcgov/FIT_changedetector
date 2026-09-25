@@ -107,11 +107,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       Compare two datasets, printing a JSON summary to stdout
 
       Same comparison as `diff2gdb`, but for when spatial output isn't needed -
-      prints a JSON summary instead of writing a .gdb: record counts per
-      NEW/DELETED/UNCHANGED/MODIFIED_* category, plus the primary key value(s)
-      present in each category other than UNCHANGED (use --count to omit the key
-      lists and print just the counts). Use --out-file to write the JSON to a file
-      instead of stdout.
+      prints a JSON summary instead of writing a .gdb: the primary key value(s) in
+      each NEW/DELETED/MODIFIED_* category (use --count for the record count per
+      category instead). Use --out-file to write the JSON to a file instead of
+      stdout.
 
       To read GeoJSON from stdin, specify "-" for IN_FILE_A
 
@@ -166,8 +165,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  default, integer fields of differing width (eg
                                  Integer vs Integer64) are compared as the smallest
                                  integer type holding both, with a warning
-      -c, --count                Print only record counts, omitting the primary key
-                                 values in each category
+      -c, --count                Print the record count per category, instead of the
+                                 primary key values
       -o, --out-file PATH        Path to write JSON summary to, instead of printing
                                  to stdout
       -v, --verbose              Increase verbosity.
@@ -265,13 +264,13 @@ Compare the test datasets, using a hash of geometry and the column `park_name` a
     $ ogr2ogr -f GeoJSON /vsistdout/ PG:"dbname=mydb" -sql "SELECT * FROM my_table" | \
         changedetector diff2gdb -v - tests/data/parks_b.geojson -pk id
 
-`diff` prints record counts per category plus the primary key value(s) present in each (except `UNCHANGED`) by default; add `--count`/`-c` to print just the counts:
+`diff` prints the primary key value(s) in each category of change (`UNCHANGED` records are not reported); add `--count`/`-c` to print the record count per category instead:
 
     $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id
-    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1, "keys": {"NEW": ["8"], "DELETED": ["2"], "MODIFIED_BOTH": ["5"], "MODIFIED_ATTR": ["3", "6", "7", "9"], "MODIFIED_GEOM": ["4"]}}
+    {"NEW": ["8"], "DELETED": ["2"], "MODIFIED_BOTH": ["5"], "MODIFIED_ATTR": ["3", "6", "7", "9"], "MODIFIED_GEOM": ["4"]}
 
     $ changedetector diff tests/data/parks_a.geojson tests/data/parks_b.geojson -pk id --count
-    {"NEW": 1, "DELETED": 1, "UNCHANGED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1}
+    {"NEW": 1, "DELETED": 1, "MODIFIED_BOTH": 1, "MODIFIED_ATTR": 4, "MODIFIED_GEOM": 1}
 
 ##### Usage notes
 

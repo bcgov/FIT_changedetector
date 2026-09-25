@@ -35,6 +35,21 @@ def _load_changedetector_common():
 cc = _load_changedetector_common()
 
 
+def _load_diff2json():
+    # the script imports changedetector_common by name, as ArcGIS Pro puts its
+    # folder on sys.path - point that import at the module loaded above
+    sys.modules["changedetector_common"] = cc
+    spec = importlib.util.spec_from_file_location(
+        "changedetector_diff2json", ARCGIS_DIR / "changedetector_diff2json.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+diff2json = _load_diff2json()
+
+
 def _base_param(**overrides):
     """A minimal, fully-populated param dict as build_common_diff_args expects
     it (mirrors what resolve_sources()/GetParameter() would produce), with
@@ -189,3 +204,20 @@ def test_get_spec_reads_override_file_fresh_every_call(monkeypatch, tmp_path):
 
     override_file.unlink()
     assert cc.get_spec() == cc.FIT_CHANGEDETECTOR_SPEC
+
+
+def test_diff2json_build_cli_args_count():
+    """diff2json's Counts Only parameter maps to `diff --count`."""
+    param = _base_param(count=False, debug=False)
+    args = diff2json.build_cli_args(param, "out.json")
+    assert args == ["original.gdb", "new.gdb", "--out-file", "out.json", "-v"]
+    param["count"] = True
+    args = diff2json.build_cli_args(param, "out.json")
+    assert args == [
+        "original.gdb",
+        "new.gdb",
+        "--out-file",
+        "out.json",
+        "--count",
+        "-v",
+    ]

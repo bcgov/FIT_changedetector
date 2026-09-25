@@ -10,6 +10,8 @@ import changedetector_common
 def build_cli_args(param, out_file):
     args = changedetector_common.build_common_diff_args(param)
     args += ["--out-file", str(out_file)]
+    if param["count"]:
+        args.append("--count")
     args += changedetector_common.build_verbosity_args(param["debug"])
     return args
 
@@ -29,8 +31,9 @@ def changedetector():
         "suffix_b": arcpy.GetParameter(10),
         "drop_null_geometry": arcpy.GetParameter(11),
         "allow_duplicates": arcpy.GetParameter(12),
-        "out_name": arcpy.GetParameterAsText(13),
-        "debug": arcpy.GetParameter(14),
+        "count": arcpy.GetParameter(13),
+        "out_name": arcpy.GetParameterAsText(14),
+        "debug": arcpy.GetParameter(15),
     }
 
     # out_name (if supplied) names both the output file and its log; otherwise
@@ -46,7 +49,7 @@ def changedetector():
     changedetector_common.run_tool("diff", param, logfile, cli_args, out_file=out_file)
 
     # publish the JSON summary path as this tool's derived output parameter
-    arcpy.SetParameterAsText(15, str(out_file))
+    arcpy.SetParameterAsText(16, str(out_file))
 
 
 if __name__ == "__main__":

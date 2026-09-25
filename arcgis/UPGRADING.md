@@ -8,7 +8,27 @@ of a session).
 Some releases also require changes to the tool's **parameters** or **Validation** code, which
 must be manually updated. This file lists those extra steps, newest release first.
 
-## Unreleased (next release after v0.1.0a2)
+## Unreleased (next release after v0.1.0a3)
+
+**diff2json: new Counts Only parameter.** The JSON summary now lists just the primary key
+value(s) in each category of change by default - no record counts, and no UNCHANGED category
+(see [#129](https://github.com/bcgov/FIT_changedetector/issues/129)). The new **Counts Only**
+parameter writes the record count per category instead. diff2gdb is unchanged.
+
+To upgrade an existing diff2json tool:
+
+1. Replace `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py`
+   with the new versions (as usual).
+2. In the diff2json tool's parameter list, add a **Boolean**, optional parameter named `count`
+   (label **Counts Only**) as parameter 13 - directly after **Allow Duplicate Primary Keys**,
+   before **Output File Name**. **Output File Name**, **Debug Logging** and the derived
+   **Output File** move to 14, 15 and 16. The script reads parameters by position, so the order
+   must match exactly.
+3. Restart ArcGIS Pro before the next run.
+4. Anything that reads the JSON summary must be updated for the new structure - the record counts
+   and the separate `keys` section are gone.
+
+## v0.1.0a3
 
 **Breaking: Primary Key is now a single field, not a list.** `primary_key` no longer accepts
 multiple/composite columns - a composite key now goes through **Fields to Include in Hash**
