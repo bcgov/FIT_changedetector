@@ -1,4 +1,5 @@
-"""Tests for arcgis/changedetector_common.py's pure argument-building logic.
+"""Tests for arcgis/changedetector_common.py's pure argument-building logic,
+and for changedetector_toolvalidator.py's validation logic.
 
 changedetector_common.py unconditionally `import arcpy`, which only exists
 inside ArcGIS Pro's own Python - so it can't be imported normally in this
@@ -189,3 +190,49 @@ def test_get_spec_reads_override_file_fresh_every_call(monkeypatch, tmp_path):
 
     override_file.unlink()
     assert cc.get_spec() == cc.FIT_CHANGEDETECTOR_SPEC
+
+
+def _load_toolvalidator():
+    spec = importlib.util.spec_from_file_location(
+        "changedetector_toolvalidator", ARCGIS_DIR / "changedetector_toolvalidator.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    # the validator is pasted into ArcGIS Pro, where arcpy is a builtin, so
+    # the file never imports it - provide the stub directly
+    module.arcpy = sys.modules["arcpy"]
+    spec.loader.exec_module(module)
+    return module
+
+
+def _validator(**values):
+    """A ToolValidator whose params are stand-ins with the given values, by
+    parameter index (eg p3="id")."""
+    validator = _load_toolvalidator().ToolValidator()
+    validator.params = [MagicMock(value=None) for _ in range(17)]
+    for key, value in values.items():
+        validator.params[int(key[1:])].value = value
+    return validator
+
+
+def test_validator_requires_primary_key_or_hash_fields():
+    """#130: no Primary Key and no Fields to Include in Hash is flagged on
+    both at validation, rather than failing at run time."""
+    validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc")
+    validator.updateMessages()
+    validator.params[3].setErrorMessage.assert_called_once()
+    validator.params[4].setErrorMessage.assert_called_once()
+
+
+def test_validator_primary_key_or_hash_fields_satisfies_requirement():
+    for values in ({"p3": "id"}, {"p4": ["NAME"]}):
+        validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc", **values)
+        validator.updateMessages()
+        validator.params[3].setErrorMessage.assert_not_called()
+        validator.params[4].setErrorMessage.assert_not_called()
+
+
+def test_validator_key_requirement_not_flagged_before_sources_chosen():
+    validator = _validator(p0="a.gdb/fc")
+    validator.updateMessages()
+    validator.params[3].setErrorMessage.assert_not_called()
+    validator.params[4].setErrorMessage.assert_not_called()

@@ -8,7 +8,40 @@ of a session).
 Some releases also require changes to the tool's **parameters** or **Validation** code, which
 must be manually updated. This file lists those extra steps, newest release first.
 
-## Unreleased (next release after v0.1.0a2)
+## v0.1.0a4
+
+**Validation: one of Primary Key or Fields to Include in Hash is now required.** Previously a
+tool with neither ran and then failed in the CLI; both are now flagged before running. See
+[#130](https://github.com/bcgov/FIT_changedetector/issues/130). Conversely, when a Primary Key is
+supplied, Fields to Include in Hash is now cleared and hidden (as Drop Null Geometry already was),
+since the CLI rejects that combination too - and Hash Key is hidden, as it has no effect.
+Likewise, Primary Key is hidden once Fields to Include in Hash has a selection - whichever is
+filled in first hides the other.
+
+**Parameters 4-8 are reordered**, so that Fields to Include in Hash sits directly after Primary
+Key (its alternative), and Hash Key (the name of the generated key column) moves further down:
+
+| # | v0.1.0a3 | v0.1.0a4 |
+|---|----------|----------|
+| 4 | Fields to Compare | Fields to Include in Hash |
+| 5 | Fields to Ignore | Fields to Compare |
+| 6 | Hash Key | Fields to Ignore |
+| 7 | Fields to Include in Hash | Coordinate Precision |
+| 8 | Coordinate Precision | Hash Key |
+
+To upgrade an existing deployment:
+
+1. Replace `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py`
+   with the new versions (as usual).
+2. In each tool's parameter list, reorder parameters 4-8 to match the v0.1.0a4 column above. The
+   scripts read parameters by position, so a tool left in the old order will pass values to the
+   wrong options - failing at run time, or worse, running with the wrong settings.
+3. Re-paste the updated `changedetector_toolvalidator.py` into each tool's **Validation** tab.
+4. Restart ArcGIS Pro before the next run.
+5. If any saved models, scripts, or scheduled tasks pass these parameters by position, reorder them
+   there too.
+
+## v0.1.0a3
 
 **Breaking: Primary Key is now a single field, not a list.** `primary_key` no longer accepts
 multiple/composite columns - a composite key now goes through **Fields to Include in Hash**
