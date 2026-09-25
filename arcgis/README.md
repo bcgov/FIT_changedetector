@@ -35,11 +35,11 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 | 1 | new_fc | Feature Layer | Required |
 | 2 | out_folder | Folder | Required |
 | 3 | primary_key | String | Optional |
-| 4 | fields | String, multivalue | Optional |
-| 5 | ignore_fields | String, multivalue | Optional |
-| 6 | hash_fields | String, multivalue | Optional |
-| 7 | hash_key | String | Optional |
-| 8 | precision | Double | Optional |
+| 4 | hash_fields | String, multivalue | Optional |
+| 5 | fields | String, multivalue | Optional |
+| 6 | ignore_fields | String, multivalue | Optional |
+| 7 | precision | Double | Optional |
+| 8 | hash_key | String | Optional |
 | 9 | suffix_a | String | Optional |
 | 10 | suffix_b | String | Optional |
 | 11 | drop_null_geometry | Boolean | Optional |
@@ -85,11 +85,11 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **New Feature Class** - The "after" dataset to compare against Original Feature Class.
 - **Output Folder** - Folder where the JSON summary and the run's log file are written.
 - **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields). Hidden once **Fields to Include in Hash** has a selection - clear that to supply a primary key instead.
+- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and hidden when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
-- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and hidden when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
-- **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`. Hidden when a primary key is supplied.
 - **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries. Default: `0.01`.
+- **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`. Hidden when a primary key is supplied.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.
 - **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**. Cleared and hidden when a primary key is supplied.
@@ -107,7 +107,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 **Usage:** Wraps the `changedetector diff2gdb` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
 
 **Syntax:** same as diff2json for the parameters below, plus Dump Input Layers:
-- **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Compare**, **Fields to Ignore**, **Fields to Include in Hash**, **Hash Key**, **Coordinate Precision**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
+- **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Include in Hash**, **Fields to Compare**, **Fields to Ignore**, **Coordinate Precision**, **Hash Key**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
 - **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields). Leaving this blank forces **Dump Input Layers** on regardless of that parameter's own setting - see below. Hidden once **Fields to Include in Hash** has a selection - clear that to supply a primary key instead.
 - **Allow Duplicate Primary Keys** - as in diff2json above.
 - **Dump Input Layers** - Also write copies of the two input layers, with the generated hash key column added, into the output geodatabase for reference. Forced on automatically whenever a hash key had to be generated (Primary Key left blank) - the generated key only exists in that hashed copy, so dumping the inputs is how you can see which geometry/attribute values produced which hash. In that case, this happens regardless of how this parameter is set.

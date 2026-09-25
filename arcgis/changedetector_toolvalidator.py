@@ -49,15 +49,15 @@ class ToolValidator:
         # validation is performed.
 
         # Toggle the Include or Exclude field visibility to make them mutually exclusive.
-        if self.params[4].value is not None:  # Include
+        if self.params[5].value is not None:  # Include
+            self.params[6].value = None
+            self.params[6].enabled = 0
+        elif self.params[6].value is not None:  # Exclude
             self.params[5].value = None
             self.params[5].enabled = 0
-        elif self.params[5].value is not None:  # Exclude
-            self.params[4].value = None
-            self.params[4].enabled = 0
         else:
-            self.params[4].enabled = 1
             self.params[5].enabled = 1
+            self.params[6].enabled = 1
 
         # Hash Key, Fields to Include in Hash and Drop Null Geometry only have an
         # effect once a hash key is generated (no primary key given) - an
@@ -68,14 +68,14 @@ class ToolValidator:
         # with a primary key - Hash Key is just ignored, so it keeps its value
         # (usually the default name) for if the primary key is removed again.
         if self.params[3].value:
-            self.params[6].value = None
-            self.params[6].enabled = 0
-            self.params[7].enabled = 0
+            self.params[4].value = None
+            self.params[4].enabled = 0
+            self.params[8].enabled = 0
             self.params[11].value = False
             self.params[11].enabled = 0
         else:
-            self.params[6].enabled = 1
-            self.params[7].enabled = 1
+            self.params[4].enabled = 1
+            self.params[8].enabled = 1
             self.params[11].enabled = 1
 
         # Conversely, hide Primary Key once Fields to Include in Hash is chosen -
@@ -83,23 +83,23 @@ class ToolValidator:
         # default name. Whichever the user fills in first hides the other; clear
         # it to switch. Primary Key needs no clearing here - if it had a value,
         # the block above would have just cleared Fields to Include in Hash.
-        if self.params[6].value:
+        if self.params[4].value:
             self.params[3].enabled = 0
         else:
             self.params[3].enabled = 1
 
         # if coordinate precision is not supplied, set default based on spatial reference
-        if self.params[8].value is None:
+        if self.params[7].value is None:
             sr = arcpy.Describe(self.params[0].value).spatialReference
             if (
                 sr.type.lower() == "geographic"
                 and sr.angularUnitName.lower() == "degree"
             ):
-                self.params[8].value = 0.00001
+                self.params[7].value = 0.00001
             elif (
                 sr.type.lower() == "projected" and sr.linearUnitName.lower() == "meter"
             ):
-                self.params[8].value = 1
+                self.params[7].value = 1
             else:
                 arcpy.AddError(
                     "Incompatible spatial reference units, must be degree or meter"
@@ -141,9 +141,9 @@ class ToolValidator:
                 hash_fieldlist.append(shape_field_1)
 
             self.params[3].filter.list = fieldlist
-            self.params[4].filter.list = fieldlist
+            self.params[4].filter.list = hash_fieldlist
             self.params[5].filter.list = fieldlist
-            self.params[6].filter.list = hash_fieldlist
+            self.params[6].filter.list = fieldlist
 
     def updateMessages(self):
         # Modify the messages created by internal validation for each tool
@@ -157,14 +157,14 @@ class ToolValidator:
             self.params[0].value is not None
             and self.params[1].value is not None
             and not self.params[3].value
-            and not self.params[6].value
+            and not self.params[4].value
         ):
             self.params[3].setErrorMessage(
                 "Primary Key is required unless Fields to Include in Hash is "
                 "supplied - select a field that uniquely identifies each record, "
                 "or match records by a hash key instead."
             )
-            self.params[6].setErrorMessage(
+            self.params[4].setErrorMessage(
                 "Fields to Include in Hash is required when no Primary Key is "
                 "supplied - select the field(s) to generate a hash key from "
                 "(include the geometry field, eg Shape, to match records by geometry)."

@@ -220,19 +220,19 @@ def test_validator_requires_primary_key_or_hash_fields():
     validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc")
     validator.updateMessages()
     validator.params[3].setErrorMessage.assert_called_once()
-    validator.params[6].setErrorMessage.assert_called_once()
+    validator.params[4].setErrorMessage.assert_called_once()
 
 
 def test_validator_primary_key_or_hash_fields_satisfies_requirement():
-    for values in ({"p3": "id"}, {"p6": ["NAME"]}):
+    for values in ({"p3": "id"}, {"p4": ["NAME"]}):
         validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc", **values)
         validator.updateMessages()
         validator.params[3].setErrorMessage.assert_not_called()
-        validator.params[6].setErrorMessage.assert_not_called()
+        validator.params[4].setErrorMessage.assert_not_called()
 
 
 def test_validator_key_requirement_not_flagged_before_sources_chosen():
     validator = _validator(p0="a.gdb/fc")
     validator.updateMessages()
     validator.params[3].setErrorMessage.assert_not_called()
-    validator.params[6].setErrorMessage.assert_not_called()
+    validator.params[4].setErrorMessage.assert_not_called()
