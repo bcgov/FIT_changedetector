@@ -88,7 +88,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
 - **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`.
-- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; has no effect otherwise. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
+- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and disabled when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
 - **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries. Default: `0.01`.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.

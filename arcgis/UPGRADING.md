@@ -8,7 +8,22 @@ of a session).
 Some releases also require changes to the tool's **parameters** or **Validation** code, which
 must be manually updated. This file lists those extra steps, newest release first.
 
-## Unreleased (next release after v0.1.0a2)
+## v0.1.0a4
+
+**Validation: Fields to Include in Hash is now required when no Primary Key is supplied.**
+Previously the tool ran and then failed in the CLI; it is now flagged before running. See
+[#130](https://github.com/bcgov/FIT_changedetector/issues/130). Conversely, Fields to Include in
+Hash is now cleared and disabled when a Primary Key is supplied (as Drop Null Geometry already
+was), since the CLI rejects that combination too.
+
+To upgrade an existing deployment:
+
+1. Replace `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py`
+   with the new versions (as usual).
+2. Re-paste the updated `changedetector_toolvalidator.py` into each tool's **Validation** tab.
+3. Restart ArcGIS Pro before the next run.
+
+## v0.1.0a3
 
 **Breaking: Primary Key is now a single field, not a list.** `primary_key` no longer accepts
 multiple/composite columns - a composite key now goes through **Fields to Include in Hash**

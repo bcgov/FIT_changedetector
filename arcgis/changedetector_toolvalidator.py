@@ -59,15 +59,18 @@ class ToolValidator:
             self.params[4].enabled = 1
             self.params[5].enabled = 1
 
-        # Drop Null Geometry only has an effect once a hash key is generated
-        # (no primary key given) - an explicit primary key is always used
-        # directly, never hashed, so the library rejects the combination
-        # outright. Grey it out here rather than letting the user hit that
-        # as a run-time failure.
+        # Fields to Include in Hash and Drop Null Geometry only have an effect
+        # once a hash key is generated (no primary key given) - an explicit
+        # primary key is always used directly, never hashed, so the library
+        # rejects either combination outright. Grey them out here rather than
+        # letting the user hit that as a run-time failure.
         if self.params[3].value:
+            self.params[7].value = None
+            self.params[7].enabled = 0
             self.params[11].value = False
             self.params[11].enabled = 0
         else:
+            self.params[7].enabled = 1
             self.params[11].enabled = 1
 
         # if coordinate precision is not supplied, set default based on spatial reference
@@ -130,7 +133,22 @@ class ToolValidator:
     def updateMessages(self):
         # Modify the messages created by internal validation for each tool
         # parameter. This method is called after internal validation.
-        return
+
+        # with no Primary Key, records are matched by a hash key generated from
+        # Fields to Include in Hash - so it's required in that case. Flag it
+        # here rather than letting the run fail in the CLI (#130). Only once
+        # both sources are chosen, so a freshly opened tool isn't already in error.
+        if (
+            self.params[0].value is not None
+            and self.params[1].value is not None
+            and not self.params[3].value
+            and not self.params[7].value
+        ):
+            self.params[7].setErrorMessage(
+                "Fields to Include in Hash is required when no Primary Key is "
+                "supplied - select the field(s) to generate a hash key from "
+                "(include the geometry field, eg Shape, to match records by geometry)."
+            )
 
     # def isLicensed(self):
     #     # Set whether the tool is licensed to execute.
