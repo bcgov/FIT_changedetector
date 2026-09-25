@@ -12,9 +12,9 @@ must be manually updated. This file lists those extra steps, newest release firs
 
 **Validation: Fields to Include in Hash is now required when no Primary Key is supplied.**
 Previously the tool ran and then failed in the CLI; it is now flagged before running. See
-[#130](https://github.com/bcgov/FIT_changedetector/issues/130). Conversely, Fields to Include in
-Hash is now cleared and disabled when a Primary Key is supplied (as Drop Null Geometry already
-was), since the CLI rejects that combination too.
+[#130](https://github.com/bcgov/FIT_changedetector/issues/130). Conversely, when a Primary Key is
+supplied, Fields to Include in Hash is now cleared and hidden (as Drop Null Geometry already was),
+since the CLI rejects that combination too - and Hash Key is hidden, as it has no effect.
 
 To upgrade an existing deployment:
 

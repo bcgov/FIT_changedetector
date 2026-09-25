@@ -59,17 +59,22 @@ class ToolValidator:
             self.params[4].enabled = 1
             self.params[5].enabled = 1
 
-        # Fields to Include in Hash and Drop Null Geometry only have an effect
-        # once a hash key is generated (no primary key given) - an explicit
-        # primary key is always used directly, never hashed, so the library
-        # rejects either combination outright. Grey them out here rather than
-        # letting the user hit that as a run-time failure.
+        # Hash Key, Fields to Include in Hash and Drop Null Geometry only have an
+        # effect once a hash key is generated (no primary key given) - an
+        # explicit primary key is always used directly, never hashed. Hide them
+        # when a primary key is supplied (ArcGIS Pro hides, rather than greys
+        # out, a disabled parameter). Fields to Include in Hash and Drop Null
+        # Geometry are also cleared, since the library rejects either combined
+        # with a primary key - Hash Key is just ignored, so it keeps its value
+        # (usually the default name) for if the primary key is removed again.
         if self.params[3].value:
+            self.params[6].enabled = 0
             self.params[7].value = None
             self.params[7].enabled = 0
             self.params[11].value = False
             self.params[11].enabled = 0
         else:
+            self.params[6].enabled = 1
             self.params[7].enabled = 1
             self.params[11].enabled = 1
 

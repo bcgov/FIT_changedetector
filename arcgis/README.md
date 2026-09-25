@@ -87,12 +87,12 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Primary Key** - A single column, common to both datasets, that uniquely identifies each record. If left blank, records are matched by a generated hash key instead - **Fields to Include in Hash** is then required (use this to match on a composite of multiple fields).
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
-- **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`.
-- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and disabled when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
+- **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`. Hidden when a primary key is supplied.
+- **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and hidden when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
 - **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries. Default: `0.01`.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.
-- **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**.
+- **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**. Cleared and hidden when a primary key is supplied.
 - **Allow Duplicate Primary Keys** - Do not fail on a duplicated primary key - instead, keep the first occurrence of each duplicated key (per source) and report the dropped records under a Duplicates category. Not applied when matching by geometry alone (no primary key or hash fields) - a duplicate there always fails, since geometry alone can't reliably pair records when more than one shares a location.
 - **Output File Name** - Optional. Names the output JSON file and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
