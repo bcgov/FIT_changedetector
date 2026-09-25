@@ -161,6 +161,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  single-part in one source and multi-part in the
                                  other is UNCHANGED - with this option it is
                                  MODIFIED_GEOM
+      --strict-types             Require compared field types to match exactly. By
+                                 default, integer fields of differing width (eg
+                                 Integer vs Integer64) are compared as the smallest
+                                 integer type holding both, with a warning
       -c, --count                Print only record counts, omitting the primary key
                                  values in each category
       -o, --out-file PATH        Path to write JSON summary to, instead of printing
@@ -223,6 +227,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  single-part in one source and multi-part in the
                                  other is UNCHANGED - with this option it is
                                  MODIFIED_GEOM
+      --strict-types             Require compared field types to match exactly. By
+                                 default, integer fields of differing width (eg
+                                 Integer vs Integer64) are compared as the smallest
+                                 integer type holding both, with a warning
       -o, --out-file PATH        Path to output file, defaults to
                                  ./changedetector_YYYYMMDD_HHMM.gdb
       -i, --dump-inputs          Dump input layers (with new hash key) to output
@@ -231,6 +239,8 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -q, --quiet                Decrease verbosity.
       --help                     Show this message and exit.
 <!-- END CLI HELP -->
+
+`.gdb` output (`diff2gdb`, `add-hash-key`) is written with GDAL's `TARGET_ARCGIS_VERSION=ARCGIS_PRO_3_2_OR_LATER` option, so 64-bit integer fields are written as 64-bit integers (rather than as floating point, which cannot exactly represent every value above 2^53 - eg large ids). Reading these fields requires ArcGIS Pro 3.2 or later.
 
 ##### Examples
 
