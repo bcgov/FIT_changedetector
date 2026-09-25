@@ -153,34 +153,43 @@ def promote_to_multi(df):
 
 
 def _geom_types(df):
-    """Sorted, upper-cased, deduplicated geometry type names present in df.
+    """Set of geometry type names (e.g. "Point", "MultiPoint") present in df."""
+    return set(df.geometry.geom_type.dropna().unique())
 
-    Sorted by name length, so a base type (e.g. "LINESTRING") always sorts
-    before its "MULTI*" equivalent - see _has_mixed_single_multipart.
+
+def _check_geom_types(df, label):
+    """Raise if df holds a geometry type not in _SUPPORTED_GEOMETRY_TYPES.
+
+    Complements _check_geometry_type (source layer metadata, the only place
+    curves are still detectable - GDAL linearizes them on read) by checking the
+    geometries themselves, so gdf_diff() callers and parquet sources are covered
+    too.
     """
-    return sorted(
-        [t.upper() for t in df.geometry.geom_type.dropna(axis=0, how="all").unique()],
-        key=len,
-    )
+    unsupported = _geom_types(df) - _SUPPORTED_GEOMETRY_TYPES
+    if unsupported:
+        raise ValueError(
+            f"Geometry type(s) {sorted(unsupported)} in source {label} not supported "
+            f"- only {sorted(_SUPPORTED_GEOMETRY_TYPES)} are supported."
+        )
 
 
 def _has_mixed_single_multipart(types):
     """True if types (from _geom_types) contains both a base type and its
-    MULTI* equivalent, e.g. ["LINESTRING", "MULTILINESTRING"].
+    Multi* equivalent, e.g. {"LineString", "MultiLineString"} - regardless of
+    any other types present.
     """
-    return len(types) > 1 and types[1] == "MULTI" + types[0]
+    return any("Multi" + t in types for t in types)
 
 
 def _promote_if_mixed(df_a, df_b):
-    """If df_a or df_b mixes single/multipart geometries of the same base type
-    (e.g. Point + MultiPoint present in one source), promote all geometries in
-    both df_a and df_b to multipart, so every downstream comparison/output
-    sees a single, uniform geometry type. No-op (returns df_a/df_b unchanged)
-    if no mix is present.
+    """If df_a and df_b between them mix single/multipart geometries of the
+    same base type (e.g. Point in df_a, MultiPoint in df_b - or both within
+    one source), promote all geometries in both df_a and df_b to multipart, so
+    a feature stored single-part in one source and multi-part in the other
+    compares as unchanged, and every downstream output sees consistent types.
+    No-op (returns df_a/df_b unchanged) if no mix is present.
     """
-    types_a = _geom_types(df_a)
-    types_b = _geom_types(df_b)
-    if _has_mixed_single_multipart(types_a) or _has_mixed_single_multipart(types_b):
+    if _has_mixed_single_multipart(_geom_types(df_a) | _geom_types(df_b)):
         LOG.info(
             "Mixed singlepart/multipart geometries found, promoting all to multipart"
         )
@@ -209,6 +218,8 @@ def _prepare_sources(df_a, df_b, keep_fields, label_a="a", label_b="b"):
     if isinstance(df_a, geopandas.GeoDataFrame) and isinstance(
         df_b, geopandas.GeoDataFrame
     ):
+        _check_geom_types(df_a, label_a)
+        _check_geom_types(df_b, label_b)
         df_a, df_b = _promote_if_mixed(df_a, df_b)
 
     for f in list(df_a.columns):
@@ -386,8 +397,8 @@ def _validate_and_prepare_diff_inputs(
 
     Checks: valid precision, primary key present/unique (unless allow_duplicates)
     in both datasets and not also an ignore_field, fields provided (if any) common
-    to both datasets, equivalent field dtypes, and (for spatial sources) equivalent
-    geometry types and CRS - raising ValueError/TypeError on the first violation
+    to both datasets, equivalent field dtypes, and (for spatial sources) supported
+    geometry types and equivalent CRS - raising ValueError/TypeError on the first violation
     found.
 
     If allow_duplicates, rather than raising on a duplicated primary key, drop
@@ -581,7 +592,7 @@ def gdf_diff(
       below)
     - have at least one equivalent column (ok if this is just the primary key)
     - equivalent column names must be of equivalent types
-    - have equivalent geometry types and coordinate reference systems
+    - have supported geometry types and equivalent coordinate reference systems
 
     If allow_duplicates, a duplicated primary key does not raise - instead, all
     but the first occurrence of each duplicated key are dropped (independently
@@ -861,7 +872,7 @@ def _read_and_diff(
     precision,
     allow_duplicates=False,
 ):
-    """Read both diff_to_gdb()/diff_to_json() sources, resolve/hash the primary key, and run gdf_diff.
+    """Read both sources, resolve/hash the primary key, and run gdf_diff.
 
     Shared by diff_to_gdb() (writes results to .gdb) and diff_to_json() (prints a JSON
     summary) - everything up to producing the diff dict is identical between them;
@@ -1124,6 +1135,20 @@ def diff_to_gdb(
     )
     if hashed:
         dump_inputs = True
+
+    # a .gdb layer holds a single geometry type, so sources mixing base types
+    # (within or between them - e.g. DUPLICATES combines records from both)
+    # are not supported. Single/multipart of one base type are fine, they
+    # were already promoted to multipart.
+    if isinstance(df_a, geopandas.GeoDataFrame):
+        base_types = {
+            t.removeprefix("Multi") for t in _geom_types(df_a) | _geom_types(df_b)
+        }
+        if len(base_types) > 1:
+            raise ValueError(
+                f"Sources mix geometry types {sorted(base_types)} - .gdb output "
+                "requires a single geometry type across both sources"
+            )
 
     # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005

@@ -622,6 +622,93 @@ def test_validate_diff_inputs_geometry_type_mismatch_not_rejected():
     assert spatial
 
 
+def test_single_vs_multipart_across_sources_unchanged():
+    """A feature stored single-part in one source and multi-part in the other
+    is unchanged
+    """
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b["geometry"] = [MultiPoint([p]) for p in df_a.geometry]
+    diff = fcd.gdf_diff(df_a, df_b, "pk")
+    assert len(diff["UNCHANGED"]) == 3
+    assert len(diff["MODIFIED_GEOM"]) == 0
+
+
+def test_mixed_single_multipart_with_other_base_type_promoted():
+    """Single/multipart mixing is detected even when another base type is
+    also present (e.g. Point + MultiPoint + Polygon)."""
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b.loc[1, "geometry"] = MultiPoint([(1, 1)])
+    df_b.loc[2, "geometry"] = Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])
+    diff = fcd.gdf_diff(df_a, df_b, "pk")
+    assert len(diff["UNCHANGED"]) == 2
+    assert len(diff["MODIFIED_GEOM"]) == 1
+
+
+def test_gdf_diff_unsupported_geometry_type_rejected():
+    """Unsupported geometry types are rejected for direct gdf_diff() callers
+    too, not just sources read via OGR (see _check_geometry_type)."""
+    df_a, df_b = _spatial_gdf(), _spatial_gdf()
+    df_b.loc[0, "geometry"] = GeometryCollection([Point(0, 0)])
+    with pytest.raises(ValueError, match="GeometryCollection"):
+        fcd.gdf_diff(df_a, df_b, "pk")
+
+
+def _write_mixed_base_type_sources(tmp_path):
+    """Write source a (all points) and source b (points + a polygon) to
+    GeoJSON, returning their paths."""
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b.loc[2, "geometry"] = Polygon([(0, 0), (1, 0), (1, 1), (0, 0)])
+    path_a, path_b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+    return str(path_a), str(path_b)
+
+
+def test_diff_to_gdb_mixed_base_types_rejected(tmp_path):
+    """A source mixing geometry base types (Point + Polygon) can't be written
+    to .gdb (one geometry type per layer), so diff_to_gdb rejects it."""
+    path_a, path_b = _write_mixed_base_type_sources(tmp_path)
+    with pytest.raises(ValueError, match="mix geometry types"):
+        fcd.diff_to_gdb(
+            path_a, path_b, None, None, str(tmp_path / "out.gdb"), primary_key="pk"
+        )
+
+
+def test_diff_to_gdb_different_base_types_between_sources_rejected(tmp_path):
+    """Sources that are each a single, but different, base type (all points
+    vs all polygons) are also rejected - some outputs (e.g. DUPLICATES)
+    combine records from both sources into one .gdb layer."""
+    df_a = _spatial_gdf()
+    df_b = _spatial_gdf()
+    df_b["geometry"] = [
+        Polygon([(x, x), (x + 1, x), (x + 1, x + 1), (x, x)]) for x in range(3)
+    ]
+    path_a, path_b = tmp_path / "a.geojson", tmp_path / "b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+    with pytest.raises(ValueError, match="mix geometry types"):
+        fcd.diff_to_gdb(
+            str(path_a),
+            str(path_b),
+            None,
+            None,
+            str(tmp_path / "out.gdb"),
+            primary_key="pk",
+        )
+
+
+def test_diff_to_json_mixed_base_types_allowed(tmp_path, capsys):
+    """Mixed base types are only rejected for .gdb output - diff_to_json
+    reports the changed-type feature as a geometry modification."""
+    path_a, path_b = _write_mixed_base_type_sources(tmp_path)
+    fcd.diff_to_json(path_a, path_b, None, None, primary_key="pk")
+    out = json.loads(capsys.readouterr().out)
+    assert out["MODIFIED_GEOM"] == 1
+
+
 def test_validate_diff_inputs_crs_mismatch():
     df_a = _spatial_gdf()
     df_b = _spatial_gdf().to_crs("EPSG:4326")
