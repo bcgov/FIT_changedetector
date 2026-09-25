@@ -219,17 +219,17 @@ def test_validator_requires_hash_fields_without_primary_key():
     validation, rather than failing at run time."""
     validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc")
     validator.updateMessages()
-    validator.params[7].setErrorMessage.assert_called_once()
+    validator.params[6].setErrorMessage.assert_called_once()
 
 
 def test_validator_hash_fields_not_required_with_primary_key_or_hash_fields():
-    for values in ({"p3": "id"}, {"p7": ["NAME"]}):
+    for values in ({"p3": "id"}, {"p6": ["NAME"]}):
         validator = _validator(p0="a.gdb/fc", p1="b.gdb/fc", **values)
         validator.updateMessages()
-        validator.params[7].setErrorMessage.assert_not_called()
+        validator.params[6].setErrorMessage.assert_not_called()
 
 
 def test_validator_hash_fields_not_flagged_before_sources_chosen():
     validator = _validator(p0="a.gdb/fc")
     validator.updateMessages()
-    validator.params[7].setErrorMessage.assert_not_called()
+    validator.params[6].setErrorMessage.assert_not_called()

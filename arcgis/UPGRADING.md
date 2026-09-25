@@ -18,12 +18,21 @@ since the CLI rejects that combination too - and Hash Key is hidden, as it has n
 Likewise, Primary Key is hidden once Fields to Include in Hash has a selection - whichever is
 filled in first hides the other.
 
+**Parameters 6 and 7 are swapped.** Fields to Include in Hash is now parameter 6, and Hash Key
+(the name of the generated key column) parameter 7, directly after it.
+
 To upgrade an existing deployment:
 
 1. Replace `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py`
    with the new versions (as usual).
-2. Re-paste the updated `changedetector_toolvalidator.py` into each tool's **Validation** tab.
-3. Restart ArcGIS Pro before the next run.
+2. In each tool's parameter list, move **Hash Key** down one place so that it comes directly after
+   **Fields to Include in Hash** - making Fields to Include in Hash parameter 6 and Hash Key
+   parameter 7. The scripts read parameters by position, so a tool left in the old order will pass
+   the hash field list as the key name (and vice versa) and fail at run time.
+3. Re-paste the updated `changedetector_toolvalidator.py` into each tool's **Validation** tab.
+4. Restart ArcGIS Pro before the next run.
+5. If any saved models, scripts, or scheduled tasks pass these parameters by position, swap them
+   there too.
 
 ## v0.1.0a3
 
