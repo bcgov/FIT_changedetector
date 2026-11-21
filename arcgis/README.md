@@ -11,7 +11,7 @@ Both require `changedetector_common.py` (shared logic - subprocess invocation, l
 
 ### 1. Create the environment
 
-You need a Python install (3.10 or later, separate from ArcGIS Pro's) to base the venv on, and a folder for the venv itself. For a shared deployment both can be on a network drive - users then need read access to both. The base Python doesn't need to be on `PATH`, but it must stay in place: a venv's `python.exe` is only a launcher for its base install.
+You need a Python install (3.11 or later, separate from ArcGIS Pro's) to base the venv on, and a folder for the venv itself. For a shared deployment both can be on a network drive - users then need read access to both. The base Python doesn't need to be on `PATH`, but it must stay in place: a venv's `python.exe` is only a launcher for its base install.
 
 At a Windows command prompt, with [uv](https://docs.astral.sh/uv/) installed into the base Python (`%PY% -m pip install uv`, once `PY` is set as below):
 
