@@ -1,5 +1,6 @@
-"""Tests for arcgis/changedetector_common.py's pure argument-building logic,
-and for changedetector_toolvalidator.py's validation logic.
+"""Tests for fit_changedetector/arcgis/changedetector_common.py's pure
+argument-building logic, and for changedetector_toolvalidator.py's validation
+logic.
 
 changedetector_common.py unconditionally `import arcpy`, which only exists
 inside ArcGIS Pro's own Python - so it can't be imported normally in this
@@ -20,7 +21,11 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-ARCGIS_DIR = Path(__file__).resolve().parent.parent / "arcgis"
+import pytest
+
+ARCGIS_DIR = (
+    Path(__file__).resolve().parent.parent / "src" / "fit_changedetector" / "arcgis"
+)
 
 
 def _load_changedetector_common():
@@ -167,29 +172,71 @@ def test_build_output_stem_falls_back_to_timestamped_prefix():
     assert len(stem) == len("changedetector_") + len("20260101_0000")
 
 
-def test_get_spec_returns_pinned_default(monkeypatch, tmp_path):
-    monkeypatch.setattr(cc, "__file__", str(tmp_path / "changedetector_common.py"))
-    assert cc.get_spec() == cc.FIT_CHANGEDETECTOR_SPEC
+def _install_common_into(monkeypatch, root, interpreter=None):
+    """Point cc.__file__ at root/Lib/site-packages/fit_changedetector/arcgis/
+    (the Windows venv layout), optionally making root a venv with the given
+    interpreter (relative path)."""
+    arcgis_dir = root / "Lib" / "site-packages" / "fit_changedetector" / "arcgis"
+    arcgis_dir.mkdir(parents=True)
+    monkeypatch.setattr(cc, "__file__", str(arcgis_dir / "changedetector_common.py"))
+    if interpreter:
+        (root / "pyvenv.cfg").write_text("home = C:\\Python314\n")
+        (root / interpreter).parent.mkdir(parents=True)
+        (root / interpreter).touch()
 
 
-def test_get_spec_reads_override_file_fresh_every_call(monkeypatch, tmp_path):
-    monkeypatch.setattr(cc, "__file__", str(tmp_path / "changedetector_common.py"))
-    override_file = tmp_path / cc.SPEC_OVERRIDE_FILE
+def test_find_venv_python_windows_venv(monkeypatch, tmp_path):
+    _install_common_into(monkeypatch, tmp_path, "Scripts/python.exe")
+    assert cc.find_venv_python() == tmp_path / "Scripts" / "python.exe"
 
-    override_file.write_text("git+https://github.com/bcgov/FIT_changedetector.git@main")
-    assert cc.get_spec() == "git+https://github.com/bcgov/FIT_changedetector.git@main"
 
-    # no caching - editing the file changes the next call's result
-    override_file.write_text(
-        "git+https://github.com/bcgov/FIT_changedetector.git@120-explicit-hash-fields"
-    )
-    assert (
-        cc.get_spec()
-        == "git+https://github.com/bcgov/FIT_changedetector.git@120-explicit-hash-fields"
-    )
+def test_find_venv_python_posix_venv(monkeypatch, tmp_path):
+    _install_common_into(monkeypatch, tmp_path, "bin/python")
+    assert cc.find_venv_python() == tmp_path / "bin" / "python"
 
-    override_file.unlink()
-    assert cc.get_spec() == cc.FIT_CHANGEDETECTOR_SPEC
+
+def test_find_venv_python_not_in_a_venv(monkeypatch, tmp_path):
+    _install_common_into(monkeypatch, tmp_path)
+    assert cc.find_venv_python() is None
+
+
+class _ExecuteError(Exception):
+    pass
+
+
+def test_run_cli_errors_clearly_outside_a_venv(monkeypatch, tmp_path):
+    _install_common_into(monkeypatch, tmp_path)
+    monkeypatch.setattr(cc.arcpy, "ExecuteError", _ExecuteError)
+    monkeypatch.setattr(cc.subprocess, "Popen", MagicMock())
+    with pytest.raises(_ExecuteError):
+        cc.run_cli("diff", [])
+    assert "pyvenv.cfg" in cc.arcpy.AddError.call_args.args[0]
+    cc.subprocess.Popen.assert_not_called()
+
+
+def test_run_cli_runs_venv_python_with_clean_env(monkeypatch, tmp_path):
+    _install_common_into(monkeypatch, tmp_path, "Scripts/python.exe")
+    monkeypatch.setenv("PYTHONHOME", "C:\\ArcGIS\\Pro\\bin\\Python")
+    monkeypatch.setenv("PYTHONPATH", "C:\\ArcGIS\\Pro\\Resources\\ArcPy")
+    popen = MagicMock()
+    popen.return_value.stdout = iter(["line one\n", "line two\n"])
+    popen.return_value.returncode = 0
+    monkeypatch.setattr(cc.subprocess, "Popen", popen)
+
+    assert cc.run_cli("diff", ["a.gdb", "b.gdb"]) == ["line one", "line two"]
+
+    args, kwargs = popen.call_args
+    assert args[0] == [
+        str(tmp_path / "Scripts" / "python.exe"),
+        "-u",
+        "-m",
+        "fit_changedetector",
+        "diff",
+        "a.gdb",
+        "b.gdb",
+    ]
+    assert "PYTHONHOME" not in kwargs["env"]
+    assert "PYTHONPATH" not in kwargs["env"]
 
 
 def _load_toolvalidator():

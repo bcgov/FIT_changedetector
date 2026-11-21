@@ -6,7 +6,7 @@
 # (ToolValidator, required by arcpy) matters; this module's own filename is
 # just an ordinary PEP 8 name
 
-# this runs inside ArcGIS Pro's own Python, not the uvx-managed environment
+# this runs inside ArcGIS Pro's own Python, not the venv
 # the tool shells out to, so it can't import fit_changedetector directly -
 # keep this in sync by hand with id_fields + area_length_fields there
 MODULE_IGNORE_FIELDS = [
