@@ -1,12 +1,28 @@
 # Upgrading an existing ArcGIS Pro deployment
 
-Most releases are a drop-in swap: download the new `fit_changedetector-arcgis-tools-<version>.zip`,
-overwrite `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py`
-in place, and restart ArcGIS Pro (it caches the imported `changedetector_common.py` for the life
-of a session).
+Most releases need only a package upgrade in the tools' environment and an ArcGIS Pro restart -
+see [Upgrades](README.md#upgrades) in the README.
 
 Some releases also require changes to the tool's **parameters** or **Validation** code, which
 must be manually updated. This file lists those extra steps, newest release first.
+
+## Next release (after v0.1.0a4)
+
+**The tools no longer use uv/uvx.** The scripts now ship inside the `fit_changedetector` package,
+and each tool runs the CLI with the Python of the environment it's installed in. The
+`fit_changedetector-arcgis-tools-<version>.zip` release archive and `spec_override.txt` are
+gone. Parameters and validation code are unchanged.
+
+To switch an existing deployment over:
+
+1. Create the environment as described in [Setup](README.md#1-create-the-environment).
+2. In each tool's properties, change **Script File** to the installed copy:
+   `<venv folder>\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py` (or
+   `changedetector_diff2gdb.py`). From this release on, the scripts only run from inside an
+   environment - a copy anywhere else stops with an error.
+3. Restart ArcGIS Pro before the next run.
+4. Delete the old script folder (including any `spec_override.txt`). uv can be uninstalled
+   if nothing else on the machine uses it.
 
 ## v0.1.0a4
 
