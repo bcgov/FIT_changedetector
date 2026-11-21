@@ -27,25 +27,6 @@ jobs:
         name: python-package-distributions
         path: dist/
 
-    # a version-pinned copy of arcgis/ - kept out of dist/ so
-    # pypa/gh-action-pypi-publish (which uploads whatever it finds in dist/
-    # to PyPI) never sees it
-    - name: Build a version-pinned ArcGIS tools archive
-      run: |
-        VERSION="${GITHUB_REF_NAME#v}"
-        cp -r src/fit_changedetector/arcgis arcgis-dist
-        cp arcgis/README.md arcgis/UPGRADING.md arcgis-dist/
-        rm -rf arcgis-dist/__pycache__
-        sed -i "s/^FIT_CHANGEDETECTOR_SPEC = .*/FIT_CHANGEDETECTOR_SPEC = \"fit_changedetector==${VERSION}\"/" arcgis-dist/changedetector_common.py
-        grep -q "fit_changedetector==${VERSION}\"\$" arcgis-dist/changedetector_common.py \
-          || { echo "FIT_CHANGEDETECTOR_SPEC substitution failed"; exit 1; }
-        (cd arcgis-dist && zip -r "../fit_changedetector-arcgis-tools-${GITHUB_REF_NAME}.zip" .)
-    - name: Store the ArcGIS tools archive
-      uses: actions/upload-artifact@v7
-      with:
-        name: arcgis-tools
-        path: fit_changedetector-arcgis-tools-*.zip
-
   publish-to-pypi:
     name: >-
       Publish Python 🐍 distribution 📦 to PyPI
@@ -86,10 +67,6 @@ jobs:
       with:
         name: python-package-distributions
         path: dist/
-    - name: Download the ArcGIS tools archive
-      uses: actions/download-artifact@v8
-      with:
-        name: arcgis-tools
     - name: Determine prerelease flag
       id: prerelease
       run: |
@@ -108,13 +85,6 @@ jobs:
         --repo '${{ github.repository }}'
         --generate-notes
         ${{ steps.prerelease.outputs.flag }}
-    - name: Upload the ArcGIS tools archive to the release
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-      run: >-
-        gh release upload
-        '${{ github.ref_name }}' fit_changedetector-arcgis-tools-*.zip
-        --repo '${{ github.repository }}'
     # Signing is best-effort: it depends on Sigstore's public TUF trust-root
     # infrastructure, which can fail for reasons unrelated to this release
     # (eg tuf.api.exceptions.UnsignedMetadataError). Don't let that block
@@ -138,39 +108,3 @@ jobs:
         gh release upload
         '${{ github.ref_name }}' dist/**
         --repo '${{ github.repository }}'
-
-  bump-arcgis-spec:
-    name: Bump FIT_CHANGEDETECTOR_SPEC on main
-    needs:
-    - github-release
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: write  # IMPORTANT: pushes a commit directly to main
-
-    steps:
-    - uses: actions/checkout@v7
-      with:
-        ref: main
-    # build's "Build a version-pinned ArcGIS tools archive" step does this same
-    # substitution in a scratch copy for the release zip - that one is
-    # generated fresh every release and never needs committing. This is the
-    # one place it has to land as a real commit: the source tree on main,
-    # which is what get_spec() falls back to for anyone running the scripts
-    # straight from a checkout (no spec_override.txt) - see arcgis/README.md#releases--versioning.
-    - name: Bump the pinned spec to this release
-      run: |
-        VERSION="${GITHUB_REF_NAME#v}"
-        sed -i "s/^FIT_CHANGEDETECTOR_SPEC = .*/FIT_CHANGEDETECTOR_SPEC = \"fit_changedetector==${VERSION}\"/" src/fit_changedetector/arcgis/changedetector_common.py
-        grep -q "fit_changedetector==${VERSION}\"\$" src/fit_changedetector/arcgis/changedetector_common.py \
-          || { echo "FIT_CHANGEDETECTOR_SPEC substitution failed"; exit 1; }
-    - name: Commit and push, if changed
-      run: |
-        if git diff --quiet -- src/fit_changedetector/arcgis/changedetector_common.py; then
-          echo "FIT_CHANGEDETECTOR_SPEC already up to date, nothing to commit"
-          exit 0
-        fi
-        git config user.name "github-actions[bot]"
-        git config user.email "github-actions[bot]@users.noreply.github.com"
-        git commit -am "Bump FIT_CHANGEDETECTOR_SPEC to ${GITHUB_REF_NAME}"
-        git push origin HEAD:main
