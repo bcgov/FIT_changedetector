@@ -1,5 +1,6 @@
-"""Tests for arcgis/changedetector_common.py's pure argument-building logic,
-and for changedetector_toolvalidator.py's validation logic.
+"""Tests for fit_changedetector/arcgis/changedetector_common.py's pure
+argument-building logic, and for changedetector_toolvalidator.py's validation
+logic.
 
 changedetector_common.py unconditionally `import arcpy`, which only exists
 inside ArcGIS Pro's own Python - so it can't be imported normally in this
@@ -20,7 +21,9 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
-ARCGIS_DIR = Path(__file__).resolve().parent.parent / "arcgis"
+ARCGIS_DIR = (
+    Path(__file__).resolve().parent.parent / "src" / "fit_changedetector" / "arcgis"
+)
 
 
 def _load_changedetector_common():
