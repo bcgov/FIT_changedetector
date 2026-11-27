@@ -98,6 +98,12 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                 include geometry in the hash  [required]
       -p, --precision FLOAT     Coordinate precision for geometry hash and
                                 comparison. Default=0.01
+      --exact-geometry          Compare and hash geometries exactly as they are - no
+                                normalization (vertex/ring order matters) and no
+                                tolerance (every coordinate, including Z, must
+                                match). Cannot be combined with --precision, and
+                                disables multipart promotion (see --no-promote-
+                                multi)
       --crs TEXT                Coordinate reference system to use when hashing
                                 geometries (eg EPSG:3005)
       -v, --verbose             Increase verbosity.
@@ -167,6 +173,12 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  single-part in one source and multi-part in the
                                  other is UNCHANGED - with this option it is
                                  MODIFIED_GEOM
+      --exact-geometry           Compare and hash geometries exactly as they are -
+                                 no normalization (vertex/ring order matters) and no
+                                 tolerance (every coordinate, including Z, must
+                                 match). Cannot be combined with --precision, and
+                                 disables multipart promotion (see --no-promote-
+                                 multi)
       --strict-types             Require compared field types to match exactly. By
                                  default, integer fields of differing width (eg
                                  Integer vs Integer64) are compared as the smallest
@@ -235,6 +247,12 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
                                  single-part in one source and multi-part in the
                                  other is UNCHANGED - with this option it is
                                  MODIFIED_GEOM
+      --exact-geometry           Compare and hash geometries exactly as they are -
+                                 no normalization (vertex/ring order matters) and no
+                                 tolerance (every coordinate, including Z, must
+                                 match). Cannot be combined with --precision, and
+                                 disables multipart promotion (see --no-promote-
+                                 multi)
       --strict-types             Require compared field types to match exactly. By
                                  default, integer fields of differing width (eg
                                  Integer vs Integer64) are compared as the smallest
@@ -311,6 +329,8 @@ Prior to comparing geometries, the tool will:
 
 On the other hand, a new vertex in an otherwise unchanged geometry will be considered as MODIFIED_GEOM.
 See geopandas [geom_equals_exact](https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoSeries.geom_equals_exact.html) for details.
+
+Use `--exact-geometry` to skip all three steps and compare geometries exactly as they are - type, structure, vertex order and every coordinate (including Z) must be identical (see geopandas [geom_equals_identical](https://geopandas.org/en/stable/docs/reference/api/geopandas.GeoSeries.geom_equals_identical.html)). Geometry hash keys are then generated from the full-precision geometry too. This only makes sense when both sources come through the same pipeline - writing to a different format can reorder rings or snap coordinates (eg to a `.gdb`'s XY resolution), so nearly every polygon would be reported as MODIFIED_GEOM.
 
 Curved geometry types (`CIRCULARSTRING`, `COMPOUNDCURVE`, `CURVEPOLYGON`, etc, as found in some `.gdb` sources) are not supported - only `POINT`, `LINESTRING`, `POLYGON` and their `MULTI*` equivalents are ([#66](https://github.com/bcgov/FIT_changedetector/issues/66)). GDAL segments curves into their linear approximation on read, so a curved source may appear to work, but the precision of that approximation is not controlled by `diff`/`diff2gdb` and results involving curved input should not be relied on.
 

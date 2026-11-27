@@ -13,6 +13,7 @@ import pandas
 import pyarrow
 import pyarrow.parquet
 import pyogrio
+import shapely
 from shapely.geometry.linestring import LineString
 from shapely.geometry.multilinestring import MultiLineString
 from shapely.geometry.multipoint import MultiPoint
@@ -281,6 +282,7 @@ def add_hash_key(
     drop_null_geometry=None,
     allow_duplicates=False,
     precision=0.01,
+    exact_geometry=False,
 ):
     """Add new column to input dataframe, containing hash of the provided fields.
 
@@ -303,8 +305,15 @@ def add_hash_key(
     the geometry column) - a duplicate hash always raises there, since geometry
     alone can't reliably pair records between datasets when more than one
     shares a location.
+
+    By default a hashed geometry is first normalized and snapped to precision,
+    so equivalent geometries hash identically. If exact_geometry, the geometry
+    is hashed exactly as it is (full-precision coordinates, vertex order and
+    Z included) - precision then has no effect, and a non-default value raises.
     """
     pandas.options.mode.chained_assignment = None
+
+    _check_exact_geometry_precision(exact_geometry, precision)
 
     # validate precision
     if precision not in fcd.valid_precisions:
@@ -362,7 +371,7 @@ def add_hash_key(
         # If using default precision of 1cm on data using degrees,
         # presume this is an oversight, warn and adjust.
         # (if non-default precision is provided, presume that the user is right)
-        if df.geometry.crs.is_geographic and precision == 0.01:
+        if not exact_geometry and df.geometry.crs.is_geographic and precision == 0.01:
             LOG.warning(
                 "Data is projected in degrees, default precision of 0.01m specified. "
                 "Adjusting to .0000001 degrees"
@@ -397,11 +406,19 @@ def add_hash_key(
                     "them on their other fields alone"
                 )
 
-        # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
         df = df.copy()  # copy so the original df does not get the new column
-        df["_geometry_normalized_"] = (
-            df[geom_field].normalize().set_precision(precision, mode="pointwise")
-        )
+        if exact_geometry:
+            # hash the geometry as-is - WKB holds the coordinates exactly (WKT
+            # output is rounded); a null geometry stays null, hashing as "NULL"
+            df["_geometry_normalized_"] = shapely.to_wkb(
+                df[geom_field].values, hex=True
+            )
+        else:
+            # normalize the geometry to ensure consistent comparisons/hashes
+            # on equivalent features
+            df["_geometry_normalized_"] = (
+                df[geom_field].normalize().set_precision(precision, mode="pointwise")
+            )
         hash_fields = [
             "_geometry_normalized_" if f == geom_field else f for f in fields
         ]
@@ -447,6 +464,25 @@ def add_hash_key(
                 "or editing the data"
             )
     return df
+
+
+def _check_exact_geometry_precision(exact_geometry, precision):
+    """Raise if precision is set (non-default) alongside exact_geometry, which
+    compares/hashes geometries without any precision or tolerance."""
+    if exact_geometry and precision != 0.01:
+        raise ValueError(
+            "precision has no effect with exact_geometry (geometries are compared "
+            "exactly) - remove one or the other"
+        )
+
+
+def _exact_geometry_promote_multi(exact_geometry, promote_multi):
+    """promote_multi to use: always False if exact_geometry, since promotion
+    changes geometries before they are compared."""
+    if exact_geometry and promote_multi:
+        LOG.info("exact_geometry: geometries are not promoted to multipart")
+        return False
+    return promote_multi
 
 
 def _validate_and_prepare_diff_inputs(
@@ -678,6 +714,7 @@ def gdf_diff(
     allow_duplicates=False,
     promote_multi=True,
     strict_types=False,
+    exact_geometry=False,
 ):
     """
     Compare two geodataframes and generate a diff.
@@ -708,6 +745,13 @@ def gdf_diff(
     differing width (e.g. Int32 vs Int64) raise rather than being compared as
     their smallest common type.
 
+    By default, geometries are normalized (consistent vertex/ring order) and
+    compared within precision. If exact_geometry, they are compared exactly as
+    they are - type, structure, vertex order and every coordinate (including Z)
+    must be identical. precision then has no effect (a non-default value
+    raises), and promote_multi is disabled. Two missing geometries are always
+    equal.
+
     Output diff is represented by six dataframes:
     - additions (with same schema as dataset b)
     - deletions (with same schema as dataset a)
@@ -721,6 +765,8 @@ def gdf_diff(
     for columns where changes have occurred, values from both sources (a column
     for each source).
     """
+    _check_exact_geometry_precision(exact_geometry, precision)
+    promote_multi = _exact_geometry_promote_multi(exact_geometry, promote_multi)
     (
         df_a,
         df_b,
@@ -827,9 +873,13 @@ def gdf_diff(
         # a record with no geometry in either source is unchanged
         # (geom_equals_exact is False for two missing geometries), while
         # missing -> present or present -> missing is a modification
-        geom_equal = common_a.normalize().geom_equals_exact(
-            common_b.normalize(), precision
-        ) | (common_a.geometry.isna() & common_b.geometry.isna())
+        if exact_geometry:
+            geom_equal = common_a.geom_equals_identical(common_b)
+        else:
+            geom_equal = common_a.normalize().geom_equals_exact(
+                common_b.normalize(), precision
+            )
+        geom_equal = geom_equal | (common_a.geometry.isna() & common_b.geometry.isna())
         modified_geometries = common_mod_geoms[~geom_equal]
 
         # join modified attributes to modified geometries,
@@ -993,6 +1043,7 @@ def _read_and_diff(
     allow_duplicates=False,
     promote_multi=True,
     strict_types=False,
+    exact_geometry=False,
 ):
     """Read both sources, resolve/hash the primary key, and run gdf_diff.
 
@@ -1014,6 +1065,9 @@ def _read_and_diff(
 
     if file_a == "-" and file_b == "-":
         raise ValueError("Only one of file_a/file_b may be read from stdin")
+
+    _check_exact_geometry_precision(exact_geometry, precision)
+    promote_multi = _exact_geometry_promote_multi(exact_geometry, promote_multi)
 
     # load source data (src_a/src_b are shortcuts to source layer paths for logging)
     df_a, src_a = _read_source(file_a, layer_a, "a")
@@ -1111,6 +1165,7 @@ def _read_and_diff(
             precision=precision,
             drop_null_geometry=drop_null_geometry,
             allow_duplicates=allow_duplicates,
+            exact_geometry=exact_geometry,
         )
         LOG.info(f"Adding hashed key to source_{suffix_b} as {hash_key}")
         df_b = fcd.add_hash_key(
@@ -1120,6 +1175,7 @@ def _read_and_diff(
             precision=precision,
             drop_null_geometry=drop_null_geometry,
             allow_duplicates=allow_duplicates,
+            exact_geometry=exact_geometry,
         )
         primary_key = hash_key
         hashed = True
@@ -1137,6 +1193,7 @@ def _read_and_diff(
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
         strict_types=strict_types,
+        exact_geometry=exact_geometry,
     )
 
     return diff, df_a, df_b, primary_key, hashed
@@ -1163,6 +1220,7 @@ def diff_to_json(
     allow_duplicates=False,
     promote_multi=True,
     strict_types=False,
+    exact_geometry=False,
 ):
     """
     Compare two datasets, print a JSON summary to stdout (or write it to
@@ -1178,7 +1236,7 @@ def diff_to_json(
     allow_duplicates is True - otherwise it's always empty (a duplicated
     primary key raises instead), so including it would just be clutter.
 
-    See gdf_diff for promote_multi and strict_types.
+    See gdf_diff for promote_multi, strict_types and exact_geometry.
     """
     result, _, _, resolved_primary_key, _ = _read_and_diff(
         file_a,
@@ -1198,6 +1256,7 @@ def diff_to_json(
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
         strict_types=strict_types,
+        exact_geometry=exact_geometry,
     )
     if not allow_duplicates:
         del result["DUPLICATES"]
@@ -1237,6 +1296,7 @@ def diff_to_gdb(
     allow_duplicates=False,
     promote_multi=True,
     strict_types=False,
+    exact_geometry=False,
 ):
     """
     Compare two datasets:
@@ -1255,7 +1315,7 @@ def diff_to_gdb(
            duplicated primary key)
       - write results to .gdb
 
-    See gdf_diff for promote_multi and strict_types.
+    See gdf_diff for promote_multi, strict_types and exact_geometry.
     """
     diff, df_a, df_b, primary_key, hashed = _read_and_diff(
         file_a,
@@ -1275,6 +1335,7 @@ def diff_to_gdb(
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
         strict_types=strict_types,
+        exact_geometry=exact_geometry,
     )
     if hashed:
         dump_inputs = True

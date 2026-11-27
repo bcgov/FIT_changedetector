@@ -1606,3 +1606,109 @@ def test_diff_to_json_and_diff_to_gdb_options_are_keyword_only():
             "tests/data/parks_b.geojson",
             None,  # layer_a, passed positionally - must raise
         )
+
+
+# --- exact_geometry ---------------------------------------------------------
+
+_SQUARE = Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])
+# same square, starting at a different vertex - equal once normalized
+_SQUARE_ROTATED = Polygon([(10, 0), (10, 10), (0, 10), (0, 0), (10, 0)])
+# a shift well within the default 0.01 precision
+_SQUARE_SHIFTED = Polygon([(0, 0), (10, 0.001), (10, 10), (0, 10), (0, 0)])
+
+
+def _exact_pair(geoms_a, geoms_b):
+    ids = list(range(1, len(geoms_a) + 1))
+    return (
+        GeoDataFrame({"id": ids}, geometry=geoms_a, crs="EPSG:3005"),
+        GeoDataFrame({"id": ids}, geometry=geoms_b, crs="EPSG:3005"),
+    )
+
+
+def test_gdf_diff_exact_geometry():
+    """exact_geometry compares geometries as-is: a different start vertex,
+    a shift within precision and a Z change are all MODIFIED_GEOM, while an
+    identical geometry and two missing geometries are UNCHANGED."""
+    df_a, df_b = _exact_pair(
+        [_SQUARE, _SQUARE, _SQUARE, Point(1, 1, 1), None],
+        [_SQUARE, _SQUARE_ROTATED, _SQUARE_SHIFTED, Point(1, 1, 2), None],
+    )
+    default = fcd.gdf_diff(df_a, df_b, "id")
+    assert sorted(default["UNCHANGED"]["id"]) == [1, 2, 3, 4, 5]
+
+    exact = fcd.gdf_diff(df_a, df_b, "id", exact_geometry=True)
+    assert sorted(exact["UNCHANGED"]["id"]) == [1, 5]
+    assert sorted(exact["MODIFIED_GEOM"]["id"]) == [2, 3, 4]
+
+
+def test_gdf_diff_exact_geometry_disables_promote_multi():
+    """Promotion changes geometries before comparing, so exact_geometry turns
+    it off - a feature single-part in one source and multipart in the other
+    is MODIFIED_GEOM."""
+    # fresh pairs per call - a default (promoting) gdf_diff promotes its
+    # inputs in place
+    df_a, df_b = _exact_pair([Point(0, 0)], [MultiPoint([(0, 0)])])
+    assert len(fcd.gdf_diff(df_a, df_b, "id")["UNCHANGED"]) == 1
+    df_a, df_b = _exact_pair([Point(0, 0)], [MultiPoint([(0, 0)])])
+    exact = fcd.gdf_diff(df_a, df_b, "id", exact_geometry=True)
+    assert list(exact["MODIFIED_GEOM"]["id"]) == [1]
+
+
+def test_exact_geometry_with_precision_raises():
+    df_a, df_b = _exact_pair([_SQUARE], [_SQUARE])
+    with pytest.raises(ValueError, match="precision has no effect with exact_geometry"):
+        fcd.gdf_diff(df_a, df_b, "id", exact_geometry=True, precision=0.1)
+    with pytest.raises(ValueError, match="precision has no effect with exact_geometry"):
+        fcd.add_hash_key(df_a, "h", ["geometry"], exact_geometry=True, precision=0.1)
+
+
+def test_add_hash_key_exact_geometry():
+    """exact_geometry hashes full-precision WKB, without normalizing or
+    snapping: geometries equal after normalizing/snapping hash differently,
+    and coordinates WKT would round (0.1 + 0.2) are kept."""
+    df = GeoDataFrame(
+        {"v": ["a", "b", "c", "d"]},
+        geometry=[_SQUARE, _SQUARE_ROTATED, _SQUARE_SHIFTED, Point(0.1 + 0.2, 0)],
+        crs="EPSG:3005",
+    )
+    # by default, the three squares hash identically
+    with pytest.raises(ValueError, match="Duplicate geometries"):
+        fcd.add_hash_key(df, "h", ["geometry"])
+
+    out = fcd.add_hash_key(df, "h", ["geometry"], exact_geometry=True)
+    assert out["h"].nunique() == 4
+    point_wkb = Point(0.1 + 0.2, 0).wkb_hex
+    assert out["h"].iloc[3] == hashlib.sha1(point_wkb.encode("utf-8")).hexdigest()
+
+
+def test_add_hash_key_exact_geometry_null_geometry():
+    """A null geometry still hashes as "NULL" with exact_geometry."""
+    df = GeoDataFrame({"v": ["x", "y"]}, geometry=[Point(0, 0), None], crs=3005)
+    out = fcd.add_hash_key(
+        df, "h", ["v", "geometry"], drop_null_geometry=False, exact_geometry=True
+    )
+    assert out["h"].iloc[1] == hashlib.sha1(b"y|NULL").hexdigest()
+
+
+def test_diff_to_json_exact_geometry_hash_key(tmp_path):
+    """Through the file-based path, with a geometry hash key: an exact-mode
+    change to a geometry changes its hash, so it is DELETED + NEW."""
+    df_a, df_b = _exact_pair([_SQUARE, Point(5, 5)], [_SQUARE_ROTATED, Point(5, 5)])
+    path_a = tmp_path / "a.geojson"
+    path_b = tmp_path / "b.geojson"
+    df_a.to_file(path_a, driver="GeoJSON")
+    df_b.to_file(path_b, driver="GeoJSON")
+    out = tmp_path / "out.json"
+    fcd.diff_to_json(
+        str(path_a),
+        str(path_b),
+        None,
+        None,
+        hash_fields=["geometry"],
+        out_file=str(out),
+        exact_geometry=True,
+    )
+    counts = json.loads(out.read_text())
+    assert counts["UNCHANGED"] == 1
+    assert counts["NEW"] == 1
+    assert counts["DELETED"] == 1

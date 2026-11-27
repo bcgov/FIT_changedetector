@@ -630,3 +630,53 @@ def test_add_hash_key_missing_field_hints_geometry_name(tmp_path):
 #        ],
 #    )
 #    # assert result.exit_code == 0
+
+
+def test_diff_exact_geometry_with_precision_rejected():
+    """--precision has no effect with --exact-geometry, so is rejected - even
+    when given its default value."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            "-pk",
+            "id",
+            "--exact-geometry",
+            "--precision",
+            "0.01",
+        ],
+    )
+    assert result.exit_code != 0
+    assert "--precision cannot be combined with --exact-geometry" in result.output
+
+
+def test_diff_exact_geometry(tmp_path):
+    """--exact-geometry reports a geometry with a different start vertex as
+    MODIFIED_GEOM (unchanged by default)."""
+    from shapely.geometry import Polygon
+
+    a = GeoDataFrame(
+        {"id": [1]},
+        geometry=[Polygon([(0, 0), (10, 0), (10, 10), (0, 10), (0, 0)])],
+        crs="EPSG:3005",
+    )
+    b = GeoDataFrame(
+        {"id": [1]},
+        geometry=[Polygon([(10, 0), (10, 10), (0, 10), (0, 0), (10, 0)])],
+        crs="EPSG:3005",
+    )
+    path_a = tmp_path / "a.geojson"
+    path_b = tmp_path / "b.geojson"
+    a.to_file(path_a, driver="GeoJSON")
+    b.to_file(path_b, driver="GeoJSON")
+    runner = CliRunner()
+    args = ["diff", str(path_a), str(path_b), "-pk", "id", "--count"]
+    default = runner.invoke(cli, args)
+    assert default.exit_code == 0, default.output
+    assert json.loads(default.output)["UNCHANGED"] == 1
+    exact = runner.invoke(cli, args + ["--exact-geometry"])
+    assert exact.exit_code == 0, exact.output
+    assert json.loads(exact.output)["MODIFIED_GEOM"] == 1
