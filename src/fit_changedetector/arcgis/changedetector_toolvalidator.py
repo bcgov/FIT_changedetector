@@ -88,22 +88,13 @@ class ToolValidator:
         else:
             self.params[3].enabled = 1
 
-        # if coordinate precision is not supplied, set default based on spatial reference
-        if self.params[7].value is None:
-            sr = arcpy.Describe(self.params[0].value).spatialReference
-            if (
-                sr.type.lower() == "geographic"
-                and sr.angularUnitName.lower() == "degree"
-            ):
-                self.params[7].value = 0.00001
-            elif (
-                sr.type.lower() == "projected" and sr.linearUnitName.lower() == "meter"
-            ):
-                self.params[7].value = 1
-            else:
-                arcpy.AddError(
-                    "Incompatible spatial reference units, must be degree or meter"
-                )
+        # if coordinate precision is not supplied, set default based on spatial
+        # reference (once there is a source to describe). Unsupported units leave
+        # it blank - flagged in updateMessages
+        if self.params[7].value is None and self.params[0].value is not None:
+            precision = self._default_precision()
+            if precision is not None:
+                self.params[7].value = precision
 
         # populate possible field names to pk/include/exclude/hash field parameters,
         # including fields common to both sources and not in the ignore list
@@ -145,9 +136,30 @@ class ToolValidator:
             self.params[5].filter.list = fieldlist
             self.params[6].filter.list = fieldlist
 
+    def _default_precision(self):
+        """Default Coordinate Precision for Original Feature Class's spatial
+        reference - about 1m in either case - or None if its units are not
+        supported (only degrees and metres are)."""
+        sr = arcpy.Describe(self.params[0].value).spatialReference
+        if sr.type.lower() == "geographic" and sr.angularUnitName.lower() == "degree":
+            return 0.00001
+        if sr.type.lower() == "projected" and sr.linearUnitName.lower() == "meter":
+            return 1
+        return None
+
     def updateMessages(self):
         # Modify the messages created by internal validation for each tool
         # parameter. This method is called after internal validation.
+
+        # updateParameters leaves Coordinate Precision blank if the source's
+        # spatial reference units are unsupported - flag it here (messages set
+        # in updateParameters are not shown, they are replaced by internal
+        # validation)
+        if self.params[0].value is not None and self.params[7].value is None:
+            self.params[7].setErrorMessage(
+                "Incompatible spatial reference units, must be degree or meter - "
+                "or set Coordinate Precision explicitly, in the data's units."
+            )
 
         # records are matched either by Primary Key, or by a hash key generated
         # from Fields to Include in Hash - so one of the two is required. Flag

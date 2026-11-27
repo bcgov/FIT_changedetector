@@ -135,6 +135,8 @@ Parameters 0-12 are identical for both tools. Each tool then adds its own tail, 
 
 Note that unlike the CLI, the ArcGIS tools provide no `--crs` parameter (for overriding the coordinate reference system used when hashing geometries).
 
+The ArcGIS tools' default coordinate precision also differs from the CLI's. Left blank, the tool sets it from Original Feature Class's spatial reference: `1` for data in metres, or `0.00001` for data in degrees - both roughly 1m (0.00001° is about 1.1m of latitude, and 0.56-0.73m of longitude across BC). The CLI defaults to `0.01` (1cm) - adjusted to `0.0000001` (about 1cm) for data in degrees. So by default, a geometry change smaller than about 1m is reported by the CLI but UNCHANGED in ArcGIS - set Coordinate Precision explicitly to match the CLI.
+
 The file geodatabase written by `changedetector_diff2gdb.py` stores 64-bit integer fields as Big Integer, rather than as floating point (Double), which cannot exactly represent every large value - eg a large id. Big Integer fields require ArcGIS Pro 3.2 or later.
 
 ## Tool metadata
@@ -157,7 +159,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Fields to Include in Hash** - The complete list of fields to fold into the generated hash key. Required when no primary key is supplied; cleared and hidden when one is. Include the geometry field (Shape) in this list to match records by geometry - omit it to hash on attributes only.
 - **Fields to Compare** - Fields to compare for attribute changes; do not include the primary key. If left blank, all fields common to both datasets are compared.
 - **Fields to Ignore** - Fields to exclude from the attribute comparison.
-- **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries. Default: `0.01`.
+- **Coordinate Precision** - Coordinate precision used when hashing and comparing geometries, in the data's units. If left blank, set from Original Feature Class's spatial reference: `1` (metres) or `0.00001` (degrees) - both roughly 1m.
 - **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`. Hidden when a primary key is supplied.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.

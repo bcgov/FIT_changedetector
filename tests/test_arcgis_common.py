@@ -283,3 +283,59 @@ def test_validator_key_requirement_not_flagged_before_sources_chosen():
     validator.updateMessages()
     validator.params[3].setErrorMessage.assert_not_called()
     validator.params[4].setErrorMessage.assert_not_called()
+
+
+def _spatial_reference(type_, angular="", linear=""):
+    sr = MagicMock(type=type_, angularUnitName=angular, linearUnitName=linear)
+    return MagicMock(spatialReference=sr)
+
+
+def test_validator_precision_not_defaulted_before_source_chosen(monkeypatch):
+    """A freshly opened tool has no Original Feature Class to describe - the
+    precision default must wait for one rather than calling Describe(None)."""
+    describe = MagicMock()
+    monkeypatch.setattr(sys.modules["arcpy"], "Describe", describe)
+    validator = _validator()
+    validator.updateParameters()
+    validator.updateMessages()
+    describe.assert_not_called()
+    assert validator.params[7].value is None
+    validator.params[7].setErrorMessage.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("sr", "expected"),
+    [
+        (_spatial_reference("Projected", linear="Meter"), 1),
+        (_spatial_reference("Geographic", angular="Degree"), 0.00001),
+    ],
+)
+def test_validator_precision_default_from_spatial_reference(monkeypatch, sr, expected):
+    monkeypatch.setattr(sys.modules["arcpy"], "Describe", MagicMock(return_value=sr))
+    validator = _validator(p0="a.gdb/fc")
+    validator.updateParameters()
+    validator.updateMessages()
+    assert validator.params[7].value == expected
+    validator.params[7].setErrorMessage.assert_not_called()
+
+
+def test_validator_precision_unsupported_units_flagged(monkeypatch):
+    """Unsupported units are flagged on the parameter itself, in updateMessages
+    (arcpy.AddError in a validator is not shown to the user)."""
+    sr = _spatial_reference("Projected", linear="Foot_US")
+    monkeypatch.setattr(sys.modules["arcpy"], "Describe", MagicMock(return_value=sr))
+    validator = _validator(p0="a.gdb/fc")
+    validator.updateParameters()
+    validator.updateMessages()
+    assert validator.params[7].value is None
+    validator.params[7].setErrorMessage.assert_called_once()
+
+
+def test_validator_explicit_precision_with_unsupported_units_not_flagged(monkeypatch):
+    sr = _spatial_reference("Projected", linear="Foot_US")
+    monkeypatch.setattr(sys.modules["arcpy"], "Describe", MagicMock(return_value=sr))
+    validator = _validator(p0="a.gdb/fc", p7=0.1)
+    validator.updateParameters()
+    validator.updateMessages()
+    assert validator.params[7].value == 0.1
+    validator.params[7].setErrorMessage.assert_not_called()
