@@ -89,7 +89,10 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -nln, --out-layer TEXT    Output layer name
       -hk, --hash-key TEXT      Name of new column containing hashed data
       -d, --drop-null-geometry  Drop records with null geometry. Only valid when the
-                                geometry field is included in --hash-fields
+                                geometry field is included in --hash-fields. Without
+                                it, records with null geometry are hashed on their
+                                other --hash-fields alone (an error if geometry is
+                                the only hash field)
       -hf, --hash-fields TEXT   Comma separated list of fields to hash. Include the
                                 geometry field's name (typically 'geometry') to
                                 include geometry in the hash  [required]
@@ -138,10 +141,12 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
       -d, --drop-null-geometry   Drop records with null geometry. Only valid when
-                                 the geometry field is included in --hash-fields -
-                                 has no effect (and is rejected) when --primary-key
-                                 is supplied, since no hash key is generated in that
-                                 case
+                                 the geometry field is included in --hash-fields.
+                                 Without it, records with null geometry are hashed
+                                 on their other --hash-fields alone (an error if
+                                 geometry is the only hash field). Has no effect
+                                 (and is rejected) when --primary-key is supplied,
+                                 since no hash key is generated in that case
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,
@@ -204,10 +209,12 @@ For example, these are some "modified attributes" records, with "_a" suffix for 
       -b, --suffix-b TEXT        Suffix to append to column names from data source B
                                  when comparing attributes
       -d, --drop-null-geometry   Drop records with null geometry. Only valid when
-                                 the geometry field is included in --hash-fields -
-                                 has no effect (and is rejected) when --primary-key
-                                 is supplied, since no hash key is generated in that
-                                 case
+                                 the geometry field is included in --hash-fields.
+                                 Without it, records with null geometry are hashed
+                                 on their other --hash-fields alone (an error if
+                                 geometry is the only hash field). Has no effect
+                                 (and is rejected) when --primary-key is supplied,
+                                 since no hash key is generated in that case
       --crs TEXT                 Coordinate reference system to use when hashing
                                  geometries (eg EPSG:3005)
       --allow-duplicates         Do not fail on a duplicated primary key - instead,

@@ -161,7 +161,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Hash Key** - Name of the column used to hold the generated hash key, when no primary key is supplied. Default: `fcd_hash_id`. Hidden when a primary key is supplied.
 - **Suffix - Original** - Suffix appended to column names from Original Feature Class when reporting attribute differences. Default: `original`.
 - **Suffix - New** - Suffix appended to column names from New Feature Class when reporting attribute differences. Default: `new`.
-- **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**. Cleared and hidden when a primary key is supplied.
+- **Drop Null Geometry** - Drop records with null geometry before comparing. Only valid when the geometry field is included in **Fields to Include in Hash**. Left unchecked, records with null geometry are kept and matched on their other hash fields alone - an error if the geometry field is the only hash field. Cleared and hidden when a primary key is supplied.
 - **Allow Duplicate Primary Keys** - Do not fail on a duplicated primary key - instead, keep the first occurrence of each duplicated key (per source) and report the dropped records under a Duplicates category. Not applied when matching by geometry alone (no primary key or hash fields) - a duplicate there always fails, since geometry alone can't reliably pair records when more than one shares a location.
 - **Output File Name** - Optional. Names the output JSON file and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.

@@ -124,6 +124,89 @@ def test_add_hash_key_drop_null_geometry_without_geometry_field_raises():
         fcd.add_hash_key(df, "test_hash", fields=["park_name"], drop_null_geometry=True)
 
 
+def test_add_hash_key_null_geometry_not_dropped_hashed_as_null():
+    """With drop_null_geometry=False, a null geometry is hashed as "NULL" (as
+    a null attribute is), keying the record on its other hashed fields - see
+    https://github.com/bcgov/FIT_changedetector/issues/141."""
+    df = GeoDataFrame({"v": ["x", "y"]}, geometry=[Point(0, 0), None], crs=3005)
+    out = fcd.add_hash_key(df, "h", ["v", "geometry"], drop_null_geometry=False)
+    assert len(out) == 2
+    assert out["h"].iloc[1] == hashlib.sha1(b"y|NULL").hexdigest()
+    assert out["h"].iloc[0] == hashlib.sha1(b"x|POINT (0 0)").hexdigest()
+
+
+def test_add_hash_key_null_geometry_default_dropped():
+    """drop_null_geometry defaults to True when geometry is hashed."""
+    df = GeoDataFrame({"v": ["x", "y"]}, geometry=[Point(0, 0), None], crs=3005)
+    out = fcd.add_hash_key(df, "h", ["v", "geometry"])
+    assert list(out["v"]) == ["x"]
+
+
+def test_add_hash_key_null_geometry_shared_attributes_are_duplicates():
+    """Two null-geometry records sharing all other hashed fields get the same
+    hash - the existing duplicate case."""
+    df = GeoDataFrame(
+        {"v": ["x", "y", "y"]}, geometry=[Point(0, 0), None, None], crs=3005
+    )
+    with pytest.raises(ValueError, match="Duplicate values for output hash"):
+        fcd.add_hash_key(df, "h", ["v", "geometry"], drop_null_geometry=False)
+    out = fcd.add_hash_key(
+        df, "h", ["v", "geometry"], drop_null_geometry=False, allow_duplicates=True
+    )
+    assert out["h"].iloc[1] == out["h"].iloc[2]
+
+
+def test_add_hash_key_null_geometry_geometry_only_raises():
+    """A geometry-only hash has nothing to key a null geometry on."""
+    df = GeoDataFrame({"v": ["x", "y"]}, geometry=[Point(0, 0), None], crs=3005)
+    with pytest.raises(
+        ValueError, match="Cannot hash null geometries on geometry alone"
+    ):
+        fcd.add_hash_key(df, "h", ["geometry"], drop_null_geometry=False)
+
+
+def test_gdf_diff_null_geometry_in_both_unchanged():
+    """A record with no geometry in either source, and no attribute change,
+    is UNCHANGED - see https://github.com/bcgov/FIT_changedetector/issues/140.
+    Missing -> present still counts as a geometry change."""
+    df_a = GeoDataFrame(
+        {"id": [1, 2, 3, 4], "v": ["x", "y", "z", "w"]},
+        geometry=[Point(0, 0), None, None, Point(1, 1)],
+        crs=3005,
+    )
+    df_b = GeoDataFrame(
+        {"id": [1, 2, 3, 4], "v": ["x", "y", "q", "w"]},
+        geometry=[Point(0, 0), None, Point(5, 5), None],
+        crs=3005,
+    )
+    diff = fcd.gdf_diff(df_a, df_b, "id")
+    assert sorted(diff["UNCHANGED"]["id"]) == [1, 2]
+    assert list(diff["MODIFIED_BOTH"]["id"]) == [3]
+    assert list(diff["MODIFIED_GEOM"]["id"]) == [4]
+    assert len(diff["MODIFIED_ATTR"]) == 0
+
+
+def test_gdf_diff_hash_key_null_geometry_kept():
+    """Records without geometry are tracked through a hash-keyed diff when
+    drop_null_geometry=False: unchanged if their hashed attributes are
+    unchanged, otherwise (a different hash) deleted + new."""
+    df_a = GeoDataFrame(
+        {"v": ["x", "y", "z"]}, geometry=[Point(0, 0), None, None], crs=3005
+    )
+    df_b = GeoDataFrame(
+        {"v": ["x", "y", "q"]}, geometry=[Point(0, 0), None, None], crs=3005
+    )
+    fields = ["v", "geometry"]
+    df_a = fcd.add_hash_key(df_a, "h", fields, drop_null_geometry=False)
+    df_b = fcd.add_hash_key(df_b, "h", fields, drop_null_geometry=False)
+    diff = fcd.gdf_diff(df_a, df_b, "h")
+    assert sorted(diff["UNCHANGED"]["v"]) == ["x", "y"]
+    assert list(diff["DELETED"]["v"]) == ["z"]
+    assert list(diff["NEW"]["v"]) == ["q"]
+    for k in ["MODIFIED_ATTR", "MODIFIED_GEOM", "MODIFIED_BOTH"]:
+        assert len(diff[k]) == 0
+
+
 def test_add_hash_key_missing_field_hints_geometry_name():
     """A misnamed field (eg "Shape"/"SHAPE" from ArcGIS habit, when this
     source's geometry column is actually named something else) raises with a
@@ -1242,7 +1325,7 @@ def test_read_and_diff_id_field_kept_as_explicit_primary_key(tmp_path):
 
 def test_diff_to_gdb_no_primary_key_null_geometry(tmp_path):
     """When no primary key is supplied, diff_to_gdb hashes on geometry to link
-    records - a null geometry cannot be hashed, so with the default
+    records - a null geometry cannot be hashed on geometry alone, so with the default
     drop_null_geometry=True it must be dropped (with a warning) rather than
     raising, and simply excluded from the diff entirely (not reported under
     any category, in either source).
@@ -1290,9 +1373,9 @@ def test_diff_to_gdb_no_primary_key_null_geometry(tmp_path):
 
 
 def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
-    """With drop_null_geometry=False, a null geometry in either source cannot
-    be hashed and must raise rather than being silently dropped or crashing
-    on a downstream operation.
+    """With drop_null_geometry=False and a geometry-only hash, a null geometry
+    in either source has nothing to be keyed on and must raise rather than
+    being silently dropped or crashing on a downstream operation.
     """
     df_a = GeoDataFrame({"id": [1, 2]}, geometry=[Point(0, 0), None], crs="EPSG:3005")
     df_b = GeoDataFrame(
@@ -1303,7 +1386,9 @@ def test_diff_to_gdb_no_primary_key_null_geometry_not_dropped_raises(tmp_path):
     df_a.to_file(path_a, driver="GeoJSON")
     df_b.to_file(path_b, driver="GeoJSON")
 
-    with pytest.raises(ValueError, match="Cannot reliably hash null geometries"):
+    with pytest.raises(
+        ValueError, match="Cannot hash null geometries on geometry alone"
+    ):
         fcd.diff_to_gdb(
             str(path_a),
             str(path_b),
