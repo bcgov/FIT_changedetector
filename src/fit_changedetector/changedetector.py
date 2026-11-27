@@ -276,6 +276,22 @@ def _prepare_sources(
     return df_a, df_b
 
 
+def _resolve_precision(crs, precision):
+    """Precision to use for data in *crs*.
+
+    The default precision (0.01) is meant as 1cm - on data in degrees it would
+    be ~1km, so presume that is an oversight, warn and adjust. A non-default
+    precision is presumed to be what the user intended, and used as-is.
+    """
+    if crs is not None and crs.is_geographic and precision == 0.01:
+        LOG.warning(
+            "Data is projected in degrees, default precision of 0.01m specified. "
+            "Adjusting to .0000001 degrees"
+        )
+        return 0.0000001
+    return precision
+
+
 def add_hash_key(
     df,
     new_field,
@@ -306,8 +322,6 @@ def add_hash_key(
     alone can't reliably pair records between datasets when more than one
     shares a location.
     """
-    pandas.options.mode.chained_assignment = None
-
     # validate precision
     if precision not in fcd.valid_precisions:
         raise ValueError(
@@ -361,15 +375,14 @@ def add_hash_key(
 
     # if hashing the geometry, handle nulls and standardize ring order/precision
     if hash_geometry:
-        # If using default precision of 1cm on data using degrees,
-        # presume this is an oversight, warn and adjust.
-        # (if non-default precision is provided, presume that the user is right)
-        if df.geometry.crs.is_geographic and precision == 0.01:
-            LOG.warning(
-                "Data is projected in degrees, default precision of 0.01m specified. "
-                "Adjusting to .0000001 degrees"
+        # precision is in the data's units, so hashing geometry without a CRS
+        # would snap coordinates to a grid of unknown size
+        if df.geometry.crs is None:
+            raise ValueError(
+                "Cannot hash on geometry, source has no coordinate reference system - "
+                "define one for the source data"
             )
-            precision = 0.0000001
+        precision = _resolve_precision(df.geometry.crs, precision)
 
         if drop_null_geometry is None:
             drop_null_geometry = True
@@ -570,7 +583,7 @@ def _validate_and_prepare_diff_inputs(
 
     # if provided a list of fields to work with, validate that list
     if fields:
-        fields = list(set(fields + [primary_key, "geometry"]))
+        fields = list(set(fields + [primary_key] + (["geometry"] if spatial else [])))
         if len(set(fields).intersection(fields_common)) != len(fields):
             raise ValueError("Provided fields are not common to both datasets")
     else:
@@ -743,6 +756,11 @@ def gdf_diff(
         promote_multi,
         strict_types,
     )
+    # adjust the default precision for data in degrees, as add_hash_key does
+    # (df_a and df_b share a CRS - checked above)
+    if spatial:
+        precision = _resolve_precision(df_a.crs, precision)
+
     duplicates_a["_fcd_source_"] = suffix_a
     duplicates_b["_fcd_source_"] = suffix_b
     if spatial:
@@ -886,10 +904,14 @@ def gdf_diff(
     else:
         m_attributes = modified_attributes.reset_index(drop=False)
         # no spatial changes, return empty geodataframes for geometry diffs
+        # (with the primary key column, as every other output has - diff_to_json
+        # lists keys from each output)
         m_attributes_geometries = geopandas.GeoDataFrame(
-            columns=["geometry"], geometry="geometry"
+            columns=[primary_key, "geometry"], geometry="geometry"
         )
-        m_geometries = geopandas.GeoDataFrame(columns=["geometry"], geometry="geometry")
+        m_geometries = geopandas.GeoDataFrame(
+            columns=[primary_key, "geometry"], geometry="geometry"
+        )
 
     # generate unchanged dataframe
     # (there is probably a more concise method to do this)
@@ -1259,6 +1281,17 @@ def diff_to_gdb(
 
     See gdf_diff for promote_multi and strict_types.
     """
+    # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
+    if not out_file:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
+        out_file = f"changedetector_{timestamp}.gdb"
+
+    # an existing output is removed before writing (see below) - so require a
+    # .gdb path, rather than risk removing some other file or directory.
+    # Checked up front, before the (possibly slow) comparison
+    if not str(out_file).lower().rstrip("/\\").endswith(".gdb"):
+        raise ValueError(f"Output file {out_file} must have a .gdb extension")
+
     diff, df_a, df_b, primary_key, hashed = _read_and_diff(
         file_a,
         file_b,
@@ -1299,17 +1332,16 @@ def diff_to_gdb(
         if _has_mixed_single_multipart(types):
             write_opts["promote_to_multi"] = True
 
-    # default output is changedetector_YYYYMMDD_HHMM.gdb (local time, human readable)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M")  # noqa: DTZ005
-    if not out_file:
-        out_file = f"changedetector_{timestamp}.gdb"
-
     # write output data
     mode = "w"  # for writing the first non-empty layer, subsequent writes are appends
 
+    # remove any existing output, even if this run writes nothing - a stale .gdb
+    # left at the requested path could be mistaken for this run's results
+    removed_existing = False
     if os.path.exists(out_file):
-        LOG.warning(f"{out_file} exists in - overwriting")
+        LOG.warning(f"{out_file} exists - overwriting")
         shutil.rmtree(out_file)
+        removed_existing = True
 
     # squelch pyogrio INFO logs
     logging.getLogger("pyogrio._io").setLevel(logging.WARNING)
@@ -1339,6 +1371,12 @@ def diff_to_gdb(
                 out_file, driver="OpenFileGDB", layer=key, mode=mode, **write_opts
             )
             mode = "a"
+
+    if mode == "w":
+        removed = (
+            f" (removed previous output at {out_file})" if removed_existing else ""
+        )
+        LOG.warning(f"No changes found - no output written{removed}")
 
     # re-write source datasets if new pk generated (and some kind of output generated)
     if dump_inputs and mode == "a":

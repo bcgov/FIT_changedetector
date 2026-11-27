@@ -630,3 +630,33 @@ def test_add_hash_key_missing_field_hints_geometry_name(tmp_path):
 #        ],
 #    )
 #    # assert result.exit_code == 0
+
+
+def test_diff_non_spatial_keys():
+    # non-spatial sources: key lists include the (always empty) geometry
+    # categories, which must still carry the primary key column
+    runner = CliRunner()
+    result = runner.invoke(
+        cli, ["diff", "tests/data/pets_1.csv", "tests/data/pets_2.csv", "-pk", "id"]
+    )
+    assert result.exit_code == 0, result.output
+    summary = json.loads(result.output)
+    assert summary["keys"]["MODIFIED_GEOM"] == []
+    assert summary["keys"]["MODIFIED_BOTH"] == []
+
+
+def test_diff_non_spatial_with_fields():
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "diff",
+            "tests/data/pets_1.csv",
+            "tests/data/pets_2.csv",
+            "-pk",
+            "id",
+            "-f",
+            "name",
+        ],
+    )
+    assert result.exit_code == 0, result.output

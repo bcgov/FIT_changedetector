@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 
 import geopandas
 import numpy
@@ -1621,3 +1622,86 @@ def test_diff_to_json_and_diff_to_gdb_options_are_keyword_only():
             "tests/data/parks_b.geojson",
             None,  # layer_a, passed positionally - must raise
         )
+
+
+def test_add_hash_key_geometry_without_crs_raises(gdf):
+    # precision is in the data's units - with no CRS those are unknown
+    assert gdf.crs is None
+    with pytest.raises(ValueError, match="no coordinate reference system"):
+        fcd.add_hash_key(gdf, "test_hash", fields=["geometry"])
+
+
+def test_add_hash_key_attributes_only_without_crs(gdf):
+    # a CRS is only required when hashing on geometry
+    df = fcd.add_hash_key(gdf, "test_hash", fields=["col2"])
+    assert df["test_hash"].is_unique
+
+
+def test_gdf_diff_geographic_default_precision_adjusted(caplog):
+    # default 0.01 precision on data in degrees is ~1km - adjusted, as for
+    # add_hash_key, so a ~500m move is detected
+    df_a = GeoDataFrame({"id": [1]}, geometry=[Point(-123, 49)], crs="EPSG:4326")
+    df_b = GeoDataFrame({"id": [1]}, geometry=[Point(-123.005, 49)], crs="EPSG:4326")
+    d = fcd.gdf_diff(df_a, df_b, "id")
+    assert len(d["MODIFIED_GEOM"]) == 1
+    assert len(d["UNCHANGED"]) == 0
+    assert "Adjusting to .0000001 degrees" in caplog.text
+
+
+def test_gdf_diff_geographic_explicit_precision_used_as_is():
+    df_a = GeoDataFrame({"id": [1]}, geometry=[Point(-123, 49)], crs="EPSG:4326")
+    df_b = GeoDataFrame({"id": [1]}, geometry=[Point(-123.005, 49)], crs="EPSG:4326")
+    d = fcd.gdf_diff(df_a, df_b, "id", precision=0.1)
+    assert len(d["UNCHANGED"]) == 1
+
+
+def test_gdf_diff_non_spatial_with_fields():
+    df_a = pandas.DataFrame({"id": [1, 2], "x": ["a", "b"], "y": [1, 2]})
+    df_b = pandas.DataFrame({"id": [1, 2], "x": ["a", "c"], "y": [9, 2]})
+    d = fcd.gdf_diff(df_a, df_b, "id", fields=["x"])
+    assert d["MODIFIED_ATTR"]["id"].tolist() == [2]
+    assert len(d["UNCHANGED"]) == 1
+
+
+def test_diff_to_gdb_rejects_non_gdb_out_file(tmp_path):
+    # an existing output is removed before writing - never remove something
+    # that isn't a .gdb
+    out = tmp_path / "data"
+    out.mkdir()
+    (out / "keep.txt").write_text("keep")
+    with pytest.raises(ValueError, match="must have a .gdb extension"):
+        fcd.diff_to_gdb(
+            "tests/data/parks_a.geojson",
+            "tests/data/parks_b.geojson",
+            None,
+            None,
+            str(out),
+            primary_key="id",
+        )
+    assert (out / "keep.txt").exists()
+
+
+def test_diff_to_gdb_no_changes_removes_previous_output(tmp_path, caplog):
+    out = str(tmp_path / "out.gdb")
+    fcd.diff_to_gdb(
+        "tests/data/parks_a.geojson",
+        "tests/data/parks_b.geojson",
+        None,
+        None,
+        out,
+        primary_key="id",
+    )
+    assert os.path.exists(out)
+    # identical sources: nothing to write, and the previous (now stale)
+    # output is removed rather than left looking like this run's result
+    fcd.diff_to_gdb(
+        "tests/data/parks_a.geojson",
+        "tests/data/parks_a.geojson",
+        None,
+        None,
+        out,
+        primary_key="id",
+    )
+    assert not os.path.exists(out)
+    assert "No changes found - no output written" in caplog.text
+    assert "removed previous output" in caplog.text
