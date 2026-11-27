@@ -11,7 +11,7 @@ Install with pip:
     pip install fit_changedetector
 
 The package also includes ArcGIS Pro script tools, which run from a dedicated Python environment with the package installed (not ArcGIS Pro's own Python).
-See the [ArcGIS README](arcgis/README.md) for setup instructions.
+See [ARCGIS.md](ARCGIS.md) for setup and maintenance instructions.
 
 
 ## Usage
@@ -318,7 +318,7 @@ Uses [uv](https://docs.astral.sh/uv/) for dependency management:
     $ uv sync --extra test
     $ uv run pytest
 
-The ArcGIS script tools live in [`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/). To test changes to them (or to the CLI) in ArcGIS Pro, install the branch into a separate venv and point a test toolbox at it - see [testing against unreleased changes](arcgis/README.md#testing-against-unreleased-fit_changedetector-changes).
+The ArcGIS script tools live in [`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/). To test changes to them (or to the CLI) in ArcGIS Pro, install the branch into a separate venv and point a test toolbox at it - see [testing against unreleased changes](ARCGIS.md#testing-unreleased-changes).
 
 
 ## Releases

@@ -1,50 +1,98 @@
 # ArcGIS Pro script tools
 
-Two script tools wrap the `changedetector` CLI (see the [main README](../README.md) for what the CLI itself does):
+Two script tools wrap the `changedetector` CLI (see the [README](README.md) for what the CLI itself does):
 
 - `changedetector_diff2json.py` - wraps `diff`, prints a JSON summary
 - `changedetector_diff2gdb.py` - wraps `diff2gdb`, writes results to a .gdb
 
-Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them. All of these scripts, plus `changedetector_toolvalidator.py`, ship inside the `fit_changedetector` package itself ([`src/fit_changedetector/arcgis/`](../src/fit_changedetector/arcgis/)). Each tool's Script File points at the copy installed in a dedicated Python environment (venv), and the tool runs the CLI as a subprocess using that same venv's Python - never inside ArcGIS Pro's own Python. Because the scripts and the CLI are installed together, a tool always runs the CLI version it was written for.
+Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them. All of these scripts, plus `changedetector_toolvalidator.py`, ship inside the `fit_changedetector` package itself ([`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/)). Each tool's Script File points at the copy installed in a dedicated Python environment (venv), and the tool runs the CLI as a subprocess using that same venv's Python - never inside ArcGIS Pro's own Python.
+
+## Locations
+
+| | Path |
+|---|---|
+| Base Python | `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_python\Python_314` |
+| Venv | `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector` |
+
+Users need read access to both. The base Python must stay in place - a venv's `python.exe` is only a launcher for its base install.
+
+Always use the UNC paths above, not a mapped drive letter (`P:` is `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP`). The venv records its base Python's path exactly as it was given when the venv was built, so the venv, its base Python and the tools' Script Files must all use the same form. A venv can't be moved or renamed - if either folder changes, build a new venv.
 
 ## Setup
 
 ### 1. Create the environment
 
-You need a Python install (3.11 or later, separate from ArcGIS Pro's) to base the venv on, and a folder for the venv itself. For a shared deployment both can be on a network drive - users then need read access to both. The base Python doesn't need to be on `PATH`, but it must stay in place: a venv's `python.exe` is only a launcher for its base install.
+At a Windows command prompt:
 
-At a Windows command prompt, with [uv](https://docs.astral.sh/uv/) installed into the base Python (`%PY% -m pip install uv`, once `PY` is set as below):
+    REM point to base python
+    set PY=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_python\Python_314\python.exe
 
-    set PY=<base python folder>\python.exe
-    set VENV=<venv folder>
+    REM point to target virtualenv
+    set VENV=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector
+
+    REM venv is on a network share, so copy files rather than hardlink from uv's local cache
     set UV_LINK_MODE=copy
+
+    REM ensure uv is present, install if not
+    %PY% -m uv --version || %PY% -m pip install uv
+
+    REM create the virtual environment
     %PY% -m uv venv %VENV% --python %PY%
+
+    REM install the change detector package - replace <version> with the release number, e.g. 0.1.0
     %PY% -m uv pip install --python %VENV% fit_changedetector==<version>
 
-`UV_LINK_MODE=copy` avoids a warning when uv's cache and the venv are on different drives. uv is only used to build the environment - the tools themselves never call it. Without uv, the standard library does the same job:
+    REM check that everything worked
+    %VENV%\Scripts\python.exe -m fit_changedetector --version
+
+[uv](https://docs.astral.sh/uv/) is only used to build the environment - the tools themselves never call it. Without uv, the standard library could do the same job:
 
     %PY% -m venv %VENV%
     %VENV%\Scripts\python.exe -m pip install fit_changedetector==<version>
 
-Build the venv using the same path users will reach it by (eg a mapped drive letter, or a UNC path) - the venv records its base Python's location, so rebuild it if either folder moves.
-
 ### 2. Add the tools
 
-1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the installed entry-point script: `<venv folder>\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py` (or `changedetector_diff2gdb.py`). Point at this installed copy, not one copied elsewhere or from a repo checkout - the tool finds its Python by looking upward from the script for the venv, and stops with an error if there isn't one.
-2. Add the tool's parameters, in order, per the table below.
+1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the installed entry-point script:
+
+       \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py
+       \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2gdb.py
+
+   Point at this installed copy - the tool finds its Python by looking upward from the script for the venv, and stops with an error if there isn't one.
+2. Add the tool's parameters, in order, per the [Parameters](#parameters) tables below.
 3. Paste the contents of `changedetector_toolvalidator.py` (in the same installed folder) into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
-4. Repeat for the second tool, if you want both.
+4. Repeat for the second tool.
+5. Restart ArcGIS Pro if a tool in this session had previously run from a different Script File (see [Restarting ArcGIS Pro](#restarting-arcgis-pro)).
 
-## Upgrades
+## Maintenance
 
-Upgrade the package in place, then restart ArcGIS Pro (it caches the imported `changedetector_common.py` for the life of a session):
+### Upgrades
+
+Make sure nobody is running a tool - Windows locks files in use, so an upgrade mid-run can fail partway. Then upgrade the package in place:
 
     %PY% -m uv pip install --python %VENV% fit_changedetector==<new version>
 
-Make sure nobody is running a tool at the time - Windows locks files in use, so an upgrade mid-run can fail partway. The Script File paths don't change, so there's nothing to update in the toolbox for most releases.
+and restart ArcGIS Pro. Always give the exact version (`==<version>`): without it, uv may treat whatever is already installed as good enough and change nothing.
 
-Some releases also change the tools' parameters or validation code, which must be updated by hand in each tool. These release-specific steps are listed in [UPGRADING.md](UPGRADING.md).
+The Script File paths don't change, so there's nothing to update in the toolbox for most releases.
+A release that changes the tools' parameters or validation code should say so in its release notes (with the steps to update each tool by hand).
 
+### Checking the installed version
+
+    %VENV%\Scripts\python.exe -m fit_changedetector --version
+
+### Restarting ArcGIS Pro
+
+Pro caches the imported `changedetector_common.py` for the life of a session, from the location it was first loaded from. After an upgrade, or after changing a tool's Script File, restart Pro before the next run - otherwise the tool keeps running the old copy. If the old copy has since been deleted, the tool fails with `No Python environment found for <old path> ... (no pyvenv.cfg in any parent folder)`.
+
+### Testing unreleased changes
+
+Install the version to test into a separate venv (eg `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector_test`), and point a separate test toolbox's Script Files at that venv's installed scripts:
+
+    set TESTVENV=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector_test
+    %PY% -m uv venv %TESTVENV% --python %PY%
+    %PY% -m uv pip install --python %TESTVENV% git+https://github.com/bcgov/FIT_changedetector.git@main
+
+A branch name, tag or commit works after the `@`; installing from a git ref needs `git` available on the machine - otherwise install a built wheel instead. To pick up new commits, re-run the install with `--reinstall` and restart ArcGIS Pro.
 
 ## Parameters
 
@@ -135,18 +183,3 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Output File Name** - Optional. Names the output `.gdb` and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
 - **Output File** *(Derived)* - Path of the file geodatabase written by this run.
-
-## Versioning
-
-The scripts ship in the same package as the CLI, so the version a tool runs is whatever is installed in its venv - there's no separate pin to keep in sync. To check it:
-
-    %VENV%\Scripts\python.exe -m fit_changedetector --version
-
-### Testing against unreleased fit_changedetector changes
-
-Install the version to test into a separate venv, and point a separate test toolbox's Script Files at that venv's installed scripts:
-
-    %PY% -m uv venv <test venv folder> --python %PY%
-    %PY% -m uv pip install --python <test venv folder> git+https://github.com/bcgov/FIT_changedetector.git@main
-
-A branch name, tag or commit works after the `@`; installing from a git ref needs `git` available on the machine - otherwise install a built wheel or a local checkout path instead. To pick up new commits, re-run the install with `--reinstall` and restart ArcGIS Pro.
