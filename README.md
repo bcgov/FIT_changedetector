@@ -10,8 +10,8 @@ Install with pip:
 
     pip install fit_changedetector
 
-To use the scripts on ArcGIS Pro systems, installation is not required but `uv` must be available at the Windows command prompt.
-See the [`arcgis/`](arcgis/) folder, and its [README](arcgis/README.md), for the scripts and setup instructions.
+The package also includes ArcGIS Pro script tools, which run from a dedicated Python environment with the package installed (not ArcGIS Pro's own Python).
+See [ARCGIS.md](ARCGIS.md) for setup and maintenance instructions.
 
 
 ## Usage
@@ -318,16 +318,11 @@ Uses [uv](https://docs.astral.sh/uv/) for dependency management:
     $ uv sync --extra test
     $ uv run pytest
 
-Note that if testing only the ArcGIS scripts, `uv sync` is not necessary:
-
-- clone the repo to get the latest script tool python files (in `/arcgis`)
-- place all the .py files together in the desired folder
-- update corresponding ArcGIS toolbox(es) as needed
-- create a `spec_override.txt` file next to `changedetector_common.py` containing the git ref of this module you'd like to test against - gitignored, so it survives a `git pull` untouched (see the [arcgis readme for an example](arcgis/README.md#testing-against-unreleased-fit_changedetector-changes))
+The ArcGIS script tools live in [`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/). To test changes to them (or to the CLI) in ArcGIS Pro, install the branch into a separate venv and point a test toolbox at it - see [testing against unreleased changes](ARCGIS.md#testing-unreleased-changes).
 
 
 ## Releases
 
 The package version is derived from git tags via [setuptools_scm](https://setuptools-scm.readthedocs.io/) - there's no hardcoded version to bump in source. Between tags, the version is a dev version derived from the most recent tag plus commit count/hash (e.g. `0.1.0a2.dev5+g1234abc`).
 
-To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, creates a GitHub Release, builds/attaches a version-pinned copy of the ArcGIS tools, and bumps `arcgis/changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` to match on `main` - see [arcgis/README.md](arcgis/README.md#releases--versioning).
+To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, and creates a GitHub Release. The ArcGIS script tools ship in the same package, so there's nothing separate to release for them.

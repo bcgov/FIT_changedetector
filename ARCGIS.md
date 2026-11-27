@@ -1,29 +1,98 @@
 # ArcGIS Pro script tools
 
-Two script tools wrap the `changedetector` CLI (see the [main README](../README.md) for what the CLI itself does):
+Two script tools wrap the `changedetector` CLI (see the [README](README.md) for what the CLI itself does):
 
 - `changedetector_diff2json.py` - wraps `diff`, prints a JSON summary
 - `changedetector_diff2gdb.py` - wraps `diff2gdb`, writes results to a .gdb
 
-Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them, and both run the CLI via [`uv`](https://docs.astral.sh/uv/)'s `uvx`, which resolves and caches an isolated `fit_changedetector` environment on demand - no venv, no `pip install`, nothing else to set up.
+Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them. All of these scripts, plus `changedetector_toolvalidator.py`, ship inside the `fit_changedetector` package itself ([`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/)). Each tool's Script File points at the copy installed in a dedicated Python environment (venv), and the tool runs the CLI as a subprocess using that same venv's Python - never inside ArcGIS Pro's own Python.
 
-## Prerequisite
+## Locations
 
-[Install uv](https://docs.astral.sh/uv/getting-started/installation/) on the machine running ArcGIS Pro, so `uv`/`uvx` are available at the command prompt.
+| | Path |
+|---|---|
+| Base Python | `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_python\Python_314` |
+| Venv | `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector` |
+
+Users need read access to both. The base Python must stay in place - a venv's `python.exe` is only a launcher for its base install.
+
+Always use the UNC paths above, not a mapped drive letter (`P:` is `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP`). The venv records its base Python's path exactly as it was given when the venv was built, so the venv, its base Python and the tools' Script Files must all use the same form. A venv can't be moved or renamed - if either folder changes, build a new venv.
 
 ## Setup
 
-1. Download `fit_changedetector-arcgis-tools-<version>.zip` from the [latest release](https://github.com/bcgov/FIT_changedetector/releases/latest) and extract `changedetector_common.py`, `changedetector_diff2json.py`, `changedetector_diff2gdb.py` (and this README) to a target folder - wherever you point the tool's Script File (ArcGIS Pro adds that script's own folder to `sys.path`). See [Releases & versioning](#releases--versioning) below for why this is the recommended source rather than copying the files straight out of the repo.
-2. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the entry-point script (`changedetector_diff2json.py` or `changedetector_diff2gdb.py`).
-3. Add the tool's parameters, in order, per the table below.
-4. Paste `changedetector_toolvalidator.py`'s contents into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
-5. Repeat for the second tool, if you want both.
+### 1. Create the environment
 
-## Upgrades
+At a Windows command prompt:
 
-For releases that change the ArcGIS tools' parameters or validation code, additional manual upgrade steps are required.
-These release specific steps (beyond the usual file swap) are provided in [UPGRADING.md](UPGRADING.md).
+    REM point to base python
+    set PY=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_python\Python_314\python.exe
 
+    REM point to target virtualenv
+    set VENV=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector
+
+    REM venv is on a network share, so copy files rather than hardlink from uv's local cache
+    set UV_LINK_MODE=copy
+
+    REM ensure uv is present, install if not
+    %PY% -m uv --version || %PY% -m pip install uv
+
+    REM create the virtual environment
+    %PY% -m uv venv %VENV% --python %PY%
+
+    REM install the change detector package - replace <version> with the release number, e.g. 0.1.0
+    %PY% -m uv pip install --python %VENV% fit_changedetector==<version>
+
+    REM check that everything worked
+    %VENV%\Scripts\python.exe -m fit_changedetector --version
+
+[uv](https://docs.astral.sh/uv/) is only used to build the environment - the tools themselves never call it. Without uv, the standard library could do the same job:
+
+    %PY% -m venv %VENV%
+    %VENV%\Scripts\python.exe -m pip install fit_changedetector==<version>
+
+### 2. Add the tools
+
+1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the installed entry-point script:
+
+       \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py
+       \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2gdb.py
+
+   Point at this installed copy - the tool finds its Python by looking upward from the script for the venv, and stops with an error if there isn't one.
+2. Add the tool's parameters, in order, per the [Parameters](#parameters) tables below.
+3. Paste the contents of `changedetector_toolvalidator.py` (in the same installed folder) into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
+4. Repeat for the second tool.
+5. Restart ArcGIS Pro if a tool in this session had previously run from a different Script File (see [Restarting ArcGIS Pro](#restarting-arcgis-pro)).
+
+## Maintenance
+
+### Upgrades
+
+Make sure nobody is running a tool - Windows locks files in use, so an upgrade mid-run can fail partway. Then upgrade the package in place:
+
+    %PY% -m uv pip install --python %VENV% fit_changedetector==<new version>
+
+and restart ArcGIS Pro. Always give the exact version (`==<version>`): without it, uv may treat whatever is already installed as good enough and change nothing.
+
+The Script File paths don't change, so there's nothing to update in the toolbox for most releases.
+A release that changes the tools' parameters or validation code should say so in its release notes (with the steps to update each tool by hand).
+
+### Checking the installed version
+
+    %VENV%\Scripts\python.exe -m fit_changedetector --version
+
+### Restarting ArcGIS Pro
+
+Pro caches the imported `changedetector_common.py` for the life of a session, from the location it was first loaded from. After an upgrade, or after changing a tool's Script File, restart Pro before the next run - otherwise the tool keeps running the old copy. If the old copy has since been deleted, the tool fails with `No Python environment found for <old path> ... (no pyvenv.cfg in any parent folder)`.
+
+### Testing unreleased changes
+
+Install the version to test into a separate venv (eg `\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector_test`), and point a separate test toolbox's Script Files at that venv's installed scripts:
+
+    set TESTVENV=\\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector_test
+    %PY% -m uv venv %TESTVENV% --python %PY%
+    %PY% -m uv pip install --python %TESTVENV% git+https://github.com/bcgov/FIT_changedetector.git@main
+
+A branch name, tag or commit works after the `@`; installing from a git ref needs `git` available on the machine - otherwise install a built wheel instead. To pick up new commits, re-run the install with `--reinstall` and restart ArcGIS Pro.
 
 ## Parameters
 
@@ -78,7 +147,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and classifies every record as NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), or MODIFIED_BOTH. Writes a JSON file listing record counts per category, plus the primary key value(s) present in each category except UNCHANGED (a Duplicates category is added if duplicate primary keys are allowed). No spatial output is produced - use "Change Detector - Diff to GDB" instead if you need the actual changed features written out.
 
-**Usage:** Wraps the `changedetector diff` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
+**Usage:** Wraps the `changedetector diff` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
 
 **Syntax:**
 - **Original Feature Class** - The "before" dataset to compare.
@@ -104,7 +173,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and writes the results to a new file geodatabase, one layer per category of change: NEW, DELETED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), MODIFIED_BOTH, and DUPLICATES (if duplicate primary keys are allowed). Optionally also writes copies of the two input layers, with the hash key added, for reference. Use "Change Detector - Diff (JSON Summary)" instead if you just need a quick count/summary without spatial output.
 
-**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Requires `uv` to be installed on this machine - the tool shells out to a `uv`-managed Python environment rather than running inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
+**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
 
 **Syntax:** same as diff2json for the parameters below, plus Dump Input Layers:
 - **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Include in Hash**, **Fields to Compare**, **Fields to Ignore**, **Coordinate Precision**, **Hash Key**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
@@ -114,17 +183,3 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 - **Output File Name** - Optional. Names the output `.gdb` and its log file. Leave blank to auto-generate a timestamped name instead.
 - **Debug Logging** - Enable verbose (DEBUG level) logging.
 - **Output File** *(Derived)* - Path of the file geodatabase written by this run.
-
-## Releases & versioning
-
-Each script tool shells out to a specific, pinned `fit_changedetector` version - `changedetector_common.py`'s `FIT_CHANGEDETECTOR_SPEC` - rather than "whatever's newest," so a tool's behavior can't shift between runs without someone explicitly changing that pin.
-
-Note that the scripts in `arcgis/` as currently committed may be ahead of the pinned spec - `FIT_CHANGEDETECTOR_SPEC` only advances when a release is tagged, so between releases it still points at the last one. Every tagged release (`vX.Y.Z`) automatically builds a correctly-pinned copy and attaches it to the matching [GitHub Release](https://github.com/bcgov/FIT_changedetector/releases) as `fit_changedetector-arcgis-tools-vX.Y.Z.zip` - this is what is deployed to ArcGIS systems as above. That archive's `FIT_CHANGEDETECTOR_SPEC` is generated fresh from the tag at release time, so it's always version-matched to the `fit_changedetector` release published to PyPI in the same run. The release workflow also commits the same bump to `arcgis/changedetector_common.py` on `main` immediately afterward, so neither the archive nor the repo's own copy needs to be kept in sync by hand.
-
-### Testing against unreleased fit_changedetector changes
-
-To test changes that are not on PyPI yet, create a `spec_override.txt` file next to `changedetector_common.py` (gitignored - `git pull` never touches it, nothing to stash or revert) containing a git ref or a local wheel/checkout path instead of a released version (`uvx --from` accepts either):
-
-    git+https://github.com/bcgov/FIT_changedetector.git@main
-
-`get_spec()` reads that file fresh on every run if it exists, falling back to the committed `FIT_CHANGEDETECTOR_SPEC` otherwise - so editing it takes effect on the very next run (no ArcGIS Pro restart needed to pick up a *changed* override). Delete the file to go back to the pinned release default.

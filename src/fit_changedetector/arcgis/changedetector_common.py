@@ -4,11 +4,13 @@ changedetector_diff2json.py).
 Runs under ArcGIS Pro's own Python (which has arcpy but not fit_changedetector
 or its dependencies), so this module is stdlib + arcpy only. It's imported by
 the entry-point scripts as a plain sibling module - ArcGIS Pro adds a script
-tool's own directory to sys.path, so no packaging/installation is needed;
-just keep this file alongside the entry-point script(s) in the toolbox folder.
+tool's own directory to sys.path.
 
-Requires `uv` - script runs the CLI via `uvx` (https://docs.astral.sh/uv/).
-uv resolves/caches an isolated environment for the pinned version on demand.
+These scripts ship inside the fit_changedetector package, and a tool's
+Script File points at the copy installed in a venv's site-packages. The CLI
+then runs as a subprocess using that same venv's Python (see
+find_venv_python()), so the scripts always run the CLI version they were
+installed with.
 """
 
 import logging
@@ -20,33 +22,28 @@ from pathlib import Path
 
 import arcpy
 
-# the uvx --from spec for the fit_changedetector version to run. Pinned to a
-# released version so a run always uses a known, tested version rather than
-# silently picking up whatever's newest on PyPI - bump this with each
-# release. Don't edit this for local testing - see get_spec() below.
-FIT_CHANGEDETECTOR_SPEC = "fit_changedetector==0.1.0a4"
 
-# filename (checked next to this script) that, if present, overrides
-# FIT_CHANGEDETECTOR_SPEC - see get_spec()
-SPEC_OVERRIDE_FILE = "spec_override.txt"
+def find_venv_python():
+    """Path to the Python of the venv this script is installed in, or None.
 
+    Walks up from this file to the first directory holding a pyvenv.cfg (the
+    venv root - eg <venv>/Lib/site-packages/fit_changedetector/arcgis/ ->
+    <venv>), then returns its interpreter: Scripts/python.exe on Windows,
+    bin/python elsewhere. None if this file isn't inside a venv, eg when run
+    straight from a repo checkout.
 
-def get_spec():
-    """FIT_CHANGEDETECTOR_SPEC, unless a local SPEC_OVERRIDE_FILE next to
-    this script overrides it.
-
-    For testing changes not yet on PyPI, create that file (gitignored, so
-    `git pull` never touches it - no need to stash/revert anything)
-    containing a git ref (e.g.
-    "git+https://github.com/bcgov/FIT_changedetector.git@main") or a local
-    wheel/checkout path instead - uvx's --from accepts either. Read fresh
-    on every run, so editing it takes effect on the very next run, no
-    ArcGIS Pro restart needed.
+    Uses abspath rather than resolve(): on Windows resolve() turns a mapped
+    drive path (P:\\...) into its UNC equivalent, and the interpreter should
+    be called by the same path the tool's Script File uses.
     """
-    override_file = Path(__file__).parent / SPEC_OVERRIDE_FILE
-    if override_file.exists():
-        return override_file.read_text().strip()
-    return FIT_CHANGEDETECTOR_SPEC
+    here = Path(os.path.abspath(__file__)).parent
+    for parent in [here, *here.parents]:
+        if (parent / "pyvenv.cfg").is_file():
+            for interpreter in ("Scripts/python.exe", "bin/python"):
+                if (parent / interpreter).is_file():
+                    return parent / interpreter
+            return None
+    return None
 
 
 # use a logger scoped to fit_changedetector.arcgis (not the root logger) so
@@ -242,18 +239,32 @@ def build_verbosity_args(debug):
 
 
 def run_cli(command, cli_args):
-    """Run `uvx --from <spec> changedetector <command> <cli_args>`, where
-    <spec> is get_spec() (FIT_CHANGEDETECTOR_SPEC, or a local override).
+    """Run `<venv python> -m fit_changedetector <command> <cli_args>`, using
+    the Python of the venv this script is installed in (find_venv_python()).
 
     Streams subprocess output through LOG (arcpy messages + file log) and
     raises arcpy.ExecuteError with the real failure detail on a non-zero exit.
     """
+    python = find_venv_python()
+    if python is None:
+        arcpy.AddError(
+            f"No Python environment found for {Path(__file__).parent} (no "
+            "pyvenv.cfg in any parent folder). Set the tool's Script File to "
+            "the copy of this script installed in the fit_changedetector "
+            "venv's site-packages, and restart ArcGIS Pro - see ARCGIS.md."
+        )
+        raise arcpy.ExecuteError
+
+    # strip ArcGIS Pro's own Python settings, which would otherwise make the
+    # venv's interpreter load Pro's stdlib/site-packages
     env = os.environ.copy()
     env.pop("PYTHONHOME", None)
     env.pop("PYTHONPATH", None)
 
     proc = subprocess.Popen(
-        ["uvx", "--from", get_spec(), "changedetector", command] + cli_args,
+        # -u: unbuffered, so output streams to the tool's messages as it
+        # happens rather than in blocks
+        [str(python), "-u", "-m", "fit_changedetector", command] + cli_args,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -280,7 +291,7 @@ def run_cli(command, cli_args):
 
 def run_tool(command, param, logfile, cli_args, out_file=None):
     """Shared entry-point body for the script tools: set up logging, log
-    the run, invoke the CLI (via uvx), and clean up handlers afterwards -
+    the run, invoke the CLI (via the venv's Python), and clean up handlers afterwards -
     regardless of which command is being run.
     """
     setup_logging(logfile, param.get("debug", False))

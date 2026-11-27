@@ -1,6 +1,8 @@
 import hashlib
 import json
 import os
+import subprocess
+import sys
 
 import geopandas
 import numpy
@@ -9,6 +11,19 @@ from geopandas import GeoDataFrame
 from shapely.geometry import MultiPoint, Point
 
 from fit_changedetector.cli import cli
+
+
+def test_python_m_entry_point():
+    # `python -m fit_changedetector` runs the CLI, and usage text shows the
+    # command name (via prog_name) rather than `python -m ...`
+    result = subprocess.run(
+        [sys.executable, "-m", "fit_changedetector", "--help"],
+        capture_output=True,
+        text=True,
+        check=False,  # assert on returncode below, to report stderr
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.startswith("Usage: changedetector ")
 
 
 def test_diff2gdb_pk(tmp_path):
