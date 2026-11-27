@@ -19,6 +19,26 @@ def split_string(input_string):
         return []
 
 
+exact_geometry_opt = click.option(
+    "--exact-geometry",
+    is_flag=True,
+    help=(
+        "Compare and hash geometries exactly as they are - no normalization "
+        "(vertex/ring order matters) and no tolerance (every coordinate, "
+        "including Z, must match). Cannot be combined with --precision, and "
+        "disables multipart promotion (see --no-promote-multi)"
+    ),
+)
+
+
+def resolve_precision(precision, exact_geometry):
+    """--precision defaults to unset (None), so an explicit value can be
+    rejected alongside --exact-geometry; otherwise resolve to 0.01."""
+    if precision is not None and exact_geometry:
+        raise click.UsageError("--precision cannot be combined with --exact-geometry")
+    return 0.01 if precision is None else precision
+
+
 def common_diff_options(f):
     """Shared IN_FILE_A/IN_FILE_B arguments and options for `diff`/`diff2gdb`.
 
@@ -71,7 +91,7 @@ def common_diff_options(f):
         click.option(
             "--precision",
             "-p",
-            default=0.01,
+            type=float,
             help="Coordinate precision for geometry hash and comparison. Default=0.01",
         ),
         click.option(
@@ -130,6 +150,7 @@ def common_diff_options(f):
                 "it is MODIFIED_GEOM"
             ),
         ),
+        exact_geometry_opt,
         click.option(
             "--strict-types",
             is_flag=True,
@@ -196,9 +217,10 @@ def cli():
 @click.option(
     "--precision",
     "-p",
-    default=0.01,
+    type=float,
     help="Coordinate precision for geometry hash and comparison. Default=0.01",
 )
+@exact_geometry_opt
 @click.option(
     "--crs",
     help="Coordinate reference system to use when hashing geometries (eg EPSG:3005)",
@@ -213,6 +235,7 @@ def add_hash_key(
     hash_key,
     hash_fields,
     precision,
+    exact_geometry,
     drop_null_geometry,
     crs,
     verbose,
@@ -220,6 +243,7 @@ def add_hash_key(
 ):
     """Read input data, compute hash, write to new file"""
     configure_logging(verbose - quiet)
+    precision = resolve_precision(precision, exact_geometry)
     df = geopandas.read_file(in_file, layer=in_layer)
 
     # validate provided fields - hint at the actual geometry field name, in
@@ -241,6 +265,7 @@ def add_hash_key(
         new_field=hash_key,
         fields=hash_fields,
         precision=precision,
+        exact_geometry=exact_geometry,
         drop_null_geometry=drop_null_geometry,
     )
 
@@ -295,6 +320,7 @@ def diff2gdb(
     allow_duplicates,
     promote_multi,
     strict_types,
+    exact_geometry,
     verbose,
     quiet,
 ):
@@ -303,6 +329,7 @@ def diff2gdb(
     To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """
     configure_logging(verbose - quiet)
+    precision = resolve_precision(precision, exact_geometry)
 
     # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
@@ -329,6 +356,7 @@ def diff2gdb(
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
         strict_types=strict_types,
+        exact_geometry=exact_geometry,
     )
 
 
@@ -368,6 +396,7 @@ def diff(
     allow_duplicates,
     promote_multi,
     strict_types,
+    exact_geometry,
     verbose,
     quiet,
 ):
@@ -383,6 +412,7 @@ def diff(
     To read GeoJSON from stdin, specify "-" for IN_FILE_A
     """
     configure_logging(verbose - quiet)
+    precision = resolve_precision(precision, exact_geometry)
 
     # parse multi-item parameters (primary_key is a single field, passed through as-is)
     fields = split_string(fields)
@@ -409,6 +439,7 @@ def diff(
         allow_duplicates=allow_duplicates,
         promote_multi=promote_multi,
         strict_types=strict_types,
+        exact_geometry=exact_geometry,
     )
 
 
