@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -100,6 +100,7 @@ dependencies = [
     { name = "click" },
     { name = "cligj" },
     { name = "geopandas" },
+    { name = "pandas" },
     { name = "pyarrow" },
     { name = "pyogrio" },
 ]
@@ -117,6 +118,7 @@ requires-dist = [
     { name = "click" },
     { name = "cligj" },
     { name = "geopandas", specifier = ">=1.0.0" },
+    { name = "pandas", specifier = ">=3" },
     { name = "pre-commit", marker = "extra == 'test'" },
     { name = "pyarrow" },
     { name = "pyogrio", specifier = ">=0.12.0" },
