@@ -889,6 +889,21 @@ def test_single_vs_multipart_no_promote_multi_modified():
     assert len(diff["MODIFIED_GEOM"]) == 3
 
 
+def test_gdf_diff_promote_multi_does_not_modify_inputs():
+    """Promotion happens on copies - the caller's dataframes keep their
+    original geometries, so a second comparison of the same data is correct.
+    See https://github.com/bcgov/FIT_changedetector/issues/146."""
+    df_a = GeoDataFrame({"id": [1]}, geometry=[Point(0, 0)], crs="EPSG:3005")
+    df_b = GeoDataFrame({"id": [1]}, geometry=[MultiPoint([(0, 0)])], crs="EPSG:3005")
+    diff = fcd.gdf_diff(df_a, df_b, "id")
+    assert len(diff["UNCHANGED"]) == 1
+    assert df_a.geometry.iloc[0].geom_type == "Point"
+    assert df_b.geometry.iloc[0].geom_type == "MultiPoint"
+
+    diff = fcd.gdf_diff(df_a, df_b, "id", promote_multi=False)
+    assert list(diff["MODIFIED_GEOM"]["id"]) == [1]
+
+
 def _write_single_vs_multipart_sources(tmp_path):
     """Write source a (points) and source b (the same points, one stored as
     a MultiPoint) to GeoJSON, returning their paths."""

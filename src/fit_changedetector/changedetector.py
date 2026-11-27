@@ -180,7 +180,9 @@ def _read_source(path, layer, label):
 
 
 def promote_to_multi(df):
-    """Promote all geometries in the dataframe to multipart"""
+    """Return a copy of the dataframe with all geometries promoted to multipart
+    (the input dataframe is not modified)"""
+    df = df.copy()
     df.geometry = [
         MultiPoint([feature]) if isinstance(feature, Point) else feature
         for feature in df.geometry
