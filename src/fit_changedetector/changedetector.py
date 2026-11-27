@@ -292,7 +292,12 @@ def add_hash_key(
     drop_null_geometry only has meaning when the geometry field is included
     in fields - specifying it otherwise raises, rather than silently having
     no effect. When applicable, it defaults to True (drop null geometries
-    with a warning) if not specified.
+    with a warning) if not specified. With drop_null_geometry=False, a null
+    geometry is hashed as "NULL" (as a null attribute is), so records without
+    geometry are keyed on their other hashed fields alone - two such records
+    sharing those fields get the same hash (the usual duplicate case, see
+    allow_duplicates). A geometry-only hash has nothing else to key them on,
+    so null geometries raise there instead.
 
     allow_duplicates does not apply to a geometry-only hash (fields is just
     the geometry column) - a duplicate hash always raises there, since geometry
@@ -352,7 +357,7 @@ def add_hash_key(
                 f"Cannot hash field {f}, hashing on area/length fields is not supported"
             )
 
-    # if hashing the geometry, ensure no nulls are present and standardize ring order/precision
+    # if hashing the geometry, handle nulls and standardize ring order/precision
     if hash_geometry:
         # If using default precision of 1cm on data using degrees,
         # presume this is an oversight, warn and adjust.
@@ -367,16 +372,29 @@ def add_hash_key(
         if drop_null_geometry is None:
             drop_null_geometry = True
 
-        # check for null geometries, drop if specified
-        if len(df[df.geometry.isnull()]) > 0:
-            LOG.warning("Null geometries are present in source")
+        # null geometries: drop them, or (if other fields are hashed too) hash
+        # them as "NULL", like a null attribute - keying those records on their
+        # other hashed fields alone. A geometry-only hash has nothing else to
+        # key them on, so raises instead.
+        null_geometry = df.geometry.isna()
+        if null_geometry.any():
+            n_null = int(null_geometry.sum())
             if drop_null_geometry:
-                LOG.warning("Dropping null geometries from source")
-                df = df[df.geometry.notnull()]
-            else:
+                LOG.warning(
+                    f"Dropping {n_null} record(s) with null geometry from source"
+                )
+                df = df[~null_geometry]
+            elif all(f == geom_field for f in fields):
                 raise ValueError(
-                    "Cannot reliably hash null geometries, specify drop_null_geometry or remove "
-                    "nulls from source dataset before re-processing"
+                    "Cannot hash null geometries on geometry alone - include other fields "
+                    "in the hash to key records without geometry on those, specify "
+                    "drop_null_geometry, or remove nulls from source dataset before "
+                    "re-processing"
+                )
+            else:
+                LOG.warning(
+                    f"{n_null} record(s) with null geometry present in source, hashing "
+                    "them on their other fields alone"
                 )
 
         # normalize the geometry to ensure consistent comparisons/hashes on equivalent features
@@ -806,9 +824,13 @@ def gdf_diff(
 
         # find all rows with modified geometries, retaining new geometries only
         common_mod_geoms = common.rename(columns=column_name_remap_b)[columns]
-        modified_geometries = common_mod_geoms[
-            ~common_a.normalize().geom_equals_exact(common_b.normalize(), precision)
-        ]
+        # a record with no geometry in either source is unchanged
+        # (geom_equals_exact is False for two missing geometries), while
+        # missing -> present or present -> missing is a modification
+        geom_equal = common_a.normalize().geom_equals_exact(
+            common_b.normalize(), precision
+        ) | (common_a.geometry.isna() & common_b.geometry.isna())
+        modified_geometries = common_mod_geoms[~geom_equal]
 
         # join modified attributes to modified geometries,
         # creating a data structure containing all modifications, where _merge indicates

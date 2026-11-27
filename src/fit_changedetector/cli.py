@@ -92,7 +92,9 @@ def common_diff_options(f):
             is_flag=True,
             help=(
                 "Drop records with null geometry. Only valid when the geometry field is "
-                "included in --hash-fields - has no effect (and is rejected) when "
+                "included in --hash-fields. Without it, records with null geometry are "
+                "hashed on their other --hash-fields alone (an error if geometry is the "
+                "only hash field). Has no effect (and is rejected) when "
                 "--primary-key is supplied, since no hash key is generated in that case"
             ),
         ),
@@ -177,7 +179,9 @@ def cli():
     is_flag=True,
     help=(
         "Drop records with null geometry. Only valid when the geometry field is "
-        "included in --hash-fields"
+        "included in --hash-fields. Without it, records with null geometry are "
+        "hashed on their other --hash-fields alone (an error if geometry is the "
+        "only hash field)"
     ),
 )
 @click.option(
