@@ -1195,8 +1195,22 @@ def _read_and_diff(
 
 
 def _json_default(value):
-    """json.dumps fallback for diff_to_json's key values: dates/datetimes
-    (incl. pandas Timestamps) as ISO 8601 strings."""
+    """json.dumps fallback for diff_to_json's key values (default=).
+
+    json.dumps writes dicts, lists, strings, numbers, booleans and None
+    itself, and calls this only for any other value - which must either be
+    converted to something json.dumps can write, or rejected with TypeError.
+
+    Dates/datetimes (datetime.date/datetime/time, and pandas Timestamps, as a
+    datetime primary key column gives) are converted to ISO 8601 strings, eg
+    "2024-01-03T12:00:00". They're recognized by having an isoformat() method
+    rather than by type, so every date-like type is covered without listing
+    each one - in practice only date/time types have it.
+
+    Anything else raises TypeError naming the value and its type, so an
+    unexpected key type fails clearly rather than being written as something
+    misleading.
+    """
     if hasattr(value, "isoformat"):
         return value.isoformat()
     raise TypeError(
