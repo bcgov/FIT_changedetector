@@ -251,7 +251,7 @@ def run_cli(command, cli_args):
             f"No Python environment found for {Path(__file__).parent} (no "
             "pyvenv.cfg in any parent folder). Set the tool's Script File to "
             "the copy of this script installed in the fit_changedetector "
-            "venv's site-packages, and restart ArcGIS Pro - see ARCGIS.md."
+            "venv's site-packages, and restart ArcGIS Pro - see README.md alongside the tool scripts."
         )
         raise arcpy.ExecuteError
 

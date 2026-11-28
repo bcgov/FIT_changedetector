@@ -1,11 +1,11 @@
 # ArcGIS Pro script tools
 
-Two script tools wrap the `changedetector` CLI (see the [README](README.md) for what the CLI itself does):
+Two script tools wrap the `changedetector` CLI (see the [main README](../../../README.md) for what the CLI itself does):
 
 - `changedetector_diff2json.py` - wraps `diff`, prints a JSON summary
 - `changedetector_diff2gdb.py` - wraps `diff2gdb`, writes results to a .gdb
 
-Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them. All of these scripts, plus `changedetector_toolvalidator.py`, ship inside the `fit_changedetector` package itself ([`src/fit_changedetector/arcgis/`](src/fit_changedetector/arcgis/)). Each tool's Script File points at the copy installed in a dedicated Python environment (venv), and the tool runs the CLI as a subprocess using that same venv's Python - never inside ArcGIS Pro's own Python.
+Both require `changedetector_common.py` (shared logic - subprocess invocation, logging, CLI arg building) alongside them. All of these scripts, plus `changedetector_toolvalidator.py`, ship inside the `fit_changedetector` package itself, in this folder. Each tool's Script File points at the copy installed in a dedicated Python environment (venv), and the tool runs the CLI as a subprocess using that same venv's Python - never inside ArcGIS Pro's own Python.
 
 ## Locations
 
@@ -73,7 +73,7 @@ Make sure nobody is running a tool - Windows locks files in use, so an upgrade m
 
 and restart ArcGIS Pro. Always give the exact version (`==<version>`): without it, uv may treat whatever is already installed as good enough and change nothing.
 
-The Script File paths don't change, so there's nothing to update in the toolbox for most releases.
+The Script File paths don't change, so there's nothing to update in the toolbox for most releases. If a release changes the tools' help text, re-apply it with the metadata script - see Tool metadata below.
 A release that changes the tools' parameters or validation code should say so in its release notes (with the steps to update each tool by hand).
 
 ### Checking the installed version
@@ -141,7 +141,22 @@ The file geodatabase written by `changedetector_diff2gdb.py` stores 64-bit integ
 
 ## Tool metadata
 
-Suggested text for each tool's **Summary** and **Description** (Tool Properties > General tab) and **Usage**/**Syntax** (Edit Metadata - Syntax is per-parameter help).
+Text for each tool's **Summary**, **Description**, **Usage** and **Syntax** (per-parameter help - each parameter's Dialog and Scripting Explanation), as shown in Edit Metadata.
+
+Rather than pasting it in by hand, apply it with the script installed alongside the tools. Close the toolbox in ArcGIS Pro (or close Pro), then at a Windows command prompt:
+
+    set PROPY="%PROGRAMFILES%\ArcGIS\Pro\bin\Python\Scripts\propy.bat"
+    set METADATA=%VENV%\Lib\site-packages\fit_changedetector\arcgis\changedetector_metadata.py
+
+    REM report what would be matched, without saving
+    %PROPY% %METADATA% <path to toolbox .atbx> --dry-run
+
+    REM apply
+    %PROPY% %METADATA% <path to toolbox .atbx>
+
+`propy.bat` runs the script with ArcGIS Pro's own Python (for `arcpy`). The tools must be named `diff2json` and `diff2gdb`; parameters are matched to the text below by their labels, and any parameter or text left unmatched is reported - rename the parameter's label (or edit the text below) to match. If a tool's metadata has never been edited, the script may find no parameters in it - open the tool's Edit Metadata view once and Save, then re-run.
+
+The script reads the text below from this README, which is installed alongside it - so the text applied always matches the installed version of the tools.
 
 ### `changedetector_diff2json.py` (tool: diff2json)
 
@@ -149,7 +164,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and classifies every record as NEW, DELETED, UNCHANGED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), or MODIFIED_BOTH. Writes a JSON file listing record counts per category, plus the primary key value(s) present in each category except UNCHANGED (a Duplicates category is added if duplicate primary keys are allowed). No spatial output is produced - use "Change Detector - Diff to GDB" instead if you need the actual changed features written out.
 
-**Usage:** Wraps the `changedetector diff` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
+**Usage:** Wraps the `changedetector diff` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see the README alongside the tool scripts, in the fit_changedetector package's arcgis folder). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped file name.
 
 **Syntax:**
 - **Original Feature Class** - The "before" dataset to compare.
@@ -175,7 +190,7 @@ Suggested text for each tool's **Summary** and **Description** (Tool Properties 
 
 **Description:** Compares an original and a new feature class - matched by primary key if one is given, otherwise by a generated hash key - and writes the results to a new file geodatabase, one layer per category of change: NEW, DELETED, MODIFIED_ATTR (attributes only), MODIFIED_GEOM (geometry only), MODIFIED_BOTH, and DUPLICATES (if duplicate primary keys are allowed). Optionally also writes copies of the two input layers, with the hash key added, for reference. Use "Change Detector - Diff (JSON Summary)" instead if you just need a quick count/summary without spatial output.
 
-**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see Setup above). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
+**Usage:** Wraps the `changedetector diff2gdb` command-line tool. Runs the CLI with the Python of the `fit_changedetector` environment it is installed in, rather than inside ArcGIS Pro's own Python (see the README alongside the tool scripts, in the fit_changedetector package's arcgis folder). Original and New Feature Class are matched by primary key if one is supplied; otherwise records are matched by a hash key generated from Fields to Include in Hash (required in that case - include the geometry field to match by geometry). Writes results as separate layers - NEW, DELETED, MODIFIED_ATTR, MODIFIED_GEOM, MODIFIED_BOTH, and DUPLICATES if duplicates are allowed - in a new file geodatabase. There is no parameter for overriding the coordinate reference system used when hashing - geometries are hashed in their native CRS. Leave Output File Name blank to auto-generate a timestamped name.
 
 **Syntax:** same as diff2json for the parameters below, plus Dump Input Layers:
 - **Original Feature Class**, **New Feature Class**, **Output Folder**, **Fields to Include in Hash**, **Fields to Compare**, **Fields to Ignore**, **Coordinate Precision**, **Hash Key**, **Suffix - Original**, **Suffix - New**, **Drop Null Geometry** - as in diff2json above.
