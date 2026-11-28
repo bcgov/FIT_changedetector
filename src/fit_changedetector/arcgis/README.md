@@ -52,7 +52,7 @@ At a Windows command prompt:
 
 ### 2. Add the tools
 
-1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, set its **Name** to `changedetectordiff2json` (or `changedetectordiff2gdb` - the [Tool metadata](#tool-metadata) script finds the tools by Name), and set its **Script File** to the installed entry-point script:
+1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, set its **Name** to `diff2json` (or `diff2gdb`), and set its **Script File** to the installed entry-point script:
 
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2gdb.py
@@ -62,6 +62,8 @@ At a Windows command prompt:
 3. Paste the contents of `changedetector_toolvalidator.py` (in the same installed folder) into the tool's **Validation** tab - the same code works unmodified for both tools (it only touches parameters 0-8, which are identical between them).
 4. Repeat for the second tool.
 5. Restart ArcGIS Pro if a tool in this session had previously run from a different Script File (see [Restarting ArcGIS Pro](#restarting-arcgis-pro)).
+
+Set the toolbox's **Alias** (toolbox Properties) to `changedetector`. The Name and alias are how the tools are called from Python - `arcpy.changedetector.diff2gdb(...)` / `arcpy.changedetector.diff2json(...)`, with keyword arguments named per the Parameters tables - and the [Tool metadata](#tool-metadata) script finds the tools by Name. A Name allows only letters, numbers and underscores; the Label (shown in the Catalog and Geoprocessing panes) can be anything. Renaming a tool breaks existing scripts and models that call it by its old Name.
 
 ## Maintenance
 
