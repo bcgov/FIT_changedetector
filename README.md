@@ -332,4 +332,4 @@ The ArcGIS script tools live in [`src/fit_changedetector/arcgis/`](src/fit_chang
 
 The package version is derived from git tags via [setuptools_scm](https://setuptools-scm.readthedocs.io/) - there's no hardcoded version to bump in source. Between tags, the version is a dev version derived from the most recent tag plus commit count/hash (e.g. `0.1.0a2.dev5+g1234abc`).
 
-To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, and creates a GitHub Release. The ArcGIS script tools ship in the same package, so there's nothing separate to release for them.
+To cut a release, push a tag matching `vX.Y.Z` (e.g. `v0.2.0`). This triggers `.github/workflows/release.yml`, which builds and publishes the package to PyPI, and creates a GitHub Release.
