@@ -598,6 +598,17 @@ def _validate_and_prepare_diff_inputs(
     if primary_key not in fields_common:
         raise ValueError(f"Primary key {primary_key} must be present in both datasets")
 
+    # a null can't identify a record - and nulls in df_a and df_b would
+    # otherwise be silently paired with each other by the join below
+    for label, df in (("a", df_a), ("b", df_b)):
+        n_null = int(df[primary_key].isna().sum())
+        if n_null:
+            raise ValueError(
+                f"Primary key {primary_key} has {n_null} null value(s) in dataframe "
+                f"{label} - every record needs a key, consider using another primary "
+                "key or pre-processing to fill or remove them"
+            )
+
     # if provided a list of fields to work with, validate that list
     if fields:
         fields = list(set(fields + [primary_key] + (["geometry"] if spatial else [])))
@@ -715,8 +726,8 @@ def gdf_diff(
     Compare two geodataframes and generate a diff.
 
     Sources MUST:
-    - have valid, compatible primary keys (unique, unless allow_duplicates - see
-      below)
+    - have valid, compatible primary keys (non-null, and unique unless
+      allow_duplicates - see below)
     - have at least one equivalent column (ok if this is just the primary key)
     - equivalent column names must be of equivalent types (unless strict_types,
       integers of differing width are accepted with a warning, and compared as
@@ -1183,6 +1194,16 @@ def _read_and_diff(
     return diff, df_a, df_b, primary_key, hashed
 
 
+def _json_default(value):
+    """json.dumps fallback for diff_to_json's key values: dates/datetimes
+    (incl. pandas Timestamps) as ISO 8601 strings."""
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    raise TypeError(
+        f"Primary key value {value!r} ({type(value).__name__}) can't be written to JSON"
+    )
+
+
 def diff_to_json(
     file_a,
     file_b,
@@ -1243,18 +1264,23 @@ def diff_to_json(
     if not allow_duplicates:
         del result["DUPLICATES"]
     summary = {key: len(df) for key, df in result.items()}
+    # keys are written as-is, except dates/datetimes (eg a datetime primary
+    # key), which JSON has no type for - written as ISO 8601 strings
     if not counts_only:
         summary["keys"] = {
             key: df[resolved_primary_key].tolist()
             for key, df in result.items()
             if key != "UNCHANGED"
         }
+    # serialize fully before writing anything, so a failure can't leave a
+    # truncated file behind
+    content = json.dumps(summary, default=_json_default)
     if out_file:
         LOG.info(f"Writing JSON summary to {out_file}")
         with open(out_file, "w") as f:
-            json.dump(summary, f)
+            f.write(content)
     else:
-        print(json.dumps(summary))
+        print(content)
 
 
 def diff_to_gdb(

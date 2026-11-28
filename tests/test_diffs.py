@@ -1,3 +1,4 @@
+import datetime
 import hashlib
 import json
 import os
@@ -1739,3 +1740,78 @@ def test_add_hash_key_null_distinct_from_null_text():
     df = pandas.DataFrame({"p": pandas.array([None, "NULL"], dtype="string")})
     out = fcd.add_hash_key(df, "h", ["p"])
     assert out["h"].is_unique
+
+
+def _pk_sources(tmp_path, pk_a, pk_b, changed=2):
+    """Two GeoPackages keyed on *pk*, identical apart from record *changed*'s
+    attribute. Returns their paths."""
+    paths = []
+    for name, pk in (("a", pk_a), ("b", pk_b)):
+        v = ["x", "y", "z"]
+        if name == "b":
+            v[changed] = "CHANGED"
+        path = str(tmp_path / f"{name}.gpkg")
+        GeoDataFrame(
+            {"pk": pk, "v": v}, geometry=[Point(i, i) for i in range(3)], crs=3005
+        ).to_file(path)
+        paths.append(path)
+    return paths
+
+
+@pytest.mark.parametrize("source", ["a", "b"])
+def test_gdf_diff_null_primary_key_raises(source):
+    keys = {"a": pandas.array([1, 2, 3], dtype="Int64")}
+    keys["b"] = keys["a"].copy()
+    keys[source] = pandas.array([1, 2, None], dtype="Int64")
+    df_a = GeoDataFrame({"pk": keys["a"]}, geometry=[Point(i, i) for i in range(3)])
+    df_b = GeoDataFrame({"pk": keys["b"]}, geometry=[Point(i, i) for i in range(3)])
+    with pytest.raises(
+        ValueError,
+        match=f"Primary key pk has 1 null value\\(s\\) in dataframe {source}",
+    ):
+        fcd.gdf_diff(df_a, df_b, "pk")
+
+
+def test_diff_to_json_null_primary_key_raises_without_writing(tmp_path):
+    """A null key in a changed record used to fail mid-write (pd.NA isn't JSON
+    serializable), leaving a truncated file - now rejected before anything is
+    written."""
+    pk = pandas.array([1, 2, None], dtype="Int64")
+    file_a, file_b = _pk_sources(tmp_path, pk, pk)
+    out = tmp_path / "out.json"
+    with pytest.raises(ValueError, match="null value"):
+        fcd.diff_to_json(
+            file_a, file_b, None, None, primary_key="pk", out_file=str(out)
+        )
+    assert not out.exists()
+
+
+def test_diff_to_json_datetime_primary_key(tmp_path):
+    """Datetime keys are written as ISO 8601 strings (Timestamp isn't JSON
+    serializable)."""
+    # naive, as datetimes read from most source files are
+    pk = [datetime.datetime(2024, 1, day, 12) for day in (1, 2, 3)]  # noqa: DTZ001
+    file_a, file_b = _pk_sources(tmp_path, pk, pk)
+    out = tmp_path / "out.json"
+    fcd.diff_to_json(file_a, file_b, None, None, primary_key="pk", out_file=str(out))
+    summary = json.loads(out.read_text())
+    assert summary["keys"]["MODIFIED_ATTR"] == ["2024-01-03T12:00:00"]
+
+
+def test_diff_to_json_unserializable_key_writes_nothing(tmp_path, monkeypatch):
+    """The summary is serialized in full before the file is opened, so a key
+    that can't be written leaves no partial file behind."""
+    diff = {
+        "NEW": pandas.DataFrame({"pk": [object()]}),
+        "UNCHANGED": pandas.DataFrame({"pk": []}),
+        "DUPLICATES": pandas.DataFrame({"pk": []}),
+    }
+    monkeypatch.setattr(
+        fcd.changedetector,
+        "_read_and_diff",
+        lambda *args, **kwargs: (diff, None, None, "pk", False),
+    )
+    out = tmp_path / "out.json"
+    with pytest.raises(TypeError, match="can't be written to JSON"):
+        fcd.diff_to_json("a", "b", None, None, primary_key="pk", out_file=str(out))
+    assert not out.exists()
