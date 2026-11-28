@@ -292,6 +292,28 @@ def _resolve_precision(crs, precision):
     return precision
 
 
+def _hash_record(values):
+    """sha1 hex digest identifying one record's hashed field values.
+
+    The values are encoded as a JSON array - each value as its string form
+    (str(), eg a geometry as WKT), a null as JSON null - so the encoding is
+    unambiguous: a value containing a delimiter can't run into the next one
+    (eg ("a|b", "c") vs ("a", "b|c")), and a null is distinct from any string
+    (eg the text "NULL").
+    """
+    encoded = json.dumps(
+        [
+            None
+            if v is None or (pandas.api.types.is_scalar(v) and pandas.isna(v))
+            else str(v)
+            for v in values
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha1(encoded.encode("utf-8")).hexdigest()
+
+
 def add_hash_key(
     df,
     new_field,
@@ -311,7 +333,7 @@ def add_hash_key(
     in fields - specifying it otherwise raises, rather than silently having
     no effect. When applicable, it defaults to True (drop null geometries
     with a warning) if not specified. With drop_null_geometry=False, a null
-    geometry is hashed as "NULL" (as a null attribute is), so records without
+    geometry is hashed as a null (as a null attribute is), so records without
     geometry are keyed on their other hashed fields alone - two such records
     sharing those fields get the same hash (the usual duplicate case, see
     allow_duplicates). A geometry-only hash has nothing else to key them on,
@@ -388,7 +410,7 @@ def add_hash_key(
             drop_null_geometry = True
 
         # null geometries: drop them, or (if other fields are hashed too) hash
-        # them as "NULL", like a null attribute - keying those records on their
+        # them as a null, like a null attribute - keying those records on their
         # other hashed fields alone. A geometry-only hash has nothing else to
         # key them on, so raises instead.
         null_geometry = df.geometry.isna()
@@ -424,13 +446,8 @@ def add_hash_key(
         df = df.copy()  # copy so the original df does not get the new column
         hash_fields = fields
 
-    # add sha1 hash of provided fields
-    df[new_field] = df[hash_fields].apply(
-        lambda x: hashlib.sha1(
-            "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
-        ).hexdigest(),
-        axis=1,
-    )
+    # add sha1 hash of provided fields (see _hash_record for the encoding)
+    df[new_field] = df[hash_fields].apply(lambda x: _hash_record(x.values), axis=1)
 
     # remove the normalized/reduced precision geometry
     if hash_geometry:

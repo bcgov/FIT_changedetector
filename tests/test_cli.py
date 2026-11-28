@@ -1,4 +1,3 @@
-import hashlib
 import json
 import os
 import subprocess
@@ -10,6 +9,7 @@ from click.testing import CliRunner
 from geopandas import GeoDataFrame
 from shapely.geometry import MultiPoint, Point
 
+from fit_changedetector.changedetector import _hash_record
 from fit_changedetector.cli import cli
 
 
@@ -432,9 +432,7 @@ def test_add_hash_key(tmp_path):
         df["hashed_key"].iloc[0]
         == df[["park_name", "geometry_normalized"]]
         .apply(
-            lambda x: hashlib.sha1(
-                "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
-            ).hexdigest(),
+            lambda x: _hash_record(x.values),
             axis=1,
         )
         .iloc[0]
@@ -485,9 +483,7 @@ def test_add_hash_key_attrs_only(tmp_path):
         df["hashed_key"].iloc[0]
         == df[["park_name"]]
         .apply(
-            lambda x: hashlib.sha1(
-                "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
-            ).hexdigest(),
+            lambda x: _hash_record(x.values),
             axis=1,
         )
         .iloc[0]

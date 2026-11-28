@@ -22,6 +22,7 @@ from shapely.geometry import (
 import fit_changedetector as fcd
 from fit_changedetector.changedetector import (
     _common_int_dtype,
+    _hash_record,
     _read_and_diff,
     _validate_and_prepare_diff_inputs,
 )
@@ -39,16 +40,27 @@ def gdf():
     )
 
 
+def _normalized_wkt(df, i=0):
+    """WKT of record i's geometry as add_hash_key hashes it (normalized,
+    snapped to the default 0.01 precision)."""
+    return str(df.geometry.normalize().set_precision(0.01, mode="pointwise").iloc[i])
+
+
+def _sha1_json(values):
+    return hashlib.sha1(json.dumps(values, separators=(",", ":")).encode()).hexdigest()
+
+
 def test_add_hash_key_geom():
     df = geopandas.read_file("tests/data/parks_a.geojson")
-    df = fcd.add_hash_key(df, "test_hash", fields=["geometry"])
-    assert df["test_hash"].iloc[0] == "fe370ca2e67ae006d003a2448eba4d2797f9ec03"
+    out = fcd.add_hash_key(df, "test_hash", fields=["geometry"])
+    assert out["test_hash"].iloc[0] == _sha1_json([_normalized_wkt(df)])
 
 
 def test_add_hash_key_geom_columns():
     df = geopandas.read_file("tests/data/parks_a.geojson")
-    df = fcd.add_hash_key(df, "test_hash", fields=["park_name", "geometry"])
-    assert df["test_hash"].iloc[0] == "4a55cfe9a6b8c0863e0c1c4c18eef7a367fd7f54"
+    out = fcd.add_hash_key(df, "test_hash", fields=["park_name", "geometry"])
+    expected = _sha1_json([df["park_name"].iloc[0], _normalized_wkt(df)])
+    assert out["test_hash"].iloc[0] == expected
 
 
 def test_add_hash_key_attrs_only():
@@ -56,9 +68,7 @@ def test_add_hash_key_attrs_only():
     see https://github.com/bcgov/FIT_changedetector/issues/120."""
     df = geopandas.read_file("tests/data/parks_a.geojson")
     expected = df[["park_name"]].apply(
-        lambda x: hashlib.sha1(
-            "|".join(x.astype(str).fillna("NULL").values).encode("utf-8")
-        ).hexdigest(),
+        lambda x: _hash_record(x.values),
         axis=1,
     )
     df = fcd.add_hash_key(df, "test_hash", fields=["park_name"])
@@ -126,14 +136,14 @@ def test_add_hash_key_drop_null_geometry_without_geometry_field_raises():
 
 
 def test_add_hash_key_null_geometry_not_dropped_hashed_as_null():
-    """With drop_null_geometry=False, a null geometry is hashed as "NULL" (as
+    """With drop_null_geometry=False, a null geometry is hashed as a null (as
     a null attribute is), keying the record on its other hashed fields - see
     https://github.com/bcgov/FIT_changedetector/issues/141."""
     df = GeoDataFrame({"v": ["x", "y"]}, geometry=[Point(0, 0), None], crs=3005)
     out = fcd.add_hash_key(df, "h", ["v", "geometry"], drop_null_geometry=False)
     assert len(out) == 2
-    assert out["h"].iloc[1] == hashlib.sha1(b"y|NULL").hexdigest()
-    assert out["h"].iloc[0] == hashlib.sha1(b"x|POINT (0 0)").hexdigest()
+    assert out["h"].iloc[1] == hashlib.sha1(b'["y",null]').hexdigest()
+    assert out["h"].iloc[0] == hashlib.sha1(b'["x","POINT (0 0)"]').hexdigest()
 
 
 def test_add_hash_key_null_geometry_default_dropped():
@@ -1705,3 +1715,27 @@ def test_diff_to_gdb_no_changes_removes_previous_output(tmp_path, caplog):
     assert not os.path.exists(out)
     assert "No changes found - no output written" in caplog.text
     assert "removed previous output" in caplog.text
+
+
+def test_hash_record_encoding():
+    """The exact encoding hashed: a JSON array of each value's string form,
+    nulls as JSON null - pinned, since changing it changes every hash key."""
+    assert _hash_record(["a", 1, None]) == hashlib.sha1(b'["a","1",null]').hexdigest()
+    assert (
+        _hash_record([numpy.nan, pandas.NA]) == hashlib.sha1(b"[null,null]").hexdigest()
+    )
+    assert _hash_record(["é"]) == hashlib.sha1('["é"]'.encode()).hexdigest()
+
+
+def test_add_hash_key_delimiter_in_values_no_collision():
+    """("a|b", "c") and ("a", "b|c") used to both hash "a|b|c"."""
+    df = pandas.DataFrame({"p": ["a|b", "a"], "q": ["c", "b|c"]})
+    out = fcd.add_hash_key(df, "h", ["p", "q"])
+    assert out["h"].is_unique
+
+
+def test_add_hash_key_null_distinct_from_null_text():
+    """A null and the text "NULL" used to hash the same."""
+    df = pandas.DataFrame({"p": pandas.array([None, "NULL"], dtype="string")})
+    out = fcd.add_hash_key(df, "h", ["p"])
+    assert out["h"].is_unique
