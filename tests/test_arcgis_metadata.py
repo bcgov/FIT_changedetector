@@ -4,6 +4,7 @@ is only needed to read/save a real toolbox, so it is stubbed for apply()."""
 
 import importlib.util
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -39,9 +40,9 @@ Intro text.
 **Usage:** Usage A.
 
 **Syntax:**
-- **First Param** - Text for **first**.
+- **First Param** (`first`) - Text for **first**.
 - **Suffix - Original** - Label containing a dash.
-- **Output File** *(Derived)* - Derived output.
+- **Output File** (`out_file`) *(Derived)* - Derived output.
 
 ### `b.py` (tool: tool_b)
 
@@ -73,6 +74,16 @@ def test_parse_tools_fields_and_parameters():
     }
 
 
+def test_parse_names():
+    tools = metadata.parse(MARKDOWN)
+    assert tools["tool_a"]["names"] == {
+        "First Param": "first",
+        "Output File": "out_file",
+    }
+    # resolved from tool_a along with the text
+    assert tools["tool_b"]["names"] == {"First Param": "first"}
+
+
 def test_parse_resolves_as_in_other_tool():
     params = metadata.parse(MARKDOWN)["tool_b"]["parameters"]
     assert params == {
@@ -95,13 +106,30 @@ def test_parse_missing_field_raises():
         metadata.parse(MARKDOWN.replace("**Usage:** Usage A.", ""))
 
 
+def _parameter_tables():
+    """Parameter Names by index from the README's Parameters tables: the
+    shared one (0-12), then each tool's own tail."""
+    readme = metadata.README.read_text(encoding="utf-8")
+    section = readme[
+        readme.index("\n## Parameters\n") : readme.index("\n## Tool metadata\n")
+    ]
+    tables = []
+    for block in section.split("\n\n"):
+        rows = re.findall(r"^\| (\d+) \| (\w+) \|", block, re.MULTILINE)
+        if rows:
+            tables.append([name for _, name in rows])
+    return tables
+
+
 def test_parse_readme_matches_parameter_tables():
-    """Every parameter of both tools has text - 16 for diff2json, 17 for
-    diff2gdb, as in the README's Parameters tables."""
+    """Every parameter of both tools has text and a Name, and the Names are
+    exactly those in the README's Parameters tables."""
+    shared, diff2json_tail, diff2gdb_tail = _parameter_tables()
     tools = metadata.parse(metadata.README.read_text(encoding="utf-8"))
-    assert len(tools["diff2json"]["parameters"]) == 16
-    assert len(tools["diff2gdb"]["parameters"]) == 17
-    for tool in tools.values():
+    for key, tail in (("diff2json", diff2json_tail), ("diff2gdb", diff2gdb_tail)):
+        tool = tools[key]
+        assert set(tool["names"]) == set(tool["parameters"])
+        assert sorted(tool["names"].values()) == sorted(shared + tail)
         for text in tool["parameters"].values():
             assert not metadata.SAME_AS.match(text)
 
@@ -129,6 +157,22 @@ def test_update_metadata_xml_sets_parameter_explanations():
     assert "**" not in dialog
 
 
+def test_update_metadata_xml_matches_by_name_before_label():
+    """A parameter is matched by Name whatever its label - labels are free
+    to differ from the README's."""
+    xml = (
+        '<metadata><tool name="tool_a"><parameters>'
+        '<param name="first" displayname="Original data"/>'
+        '<param name="p1" displayname="Suffix - Original"/>'
+        "</parameters></tool></metadata>"
+    )
+    new_xml, unmatched, unused = metadata.update_metadata_xml(xml, TOOL_A)
+    assert unmatched == []
+    assert unused == ["Output File (out_file)"]
+    first = ET.fromstring(new_xml).find("tool/parameters/param")
+    assert "Text for" in first.find("dialogReference").text
+
+
 def test_update_metadata_xml_sets_tool_text():
     root = ET.fromstring(
         metadata.update_metadata_xml(_tool_xml("First Param"), TOOL_A)[0]
@@ -143,8 +187,9 @@ def test_update_metadata_xml_reports_unmatched_and_unused():
     _, unmatched, unused = metadata.update_metadata_xml(
         _tool_xml("First Param", "Renamed Param"), TOOL_A
     )
-    assert unmatched == ["Renamed Param"]
-    assert unused == ["Suffix - Original", "Output File"]
+    assert unmatched == ["Renamed Param (p1)"]
+    # with and without a Name in the README
+    assert unused == ["Suffix - Original", "Output File (out_file)"]
 
 
 def test_update_metadata_xml_replaces_existing_text():
@@ -197,7 +242,7 @@ def test_apply_saves_and_reports(fake_arcpy, capsys):
     assert "Text for" in md.xml
     # two of TOOL_A's texts have no matching parameter
     assert not ok
-    assert "no parameter labelled 'Output File'" in capsys.readouterr().out
+    assert "no parameter matching Output File (out_file)" in capsys.readouterr().out
 
 
 def test_apply_dry_run_does_not_save(fake_arcpy, capsys):

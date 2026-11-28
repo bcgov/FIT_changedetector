@@ -33,20 +33,23 @@ README = Path(os.path.abspath(__file__)).parent / "README.md"
 SECTION = "## Tool metadata"
 TOOL_HEADING = re.compile(r"^### .*\(tool: (\w+)\)\s*$")
 FIELD = re.compile(r"^\*\*(Summary|Description|Usage):\*\* (.+)$")
-# a Syntax bullet: one or more bold labels (comma separated, optionally
+# a Syntax bullet: one or more bold labels, each optionally followed by the
+# parameter's Name in backticks and parentheses (comma separated, optionally
 # followed by a marker such as *(Derived)*), then " - " and the text. Labels
 # can themselves contain " - " (eg "Suffix - Original"), hence matching the
 # bold markers rather than splitting on the first " - "
+LABEL = r"\*\*(.+?)\*\*(?: \(`(\w+)`\))?"
 BULLET = re.compile(
-    r"^- (?P<labels>\*\*.+?\*\*(?:, \*\*.+?\*\*)*)(?: \*\([^)]*\)\*)? - (?P<text>.+)$"
+    rf"^- (?P<labels>{LABEL}(?:, {LABEL})*)(?: \*\([^)]*\)\*)? - (?P<text>.+)$"
 )
 SAME_AS = re.compile(r"^as in (\w+) above\.?$")
 
 
 def parse(markdown):
     """{tool name: {"summary", "description", "usage", "parameters":
-    {label: text}}} from the README's Tool metadata section, with "as in
-    <tool> above" parameter text resolved to that tool's text."""
+    {label: text}, "names": {label: parameter Name}}} from the README's Tool
+    metadata section, with "as in <tool> above" parameter text (and a Name
+    not given again) resolved from that tool."""
     start = markdown.find(f"\n{SECTION}\n")
     if start == -1:
         raise ValueError(f"README has no '{SECTION}' section")
@@ -60,7 +63,13 @@ def parse(markdown):
     for line in section.splitlines():
         heading = TOOL_HEADING.match(line)
         if heading:
-            tool = {"summary": "", "description": "", "usage": "", "parameters": {}}
+            tool = {
+                "summary": "",
+                "description": "",
+                "usage": "",
+                "parameters": {},
+                "names": {},
+            }
             tools[heading.group(1)] = tool
             continue
         if tool is None:
@@ -72,8 +81,10 @@ def parse(markdown):
         bullet = BULLET.match(line)
         if bullet:
             text = bullet.group("text").strip()
-            for label in re.findall(r"\*\*(.+?)\*\*", bullet.group("labels")):
+            for label, name in re.findall(LABEL, bullet.group("labels")):
                 tool["parameters"][label] = text
+                if name:
+                    tool["names"][label] = name
 
     for name, tool in tools.items():
         for label, text in tool["parameters"].items():
@@ -87,6 +98,9 @@ def parse(markdown):
                     "text of its own for it"
                 )
             tool["parameters"][label] = other[label]
+            other_names = tools[same_as.group(1)]["names"]
+            if label not in tool["names"] and label in other_names:
+                tool["names"][label] = other_names[label]
 
     if not tools:
         raise ValueError(f"No '(tool: <name>)' headings found under '{SECTION}'")
@@ -120,9 +134,11 @@ def update_metadata_xml(xml_text, tool_metadata):
     """Return (new_xml, unmatched_parameters, unused_labels) - xml_text (a
     tool's metadata XML) with tool_metadata's text applied.
 
-    unmatched_parameters are the tool's parameters (by label, or name if it
-    has no label) with no text in tool_metadata; unused_labels are the labels
-    in tool_metadata that matched none of the tool's parameters.
+    Parameters are matched by Name (stable, and what Python callers use),
+    falling back to label (which users are free to change).
+    unmatched_parameters are the tool's parameters ("label (Name)") with no
+    text in tool_metadata; unused_labels are the texts in tool_metadata
+    ("label (Name)") that matched none of the tool's parameters.
     """
     root = ET.fromstring(xml_text)
     tool = root.find("tool")
@@ -142,19 +158,26 @@ def update_metadata_xml(xml_text, tool_metadata):
     _set_text(data_id_info, "idAbs", to_html(tool_metadata["description"]))
 
     texts = tool_metadata["parameters"]
+    names = tool_metadata.get("names", {})
+    label_for_name = {name: label for label, name in names.items()}
     used = set()
     unmatched = []
     for param in parameters.findall("param"):
-        label = param.get("displayname") or param.get("name")
-        if label not in texts:
-            unmatched.append(label)
+        name, label = param.get("name"), param.get("displayname")
+        key = label_for_name.get(name) or (label if label in texts else None)
+        if key is None:
+            unmatched.append(f"{label} ({name})")
             continue
-        used.add(label)
-        explanation = to_html(texts[label])
+        used.add(key)
+        explanation = to_html(texts[key])
         _set_text(param, "dialogReference", explanation)
         _set_text(param, "pythonReference", explanation)
 
-    unused = [label for label in texts if label not in used]
+    unused = [
+        f"{label} ({names[label]})" if label in names else label
+        for label in texts
+        if label not in used
+    ]
     return ET.tostring(root, encoding="unicode"), unmatched, unused
 
 
@@ -219,9 +242,9 @@ def apply(toolbox, dry_run=False, tool_names=None):
         matched = len(tool_metadata["parameters"]) - len(unused)
         print(f"{key} (tool '{name}'): {matched} parameter(s) matched")
         for label in unmatched:
-            print(f"  no text for parameter '{label}' (left unchanged)")
+            print(f"  no text for parameter {label} - left unchanged")
         for label in unused:
-            print(f"  no parameter labelled '{label}' (text not applied)")
+            print(f"  no parameter matching {label} - text not applied")
         ok = ok and not unmatched and not unused
         if not dry_run:
             md.xml = new_xml
