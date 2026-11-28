@@ -602,7 +602,7 @@ def _validate_and_prepare_diff_inputs(
     # otherwise be silently paired with each other by the join below
     for label, df in (("a", df_a), ("b", df_b)):
         n_null = int(df[primary_key].isna().sum())
-        if n_null:
+        if n_null > 0:
             raise ValueError(
                 f"Primary key {primary_key} has {n_null} null value(s) in dataframe "
                 f"{label} - every record needs a key, consider using another primary "
