@@ -4,9 +4,10 @@ rather than pasting it in by hand via Edit Metadata.
 
 The text is read from the "Tool metadata" section of README.md alongside
 this file (installed with the package, so it always matches the installed
-tools). Tools are expected to be named diff2gdb and diff2json, and parameters
-are matched to the text by their labels - any parameter or text left
-unmatched is reported.
+tools). Tools are found by Name - diff2json/diff2gdb or
+changedetectordiff2json/changedetectordiff2gdb, or as given with
+--diff2json/--diff2gdb - and parameters are matched to the text by their
+labels; any parameter or text left unmatched is reported.
 
 Run with ArcGIS Pro's Python (arcpy), with the toolbox closed in Pro:
 
@@ -156,26 +157,56 @@ def update_metadata_xml(xml_text, tool_metadata):
     return ET.tostring(root, encoding="unicode"), unmatched, unused
 
 
-def apply(toolbox, dry_run=False):
-    """Apply the metadata to each tool in toolbox. Returns True if every tool
-    was found and every parameter matched."""
+def candidate_names(key, tool_names=None):
+    """Tool Names to try for the README's tool *key* (eg "diff2gdb"): the
+    Name given in tool_names, if any - otherwise the key itself, and the key
+    prefixed with "changedetector" (eg "changedetectordiff2gdb")."""
+    if tool_names and tool_names.get(key):
+        return [tool_names[key]]
+    return [key, f"changedetector{key}"]
+
+
+def _load_tool(arcpy, toolbox, key, tool_metadata, tool_names):
+    """(tool name, Metadata, update_metadata_xml result) for the first
+    candidate Name whose metadata has parameters - raises ValueError listing
+    what each candidate gave if none does."""
+    failures = []
+    for tool_name in candidate_names(key, tool_names):
+        # arcpy returns blank metadata (rather than raising) for a tool that
+        # doesn't exist, so a missing tool shows up as "no tool parameters"
+        try:
+            md = arcpy.metadata.Metadata(os.path.join(toolbox, tool_name))
+            return tool_name, md, update_metadata_xml(md.xml, tool_metadata)
+        # arcpy's own exception types vary (ExecuteError, RuntimeError, ...)
+        except Exception as e:  # noqa: BLE001
+            failures.append(f"'{tool_name}': {e}")
+    raise ValueError(
+        f"no usable tool found - tried {'; '.join(failures)}. If the tool has "
+        f"another Name (Properties > General), give it with --{key} <Name>"
+    )
+
+
+def apply(toolbox, dry_run=False, tool_names=None):
+    """Apply the metadata to each tool in toolbox. tool_names optionally maps
+    the README's tool keys (diff2json, diff2gdb) to the toolbox's actual tool
+    Names - see candidate_names. Returns True if every tool was found and
+    every parameter matched."""
     import arcpy  # only available in ArcGIS Pro's Python
 
     tools = parse(README.read_text(encoding="utf-8"))
     ok = True
-    for name, tool_metadata in tools.items():
-        path = os.path.join(toolbox, name)
+    for key, tool_metadata in tools.items():
+        # report each tool's failure and carry on with the rest
         try:
-            md = arcpy.metadata.Metadata(path)
-            new_xml, unmatched, unused = update_metadata_xml(md.xml, tool_metadata)
-        # report each tool's failure and carry on with the rest - arcpy's own
-        # exception types vary (ExecuteError, RuntimeError, OSError, ...)
-        except Exception as e:  # noqa: BLE001
-            print(f"{name}: FAILED - {e}")
+            name, md, (new_xml, unmatched, unused) = _load_tool(
+                arcpy, toolbox, key, tool_metadata, tool_names
+            )
+        except ValueError as e:
+            print(f"{key}: FAILED - {e}")
             ok = False
             continue
         matched = len(tool_metadata["parameters"]) - len(unused)
-        print(f"{name}: {matched} parameter(s) matched")
+        print(f"{key} (tool '{name}'): {matched} parameter(s) matched")
         for label in unmatched:
             print(f"  no text for parameter '{label}' (left unchanged)")
         for label in unused:
@@ -197,8 +228,16 @@ def main(argv=None):
         action="store_true",
         help="Report what would be matched, without saving",
     )
+    for key in ("diff2json", "diff2gdb"):
+        parser.add_argument(
+            f"--{key}",
+            metavar="NAME",
+            help=f"Name of the {key} tool in the toolbox (Properties > General), "
+            f"if not {key} or changedetector{key}",
+        )
     args = parser.parse_args(argv)
-    return 0 if apply(args.toolbox, args.dry_run) else 1
+    tool_names = {"diff2json": args.diff2json, "diff2gdb": args.diff2gdb}
+    return 0 if apply(args.toolbox, args.dry_run, tool_names) else 1
 
 
 if __name__ == "__main__":

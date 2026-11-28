@@ -52,7 +52,7 @@ At a Windows command prompt:
 
 ### 2. Add the tools
 
-1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, and set its **Script File** to the installed entry-point script:
+1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, set its **Name** to `changedetectordiff2json` (or `changedetectordiff2gdb` - the [Tool metadata](#tool-metadata) script finds the tools by Name), and set its **Script File** to the installed entry-point script:
 
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2gdb.py
@@ -154,7 +154,7 @@ Rather than pasting it in by hand, apply it with the script installed alongside 
     REM apply
     %PROPY% %METADATA% <path to toolbox .atbx>
 
-`propy.bat` runs the script with ArcGIS Pro's own Python (for `arcpy`). The tools must be named `diff2json` and `diff2gdb`; parameters are matched to the text below by their labels, and any parameter or text left unmatched is reported - rename the parameter's label (or edit the text below) to match. If a tool's metadata has never been edited, the script may find no parameters in it - open the tool's Edit Metadata view once and Save, then re-run.
+`propy.bat` runs the script with ArcGIS Pro's own Python (for `arcpy`). Tools are found by their Name (Properties > General): `diff2json`/`diff2gdb` or `changedetectordiff2json`/`changedetectordiff2gdb` - for any other Name, give it with `--diff2json <Name>`/`--diff2gdb <Name>`. Parameters are matched to the text below by their labels, and any parameter or text left unmatched is reported - rename the parameter's label (or edit the text below) to match. If a tool's metadata has never been edited, the script may find no parameters in it - open the tool's Edit Metadata view once and Save, then re-run.
 
 The script reads the text below from this README, which is installed alongside it - so the text applied always matches the installed version of the tools.
 

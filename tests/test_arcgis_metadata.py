@@ -3,6 +3,7 @@ text from the arcgis README, and applying it to a tool's metadata XML. arcpy
 is only needed to read/save a real toolbox, so it is stubbed for apply()."""
 
 import importlib.util
+import os
 import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -204,3 +205,44 @@ def test_apply_dry_run_does_not_save(fake_arcpy, capsys):
     md = next(iter(fake_arcpy.values()))
     md.save.assert_not_called()
     assert "Dry run" in capsys.readouterr().out
+
+
+def test_candidate_names():
+    assert metadata.candidate_names("diff2gdb") == [
+        "diff2gdb",
+        "changedetectordiff2gdb",
+    ]
+    assert metadata.candidate_names("diff2gdb", {"diff2gdb": "MyTool"}) == ["MyTool"]
+    # a key with no Name given still falls back to the defaults
+    assert metadata.candidate_names("diff2gdb", {"diff2gdb": None}) == [
+        "diff2gdb",
+        "changedetectordiff2gdb",
+    ]
+
+
+def test_apply_falls_back_to_prefixed_name(fake_arcpy, capsys):
+    """A tool named changedetector<key> is found when <key> isn't - arcpy
+    returns blank metadata (no parameters) for a tool that doesn't exist."""
+    missing = os.path.join("toolbox.atbx", "tool_a")
+    fake_arcpy[missing] = MagicMock(xml="<metadata/>")
+    metadata.apply("toolbox.atbx")
+    found = fake_arcpy[os.path.join("toolbox.atbx", "changedetectortool_a")]
+    found.save.assert_called_once()
+    fake_arcpy[missing].save.assert_not_called()
+    assert "tool_a (tool 'changedetectortool_a')" in capsys.readouterr().out
+
+
+def test_apply_reports_names_tried(fake_arcpy, capsys):
+    for name in ("tool_a", "changedetectortool_a"):
+        fake_arcpy[os.path.join("toolbox.atbx", name)] = MagicMock(xml="<metadata/>")
+    assert not metadata.apply("toolbox.atbx")
+    out = capsys.readouterr().out
+    assert "tool_a: FAILED" in out
+    assert "'tool_a'" in out
+    assert "'changedetectortool_a'" in out
+    assert "--tool_a <Name>" in out
+
+
+def test_apply_uses_given_name(fake_arcpy):
+    metadata.apply("toolbox.atbx", tool_names={"tool_a": "Custom"})
+    assert list(fake_arcpy) == [os.path.join("toolbox.atbx", "Custom")]
