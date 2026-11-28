@@ -52,7 +52,7 @@ At a Windows command prompt:
 
 ### 2. Add the tools
 
-1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, set its **Name** to `diff2json` (or `diff2gdb`), and set its **Script File** to the installed entry-point script:
+1. In ArcGIS Pro's Catalog pane, add a new **Script** tool to a toolbox, set its **Name** to `ChangeDetectorDiff2JSON` (or `ChangeDetectorDiff2GDB`), and set its **Script File** to the installed entry-point script:
 
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2json.py
        \\GISWHSE.ENV.GOV.BC.CA\WHSE_NP\corp\central_venv\fit_changedetector\Lib\site-packages\fit_changedetector\arcgis\changedetector_diff2gdb.py
@@ -63,7 +63,7 @@ At a Windows command prompt:
 4. Repeat for the second tool.
 5. Restart ArcGIS Pro if a tool in this session had previously run from a different Script File (see [Restarting ArcGIS Pro](#restarting-arcgis-pro)).
 
-Set the toolbox's **Alias** (toolbox Properties) to `changedetector`. The Name and alias are how the tools are called from Python - `arcpy.changedetector.diff2gdb(...)` / `arcpy.changedetector.diff2json(...)`, with keyword arguments named per the Parameters tables - and the [Tool metadata](#tool-metadata) script finds the tools by Name. A Name allows only letters, numbers and underscores; the Label (shown in the Catalog and Geoprocessing panes) can be anything. Renaming a tool breaks existing scripts and models that call it by its old Name.
+The Name is how a tool is called from Python, together with its toolbox's alias (toolbox Properties - shared by every tool in the toolbox, so leave it as is in a toolbox holding other tools): `arcpy.<alias>.ChangeDetectorDiff2GDB(...)` / `arcpy.<alias>.ChangeDetectorDiff2JSON(...)`, with keyword arguments named per the Parameters tables. The [Tool metadata](#tool-metadata) script also finds the tools by Name. A Name allows only letters and numbers - no spaces or underscores (arcpy reserves the underscore to separate a tool's Name from its toolbox alias), hence the capitalization for readability; the Label (shown in the Catalog and Geoprocessing panes) can be anything. Renaming a tool breaks existing scripts and models that call it by its old Name.
 
 ## Maintenance
 
@@ -156,7 +156,7 @@ Rather than pasting it in by hand, apply it with the script installed alongside 
     REM apply
     %PROPY% %METADATA% <path to toolbox .atbx>
 
-`propy.bat` runs the script with ArcGIS Pro's own Python (for `arcpy`). Tools are found by their Name (Properties > General): `diff2json`/`diff2gdb` or `changedetectordiff2json`/`changedetectordiff2gdb` - for any other Name, give it with `--diff2json <Name>`/`--diff2gdb <Name>`. Parameters are matched to the text below by their labels, and any parameter or text left unmatched is reported - rename the parameter's label (or edit the text below) to match. If a tool's metadata has never been edited, the script may find no parameters in it - open the tool's Edit Metadata view once and Save, then re-run.
+`propy.bat` runs the script with ArcGIS Pro's own Python (for `arcpy`). Tools are found by their Name (Properties > General): `ChangeDetectorDiff2JSON`/`ChangeDetectorDiff2GDB` as recommended in Setup (`changedetectordiff2json`/`changedetectordiff2gdb` and `diff2json`/`diff2gdb` are also tried) - for any other Name, give it with `--diff2json <Name>`/`--diff2gdb <Name>`. Parameters are matched to the text below by their labels, and any parameter or text left unmatched is reported - rename the parameter's label (or edit the text below) to match. If a tool's metadata has never been edited, the script may find no parameters in it - open the tool's Edit Metadata view once and Save, then re-run.
 
 The script reads the text below from this README, which is installed alongside it - so the text applied always matches the installed version of the tools.
 

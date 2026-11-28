@@ -208,28 +208,38 @@ def test_apply_dry_run_does_not_save(fake_arcpy, capsys):
 
 
 def test_candidate_names():
-    assert metadata.candidate_names("diff2gdb") == [
-        "diff2gdb",
-        "changedetectordiff2gdb",
-    ]
+    defaults = ["ChangeDetectorDiff2GDB", "changedetectordiff2gdb", "diff2gdb"]
+    assert metadata.candidate_names("diff2gdb") == defaults
+    assert metadata.candidate_names("diff2json")[0] == "ChangeDetectorDiff2JSON"
     assert metadata.candidate_names("diff2gdb", {"diff2gdb": "MyTool"}) == ["MyTool"]
     # a key with no Name given still falls back to the defaults
-    assert metadata.candidate_names("diff2gdb", {"diff2gdb": None}) == [
-        "diff2gdb",
-        "changedetectordiff2gdb",
-    ]
+    assert metadata.candidate_names("diff2gdb", {"diff2gdb": None}) == defaults
+    # a key with no recommended Name (eg the tests' own tool_a)
+    assert metadata.candidate_names("tool_a") == ["changedetectortool_a", "tool_a"]
 
 
-def test_apply_falls_back_to_prefixed_name(fake_arcpy, capsys):
-    """A tool named changedetector<key> is found when <key> isn't - arcpy
+def test_recommended_names_are_valid_tool_names():
+    """Pro allows only letters and numbers in a tool Name."""
+    for name in metadata.RECOMMENDED_NAMES.values():
+        assert name.isalnum()
+
+
+def test_apply_finds_recommended_name(fake_arcpy, capsys):
+    metadata.apply("toolbox.atbx")
+    assert list(fake_arcpy) == [os.path.join("toolbox.atbx", "changedetectortool_a")]
+    assert "tool_a (tool 'changedetectortool_a')" in capsys.readouterr().out
+
+
+def test_apply_falls_back_to_key_name(fake_arcpy, capsys):
+    """A tool named <key> is found when changedetector<key> isn't - arcpy
     returns blank metadata (no parameters) for a tool that doesn't exist."""
-    missing = os.path.join("toolbox.atbx", "tool_a")
+    missing = os.path.join("toolbox.atbx", "changedetectortool_a")
     fake_arcpy[missing] = MagicMock(xml="<metadata/>")
     metadata.apply("toolbox.atbx")
-    found = fake_arcpy[os.path.join("toolbox.atbx", "changedetectortool_a")]
+    found = fake_arcpy[os.path.join("toolbox.atbx", "tool_a")]
     found.save.assert_called_once()
     fake_arcpy[missing].save.assert_not_called()
-    assert "tool_a (tool 'changedetectortool_a')" in capsys.readouterr().out
+    assert "tool_a (tool 'tool_a')" in capsys.readouterr().out
 
 
 def test_apply_reports_names_tried(fake_arcpy, capsys):

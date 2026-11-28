@@ -4,8 +4,9 @@ rather than pasting it in by hand via Edit Metadata.
 
 The text is read from the "Tool metadata" section of README.md alongside
 this file (installed with the package, so it always matches the installed
-tools). Tools are found by Name - diff2json/diff2gdb or
-changedetectordiff2json/changedetectordiff2gdb, or as given with
+tools). Tools are found by Name - ChangeDetectorDiff2JSON/
+ChangeDetectorDiff2GDB as the README recommends (see candidate_names for
+the alternatives tried), or as given with
 --diff2json/--diff2gdb - and parameters are matched to the text by their
 labels; any parameter or text left unmatched is reported.
 
@@ -157,13 +158,23 @@ def update_metadata_xml(xml_text, tool_metadata):
     return ET.tostring(root, encoding="unicode"), unmatched, unused
 
 
+# the tool Names the README recommends - letters and numbers only (Pro
+# allows no spaces or underscores in a Name)
+RECOMMENDED_NAMES = {
+    "diff2json": "ChangeDetectorDiff2JSON",
+    "diff2gdb": "ChangeDetectorDiff2GDB",
+}
+
+
 def candidate_names(key, tool_names=None):
     """Tool Names to try for the README's tool *key* (eg "diff2gdb"): the
-    Name given in tool_names, if any - otherwise the key itself, and the key
-    prefixed with "changedetector" (eg "changedetectordiff2gdb")."""
+    Name given in tool_names, if any - otherwise the recommended Name (see
+    RECOMMENDED_NAMES, eg "ChangeDetectorDiff2GDB"), then the key prefixed
+    with "changedetector" (eg "changedetectordiff2gdb"), then the key itself."""
     if tool_names and tool_names.get(key):
         return [tool_names[key]]
-    return [key, f"changedetector{key}"]
+    recommended = [RECOMMENDED_NAMES[key]] if key in RECOMMENDED_NAMES else []
+    return [*recommended, f"changedetector{key}", key]
 
 
 def _load_tool(arcpy, toolbox, key, tool_metadata, tool_names):
@@ -233,7 +244,7 @@ def main(argv=None):
             f"--{key}",
             metavar="NAME",
             help=f"Name of the {key} tool in the toolbox (Properties > General), "
-            f"if not {key} or changedetector{key}",
+            f"if not {RECOMMENDED_NAMES[key]}, changedetector{key} or {key}",
         )
     args = parser.parse_args(argv)
     tool_names = {"diff2json": args.diff2json, "diff2gdb": args.diff2gdb}
